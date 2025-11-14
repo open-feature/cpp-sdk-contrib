@@ -13,5 +13,4 @@ jobs:
       uses: jidicula/clang-format-action@v4.16.0
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        check-path: 'include'
         clang_format_version: 21
