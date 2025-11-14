@@ -7,11 +7,11 @@ namespace flagd {
 
 class FlagdProvider : public openfeature::FeatureProvider {
  public:
-  ~FlagdProvider() = default;
-  openfeature::Metadata GetMetadata() const;
+  ~FlagdProvider() override = default;
+  openfeature::Metadata GetMetadata() const override;
   std::unique_ptr<openfeature::ProviderEvaluation<bool>> GetBooleanEvaluation(
-      const std::string& flag, bool defaultValue,
-      const openfeature::EvaluationContext& ctx);
+      std::string_view flag, bool default_value,
+      const openfeature::EvaluationContext& ctx) override;
 
   // TODO: Add other flag types (e.g. string, int, float, object)
 };
