@@ -8,3 +8,12 @@ git_override(
     remote = "https://github.com/open-feature/cpp-sdk.git",
     commit = "06fc3c387fe75f9d70dd12c7c13bb5780372d966",  # TODO: Probably switch to `branch = "main"` once bazel is set up in the cpp-sdk repo
 )
+
+# Hedron's Compile Commands Extractor for Bazel
+# https://github.com/hedronvision/bazel-compile-commands-extractor
+bazel_dep(name = "hedron_compile_commands", dev_dependency = True)
+git_override(
+    module_name = "hedron_compile_commands",
+    remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
+    commit = "abb61a688167623088f8768cc9264798df6a9d10",
+)
