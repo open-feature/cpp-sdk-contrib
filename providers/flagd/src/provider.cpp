@@ -8,7 +8,7 @@ openfeature::Metadata FlagdProvider::GetMetadata() const {
   return openfeature::Metadata{"flagd"};
 }
 
-std::unique_ptr<openfeature::ProviderEvaluation<bool>>
+std::unique_ptr<openfeature::ProviderEvuation<bool>>
 FlagdProvider::GetBooleanEvaluation(const std::string_view flag,
                                     bool defaultValue,
                                     const openfeature::EvaluationContext& ctx) {

@@ -1,7 +1,8 @@
 name: clang-format-and-lint
+
 on:
   pull_request:
-    branches: [main]
+    branches: [ "main" ]
     paths: ['**.c', '**.cpp', '**.h', '**.hpp', '**.cxx', '**.hxx', '**.cc', '**.hh', '**CMakeLists.txt', 'meson.build', '**.cmake']
 
 jobs:
