@@ -1,19 +1,34 @@
 #ifndef CPP_SDK_FLAGD_PROVIDER_H_
 #define CPP_SDK_FLAGD_PROVIDER_H_
 
+#include <flagd/configuration.h>
+
+#include <atomic>
+
 #include "openfeature/provider.h"
 
 namespace flagd {
 
 class FlagdProvider : public openfeature::FeatureProvider {
  public:
-  ~FlagdProvider() override = default;
+  explicit FlagdProvider(FlagdConfig config = FlagdConfig());
+
+  ~FlagdProvider() override;
+
   openfeature::Metadata GetMetadata() const override;
+
+  void initialize();
+  void shutdown();
+
   std::unique_ptr<openfeature::ProviderEvaluation<bool>> GetBooleanEvaluation(
       std::string_view flag, bool default_value,
       const openfeature::EvaluationContext& ctx) override;
 
   // TODO: Add other flag types (e.g. string, int, float, object)
+
+ private:
+  FlagdConfig configuration;
+  std::atomic<bool> isReady;
 };
 
 }  // namespace flagd
