@@ -17,7 +17,7 @@ class FlagdConfig {
   const std::string& getHost() const;
   int getPort() const;
   std::optional<std::string> getTargetUri() const;
-  bool isTls() const;
+  bool getTls() const;
   std::optional<std::string> getSocketPath() const;
   std::optional<std::string> getCertPath() const;
 
@@ -40,6 +40,7 @@ class FlagdConfig {
   FlagdConfig& setSelector(std::string_view selector);
   FlagdConfig& setProviderId(std::string_view providerId);
   FlagdConfig& setOfflineFlagSourcePath(std::string_view path);
+  FlagdConfig& setOfflinePollIntervalMs(int intervalMs);
 
   // --- Helper ---
   // Returns the effective Target URI used for gRPC connection.
@@ -61,9 +62,6 @@ class FlagdConfig {
 
   std::optional<std::string> offlineFlagSourcePath;
   int offlinePollIntervalMs;
-
-  // Internal helper to load from env
-  void loadFromEnv();
 };
 
 }  // namespace flagd

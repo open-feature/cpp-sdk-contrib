@@ -61,16 +61,6 @@ static bool getEnvBool(const char* name, bool defaultValue) {
 }
 
 FlagdConfig::FlagdConfig() {
-  host = Defaults::HOST;
-  port = Defaults::PORT_IN_PROCESS;
-  tls = Defaults::TLS;
-  deadlineMs = Defaults::DEADLINE_MS;
-  offlinePollIntervalMs = Defaults::OFFLINE_POLL_MS;
-
-  loadFromEnv();
-}
-
-void FlagdConfig::loadFromEnv() {
   host = getEnvStr(EnvVars::HOST, Defaults::HOST);
   port = getEnvInt(EnvVars::PORT, Defaults::PORT_IN_PROCESS);
 
@@ -113,7 +103,7 @@ int FlagdConfig::getPort() const { return port; }
 std::optional<std::string> FlagdConfig::getTargetUri() const {
   return targetUri;
 }
-bool FlagdConfig::isTls() const { return tls; }
+bool FlagdConfig::getTls() const { return tls; }
 std::optional<std::string> FlagdConfig::getSocketPath() const {
   return socketPath;
 }
@@ -155,8 +145,8 @@ FlagdConfig& FlagdConfig::setCertPath(std::string_view path) {
   certPath = path;
   return *this;
 }
-FlagdConfig& FlagdConfig::setOfflineFlagSourcePath(std::string_view path) {
-  offlineFlagSourcePath = path;
+FlagdConfig& FlagdConfig::setDeadlineMs(int deadline_ms) {
+  deadlineMs = deadline_ms;
   return *this;
 }
 FlagdConfig& FlagdConfig::setSelector(std::string_view s) {
@@ -165,6 +155,14 @@ FlagdConfig& FlagdConfig::setSelector(std::string_view s) {
 }
 FlagdConfig& FlagdConfig::setProviderId(std::string_view p) {
   providerId = std::string(p);
+  return *this;
+}
+FlagdConfig& FlagdConfig::setOfflineFlagSourcePath(std::string_view path) {
+  offlineFlagSourcePath = path;
+  return *this;
+}
+FlagdConfig& FlagdConfig::setOfflinePollIntervalMs(int intervalMs) {
+  offlinePollIntervalMs = intervalMs;
   return *this;
 }
 
