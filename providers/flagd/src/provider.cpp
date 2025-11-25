@@ -10,7 +10,7 @@ openfeature::Metadata FlagdProvider::GetMetadata() const {
   return openfeature::Metadata{"flagd"};
 }
 
-FlagdProvider::FlagdProvider(FlagdConfig config)
+FlagdProvider::FlagdProvider(FlagdProviderConfig config)
     : configuration(std::move(config)), isReady(false) {}
 
 FlagdProvider::~FlagdProvider() {

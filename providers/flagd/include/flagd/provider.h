@@ -11,7 +11,7 @@ namespace flagd {
 
 class FlagdProvider : public openfeature::FeatureProvider {
  public:
-  explicit FlagdProvider(FlagdConfig config = FlagdConfig());
+  explicit FlagdProvider(FlagdProviderConfig config = FlagdProviderConfig());
 
   ~FlagdProvider() override;
 
@@ -27,7 +27,7 @@ class FlagdProvider : public openfeature::FeatureProvider {
   // TODO: Add other flag types (e.g. string, int, float, object)
 
  private:
-  FlagdConfig configuration;
+  FlagdProviderConfig configuration;
   std::atomic<bool> isReady;
 };
 

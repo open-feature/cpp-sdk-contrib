@@ -7,11 +7,11 @@
 
 namespace flagd {
 
-class FlagdConfig {
+class FlagdProviderConfig {
  public:
   // --- Constructor ---
   // Initializes with defaults and overrides with Environment Variables.
-  FlagdConfig();
+  FlagdProviderConfig();
 
   // --- Getters ---
   const std::string& getHost() const;
@@ -30,17 +30,17 @@ class FlagdConfig {
   int getOfflinePollIntervalMs() const;
 
   // --- Setters ---
-  FlagdConfig& setHost(std::string_view host);
-  FlagdConfig& setPort(int port);
-  FlagdConfig& setTargetUri(std::string_view uri);
-  FlagdConfig& setTls(bool tls);
-  FlagdConfig& setSocketPath(std::string_view path);
-  FlagdConfig& setCertPath(std::string_view path);
-  FlagdConfig& setDeadlineMs(int deadline_ms);
-  FlagdConfig& setSelector(std::string_view selector);
-  FlagdConfig& setProviderId(std::string_view providerId);
-  FlagdConfig& setOfflineFlagSourcePath(std::string_view path);
-  FlagdConfig& setOfflinePollIntervalMs(int intervalMs);
+  FlagdProviderConfig& setHost(std::string_view host);
+  FlagdProviderConfig& setPort(int port);
+  FlagdProviderConfig& setTargetUri(std::string_view uri);
+  FlagdProviderConfig& setTls(bool tls);
+  FlagdProviderConfig& setSocketPath(std::string_view path);
+  FlagdProviderConfig& setCertPath(std::string_view path);
+  FlagdProviderConfig& setDeadlineMs(int deadline_ms);
+  FlagdProviderConfig& setSelector(std::string_view selector);
+  FlagdProviderConfig& setProviderId(std::string_view providerId);
+  FlagdProviderConfig& setOfflineFlagSourcePath(std::string_view path);
+  FlagdProviderConfig& setOfflinePollIntervalMs(int intervalMs);
 
   // --- Helper ---
   // Returns the effective Target URI used for gRPC connection.
