@@ -8,38 +8,38 @@ namespace flagd {
 
 namespace {
 struct EnvVars {
-  static constexpr const char* HOST = "FLAGD_HOST";
-  static constexpr const char* PORT = "FLAGD_PORT";
-  static constexpr const char* TARGET_URI = "FLAGD_TARGET_URI";
-  static constexpr const char* TLS = "FLAGD_TLS";
-  static constexpr const char* SOCKET_PATH = "FLAGD_SOCKET_PATH";
-  static constexpr const char* SERVER_CERT_PATH = "FLAGD_SERVER_CERT_PATH";
-  static constexpr const char* DEADLINE_MS = "FLAGD_DEADLINE_MS";
-  static constexpr const char* SOURCE_SELECTOR = "FLAGD_SOURCE_SELECTOR";
-  static constexpr const char* PROVIDER_ID = "FLAGD_PROVIDER_ID";
-  static constexpr const char* OFFLINE_FLAG_SOURCE_PATH =
+  static constexpr std::string_view kHost = "FLAGD_HOST";
+  static constexpr std::string_view kPort = "FLAGD_PORT";
+  static constexpr std::string_view kTargetUri = "FLAGD_TARGET_URI";
+  static constexpr std::string_view kTls = "FLAGD_TLS";
+  static constexpr std::string_view kSocketPath = "FLAGD_SOCKET_PATH";
+  static constexpr std::string_view kServerCertPath = "FLAGD_SERVER_CERT_PATH";
+  static constexpr std::string_view kDeadlineMs = "FLAGD_DEADLINE_MS";
+  static constexpr std::string_view kSourceSelector = "FLAGD_SOURCE_SELECTOR";
+  static constexpr std::string_view kProviderId = "FLAGD_PROVIDER_ID";
+  static constexpr std::string_view kOfflineFlagSourcePath =
       "FLAGD_OFFLINE_FLAG_SOURCE_PATH";
-  static constexpr const char* OFFLINE_POLL_MS = "FLAGD_OFFLINE_POLL_MS";
+  static constexpr std::string_view kOfflinePollMs = "FLAGD_OFFLINE_POLL_MS";
 };
 
 struct Defaults {
-  static constexpr const char* HOST = "localhost";
-  static constexpr int PORT_IN_PROCESS = 8015;
-  static constexpr bool TLS = false;
-  static constexpr int DEADLINE_MS = 500;
-  static constexpr int OFFLINE_POLL_MS = 5000;
+  static constexpr std::string_view kHost = "localhost";
+  static constexpr int kPortInProcess = 8015;
+  static constexpr bool kTls = false;
+  static constexpr int kDeadlineMs = 500;
+  static constexpr int kOfflinePollMs = 5000;
 };
 }  // namespace
 
 // --- Helpers ---
-static std::string getEnvStr(const char* name,
-                             const std::string& defaultValue = "") {
-  const char* val = std::getenv(name);
-  return val ? std::string(val) : defaultValue;
+static std::string GetEnvStr(const std::string_view name,
+                             const std::string_view defaultValue = "") {
+  const char* val = std::getenv(std::string(name).c_str());
+  return val ? std::string(val) : std::string(defaultValue);
 }
 
-static int getEnvInt(const char* name, int defaultValue) {
-  const char* val = std::getenv(name);
+static int GetEnvInt(const std::string_view name, int defaultValue) {
+  const char* val = std::getenv(std::string(name).c_str());
   if (val) {
     try {
       return std::stoi(val);
@@ -50,8 +50,8 @@ static int getEnvInt(const char* name, int defaultValue) {
   return defaultValue;
 }
 
-static bool getEnvBool(const char* name, bool defaultValue) {
-  const char* val = std::getenv(name);
+static bool GetEnvBool(const std::string_view name, bool defaultValue) {
+  const char* val = std::getenv(std::string(name).c_str());
   if (val) {
     std::string s(val);
     std::transform(s.begin(), s.end(), s.begin(), ::tolower);
@@ -61,117 +61,118 @@ static bool getEnvBool(const char* name, bool defaultValue) {
 }
 
 FlagdProviderConfig::FlagdProviderConfig() {
-  host = getEnvStr(EnvVars::HOST, Defaults::HOST);
-  port = getEnvInt(EnvVars::PORT, Defaults::PORT_IN_PROCESS);
+  host_ = GetEnvStr(EnvVars::kHost, Defaults::kHost);
+  port_ = GetEnvInt(EnvVars::kPort, Defaults::kPortInProcess);
 
-  std::string uriEnv = getEnvStr(EnvVars::TARGET_URI);
-  if (!uriEnv.empty()) targetUri = uriEnv;
+  std::string uri_env = GetEnvStr(EnvVars::kTargetUri);
+  if (!uri_env.empty()) target_uri_ = uri_env;
 
-  tls = getEnvBool(EnvVars::TLS, Defaults::TLS);
+  tls_ = GetEnvBool(EnvVars::kTls, Defaults::kTls);
 
-  std::string sockEnv = getEnvStr(EnvVars::SOCKET_PATH);
-  if (!sockEnv.empty()) socketPath = sockEnv;
+  std::string sock_env = GetEnvStr(EnvVars::kSocketPath);
+  if (!sock_env.empty()) socket_path_ = sock_env;
 
-  std::string certEnv = getEnvStr(EnvVars::SERVER_CERT_PATH);
-  if (!certEnv.empty()) certPath = certEnv;
+  std::string cert_env = GetEnvStr(EnvVars::kServerCertPath);
+  if (!cert_env.empty()) cert_path_ = cert_env;
 
-  deadlineMs = getEnvInt(EnvVars::DEADLINE_MS, Defaults::DEADLINE_MS);
+  deadline_ms_ = GetEnvInt(EnvVars::kDeadlineMs, Defaults::kDeadlineMs);
 
-  std::string selEnv = getEnvStr(EnvVars::SOURCE_SELECTOR);
-  if (!selEnv.empty()) selector = selEnv;
+  std::string sel_env = GetEnvStr(EnvVars::kSourceSelector);
+  if (!sel_env.empty()) selector_ = sel_env;
 
-  std::string pidEnv = getEnvStr(EnvVars::PROVIDER_ID);
-  if (!pidEnv.empty()) providerId = pidEnv;
+  std::string pid_env = GetEnvStr(EnvVars::kProviderId);
+  if (!pid_env.empty()) provider_id_ = pid_env;
 
-  std::string offEnv = getEnvStr(EnvVars::OFFLINE_FLAG_SOURCE_PATH);
-  if (!offEnv.empty()) offlineFlagSourcePath = offEnv;
+  std::string off_path_env = GetEnvStr(EnvVars::kOfflineFlagSourcePath);
+  if (!off_path_env.empty()) offline_flag_source_path_ = off_path_env;
 
-  offlinePollIntervalMs =
-      getEnvInt(EnvVars::OFFLINE_POLL_MS, Defaults::OFFLINE_POLL_MS);
+  offline_poll_interval_ms_ =
+      GetEnvInt(EnvVars::kOfflinePollMs, Defaults::kOfflinePollMs);
 }
 
-std::string FlagdProviderConfig::getEffectiveTargetUri() const {
-  if (targetUri.has_value() && !targetUri->empty()) return *targetUri;
-  if (socketPath.has_value() && !socketPath->empty())
-    return "unix://" + *socketPath;
-  return host + ":" + std::to_string(port);
+std::string FlagdProviderConfig::get_effective_target_uri() const {
+  if (target_uri_.has_value() && !target_uri_->empty()) return *target_uri_;
+  if (socket_path_.has_value() && !socket_path_->empty())
+    return "unix://" + *socket_path_;
+  return host_ + ":" + std::to_string(port_);
 }
 
 // --- Getters ---
-const std::string& FlagdProviderConfig::getHost() const { return host; }
-int FlagdProviderConfig::getPort() const { return port; }
-std::optional<std::string> FlagdProviderConfig::getTargetUri() const {
-  return targetUri;
+const std::string& FlagdProviderConfig::get_host() const { return host_; }
+int FlagdProviderConfig::get_port() const { return port_; }
+std::optional<std::string> FlagdProviderConfig::get_target_uri() const {
+  return target_uri_;
 }
-bool FlagdProviderConfig::getTls() const { return tls; }
-std::optional<std::string> FlagdProviderConfig::getSocketPath() const {
-  return socketPath;
+bool FlagdProviderConfig::get_tls() const { return tls_; }
+std::optional<std::string> FlagdProviderConfig::get_socket_path() const {
+  return socket_path_;
 }
-std::optional<std::string> FlagdProviderConfig::getCertPath() const {
-  return certPath;
+std::optional<std::string> FlagdProviderConfig::get_cert_path() const {
+  return cert_path_;
 }
-int FlagdProviderConfig::getDeadlineMs() const { return deadlineMs; }
-std::optional<std::string> FlagdProviderConfig::getSelector() const {
-  return selector;
+int FlagdProviderConfig::get_deadline_ms() const { return deadline_ms_; }
+std::optional<std::string> FlagdProviderConfig::get_selector() const {
+  return selector_;
 }
-std::optional<std::string> FlagdProviderConfig::getProviderId() const {
-  return providerId;
+std::optional<std::string> FlagdProviderConfig::get_provider_id() const {
+  return provider_id_;
 }
-std::optional<std::string> FlagdProviderConfig::getOfflineFlagSourcePath()
+std::optional<std::string> FlagdProviderConfig::get_offline_flag_source_path()
     const {
-  return offlineFlagSourcePath;
+  return offline_flag_source_path_;
 }
-int FlagdProviderConfig::getOfflinePollIntervalMs() const {
-  return offlinePollIntervalMs;
+int FlagdProviderConfig::get_offline_poll_interval_ms() const {
+  return offline_poll_interval_ms_;
 }
 
 // --- Setters ---
-FlagdProviderConfig& FlagdProviderConfig::setHost(std::string_view host) {
-  this->host = host;
+FlagdProviderConfig& FlagdProviderConfig::set_host(std::string_view host) {
+  host_ = host;
   return *this;
 }
-FlagdProviderConfig& FlagdProviderConfig::setPort(int port) {
-  this->port = port;
+FlagdProviderConfig& FlagdProviderConfig::set_port(int port) {
+  port_ = port;
   return *this;
 }
-FlagdProviderConfig& FlagdProviderConfig::setTargetUri(std::string_view uri) {
-  this->targetUri = uri;
+FlagdProviderConfig& FlagdProviderConfig::set_target_uri(std::string_view uri) {
+  target_uri_ = uri;
   return *this;
 }
-FlagdProviderConfig& FlagdProviderConfig::setTls(bool tls) {
-  this->tls = tls;
+FlagdProviderConfig& FlagdProviderConfig::set_tls(bool tls) {
+  tls_ = tls;
   return *this;
 }
-FlagdProviderConfig& FlagdProviderConfig::setSocketPath(std::string_view path) {
-  this->socketPath = path;
-  return *this;
-}
-FlagdProviderConfig& FlagdProviderConfig::setCertPath(std::string_view path) {
-  this->certPath = path;
-  return *this;
-}
-FlagdProviderConfig& FlagdProviderConfig::setDeadlineMs(int deadline_ms) {
-  this->deadlineMs = deadline_ms;
-  return *this;
-}
-FlagdProviderConfig& FlagdProviderConfig::setSelector(
-    std::string_view selector) {
-  this->selector = std::string(selector);
-  return *this;
-}
-FlagdProviderConfig& FlagdProviderConfig::setProviderId(
-    std::string_view providerId) {
-  this->providerId = std::string(providerId);
-  return *this;
-}
-FlagdProviderConfig& FlagdProviderConfig::setOfflineFlagSourcePath(
+FlagdProviderConfig& FlagdProviderConfig::set_socket_path(
     std::string_view path) {
-  this->offlineFlagSourcePath = path;
+  socket_path_ = path;
   return *this;
 }
-FlagdProviderConfig& FlagdProviderConfig::setOfflinePollIntervalMs(
+FlagdProviderConfig& FlagdProviderConfig::set_cert_path(std::string_view path) {
+  cert_path_ = path;
+  return *this;
+}
+FlagdProviderConfig& FlagdProviderConfig::set_deadline_ms(int deadline_ms) {
+  deadline_ms_ = deadline_ms;
+  return *this;
+}
+FlagdProviderConfig& FlagdProviderConfig::set_selector(
+    std::string_view selector) {
+  selector_ = std::string(selector);
+  return *this;
+}
+FlagdProviderConfig& FlagdProviderConfig::set_provider_id(
+    std::string_view providerId) {
+  provider_id_ = std::string(providerId);
+  return *this;
+}
+FlagdProviderConfig& FlagdProviderConfig::set_offline_flag_source_path(
+    std::string_view path) {
+  offline_flag_source_path_ = path;
+  return *this;
+}
+FlagdProviderConfig& FlagdProviderConfig::set_offline_poll_interval_ms(
     int intervalMs) {
-  this->offlinePollIntervalMs = intervalMs;
+  offline_poll_interval_ms_ = intervalMs;
   return *this;
 }
 
