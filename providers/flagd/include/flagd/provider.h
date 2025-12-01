@@ -5,6 +5,7 @@
 
 #include <atomic>
 
+#include "absl/status/status.h"
 #include "flagd/configuration.h"
 
 namespace flagd {
@@ -17,8 +18,8 @@ class FlagdProvider : public openfeature::FeatureProvider {
 
   openfeature::Metadata GetMetadata() const override;
 
-  void initialize();
-  void shutdown();
+  absl::Status Init(const openfeature::EvaluationContext& ctx);
+  absl::Status Shutdown();
 
   std::unique_ptr<openfeature::ProviderEvaluation<bool>> GetBooleanEvaluation(
       std::string_view flag, bool default_value,
@@ -27,8 +28,8 @@ class FlagdProvider : public openfeature::FeatureProvider {
   // TODO: Add other flag types (e.g. string, int, float, object)
 
  private:
-  FlagdProviderConfig configuration;
-  std::atomic<bool> isReady;
+  FlagdProviderConfig configuration_;
+  std::atomic<bool> isReady_;
 };
 
 }  // namespace flagd

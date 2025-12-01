@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <string>
 
+#include "absl/strings/str_cat.h"
+
 namespace flagd {
 
 namespace {
@@ -33,68 +35,67 @@ struct Defaults {
 
 // --- Helpers ---
 static std::string GetEnvStr(const std::string_view name,
-                             const std::string_view defaultValue = "") {
+                             const std::string_view default_value = "") {
   const char* val = std::getenv(std::string(name).c_str());
-  return val ? std::string(val) : std::string(defaultValue);
+  return val ? std::string(val) : std::string(default_value);
 }
 
-static int GetEnvInt(const std::string_view name, int defaultValue) {
+static int GetEnvInt(const std::string_view name, int default_value) {
   const char* val = std::getenv(std::string(name).c_str());
   if (val) {
     try {
       return std::stoi(val);
     } catch (...) {
-      return defaultValue;
+      return default_value;
     }
   }
-  return defaultValue;
+  return default_value;
 }
 
-static bool GetEnvBool(const std::string_view name, bool defaultValue) {
+static bool GetEnvBool(const std::string_view name, bool default_value) {
   const char* val = std::getenv(std::string(name).c_str());
-  if (val) {
-    std::string s(val);
-    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-    return s == "true" || s == "1";
+  if (!val) {
+    return default_value;
   }
-  return defaultValue;
+  std::string s(val);
+  std::transform(s.begin(), s.end(), s.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+  return s == "true" || s == "1";
 }
 
-FlagdProviderConfig::FlagdProviderConfig() {
-  host_ = GetEnvStr(EnvVars::kHost, Defaults::kHost);
-  port_ = GetEnvInt(EnvVars::kPort, Defaults::kPortInProcess);
-
-  std::string uri_env = GetEnvStr(EnvVars::kTargetUri);
-  if (!uri_env.empty()) target_uri_ = uri_env;
-
-  tls_ = GetEnvBool(EnvVars::kTls, Defaults::kTls);
-
-  std::string sock_env = GetEnvStr(EnvVars::kSocketPath);
-  if (!sock_env.empty()) socket_path_ = sock_env;
-
-  std::string cert_env = GetEnvStr(EnvVars::kServerCertPath);
-  if (!cert_env.empty()) cert_path_ = cert_env;
-
-  deadline_ms_ = GetEnvInt(EnvVars::kDeadlineMs, Defaults::kDeadlineMs);
-
-  std::string sel_env = GetEnvStr(EnvVars::kSourceSelector);
-  if (!sel_env.empty()) selector_ = sel_env;
-
-  std::string pid_env = GetEnvStr(EnvVars::kProviderId);
-  if (!pid_env.empty()) provider_id_ = pid_env;
-
-  std::string off_path_env = GetEnvStr(EnvVars::kOfflineFlagSourcePath);
-  if (!off_path_env.empty()) offline_flag_source_path_ = off_path_env;
-
-  offline_poll_interval_ms_ =
-      GetEnvInt(EnvVars::kOfflinePollMs, Defaults::kOfflinePollMs);
+FlagdProviderConfig::FlagdProviderConfig()
+    : host_(GetEnvStr(EnvVars::kHost, Defaults::kHost)),
+      port_(GetEnvInt(EnvVars::kPort, Defaults::kPortInProcess)),
+      tls_(GetEnvBool(EnvVars::kTls, Defaults::kTls)),
+      deadline_ms_(GetEnvInt(EnvVars::kDeadlineMs, Defaults::kDeadlineMs)),
+      offline_poll_interval_ms_(
+          GetEnvInt(EnvVars::kOfflinePollMs, Defaults::kOfflinePollMs)) {
+  if (std::string val = GetEnvStr(EnvVars::kTargetUri); !val.empty()) {
+    target_uri_ = val;
+  }
+  if (std::string val = GetEnvStr(EnvVars::kSocketPath); !val.empty()) {
+    socket_path_ = val;
+  }
+  if (std::string val = GetEnvStr(EnvVars::kServerCertPath); !val.empty()) {
+    cert_path_ = val;
+  }
+  if (std::string val = GetEnvStr(EnvVars::kSourceSelector); !val.empty()) {
+    selector_ = val;
+  }
+  if (std::string val = GetEnvStr(EnvVars::kProviderId); !val.empty()) {
+    provider_id_ = val;
+  }
+  if (std::string val = GetEnvStr(EnvVars::kOfflineFlagSourcePath);
+      !val.empty()) {
+    offline_flag_source_path_ = val;
+  }
 }
 
 std::string FlagdProviderConfig::get_effective_target_uri() const {
   if (target_uri_.has_value() && !target_uri_->empty()) return *target_uri_;
   if (socket_path_.has_value() && !socket_path_->empty())
-    return "unix://" + *socket_path_;
-  return host_ + ":" + std::to_string(port_);
+    return absl::StrCat("unix://", *socket_path_);
+  return absl::StrCat(host_, ":", std::to_string(port_));
 }
 
 // --- Getters ---
@@ -161,8 +162,8 @@ FlagdProviderConfig& FlagdProviderConfig::set_selector(
   return *this;
 }
 FlagdProviderConfig& FlagdProviderConfig::set_provider_id(
-    std::string_view providerId) {
-  provider_id_ = std::string(providerId);
+    std::string_view provider_id) {
+  provider_id_ = std::string(provider_id);
   return *this;
 }
 FlagdProviderConfig& FlagdProviderConfig::set_offline_flag_source_path(
@@ -171,8 +172,8 @@ FlagdProviderConfig& FlagdProviderConfig::set_offline_flag_source_path(
   return *this;
 }
 FlagdProviderConfig& FlagdProviderConfig::set_offline_poll_interval_ms(
-    int intervalMs) {
-  offline_poll_interval_ms_ = intervalMs;
+    int interval_ms) {
+  offline_poll_interval_ms_ = interval_ms;
   return *this;
 }
 

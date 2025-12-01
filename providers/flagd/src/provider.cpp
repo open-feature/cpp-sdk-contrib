@@ -2,6 +2,7 @@
 
 #include <openfeature/provider.h>
 
+#include "absl/status/status.h"
 #include "flagd/configuration.h"
 
 namespace flagd {
@@ -11,20 +12,23 @@ openfeature::Metadata FlagdProvider::GetMetadata() const {
 }
 
 FlagdProvider::FlagdProvider(FlagdProviderConfig config)
-    : configuration(std::move(config)), isReady(false) {}
+    : configuration_(std::move(config)), isReady_(false) {}
 
 FlagdProvider::~FlagdProvider() {
-  if (isReady) {
-    shutdown();
+  if (isReady_) {
+    Shutdown()
+        .IgnoreError();  // We should probably Log this, once Logging is set up
   }
 }
 
-void FlagdProvider::initialize() { throw "Initialize is not implemented yet!"; }
+absl::Status FlagdProvider::Init(const openfeature::EvaluationContext& ctx) {
+  return absl::UnimplementedError("Init is not implemented yet!");
+}
 
-void FlagdProvider::shutdown() {
-  if (!isReady) return;
+absl::Status FlagdProvider::Shutdown() {
+  if (!isReady_) return absl::OkStatus();
 
-  throw "Shutdown is not implemented yet!";
+  return absl::UnimplementedError("Shutdown is not implemented yet!");
 }
 
 std::unique_ptr<openfeature::ProviderEvaluation<bool>>

@@ -36,11 +36,11 @@ class FlagdProviderConfig {
   FlagdProviderConfig& set_tls(bool tls);
   FlagdProviderConfig& set_socket_path(std::string_view path);
   FlagdProviderConfig& set_cert_path(std::string_view path);
-  FlagdProviderConfig& set_deadline_ms(int deadlineMs);
+  FlagdProviderConfig& set_deadline_ms(int deadline_ms);
   FlagdProviderConfig& set_selector(std::string_view selector);
-  FlagdProviderConfig& set_provider_id(std::string_view providerId);
+  FlagdProviderConfig& set_provider_id(std::string_view provider_id);
   FlagdProviderConfig& set_offline_flag_source_path(std::string_view path);
-  FlagdProviderConfig& set_offline_poll_interval_ms(int intervalMs);
+  FlagdProviderConfig& set_offline_poll_interval_ms(int interval_ms);
 
   // --- Helper ---
   // Returns the effective Target URI used for gRPC connection.
