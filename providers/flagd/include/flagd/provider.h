@@ -29,7 +29,7 @@ class FlagdProvider : public openfeature::FeatureProvider {
 
  private:
   FlagdProviderConfig configuration_;
-  std::atomic<bool> isReady_;
+  std::atomic<bool> is_ready_;
 };
 
 }  // namespace flagd
