@@ -24,7 +24,7 @@ class FlagSync {
   virtual absl::Status Init(const openfeature::EvaluationContext& ctx) = 0;
   virtual absl::Status Shutdown() = 0;
 
-  std::shared_ptr<const nlohmann::json> GetFlags();
+  std::shared_ptr<const nlohmann::json> GetFlags() const;
 
  protected:
   void UpdateFlags(const nlohmann::json& new_json);

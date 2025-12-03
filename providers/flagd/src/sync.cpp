@@ -27,7 +27,7 @@ void FlagSync::UpdateFlags(const nlohmann::json& new_json) {
   }
 }
 
-std::shared_ptr<const nlohmann::json> FlagSync::GetFlags() {
+std::shared_ptr<const nlohmann::json> FlagSync::GetFlags() const {
   std::lock_guard<std::mutex> lock(flags_mutex_);
   return current_flags_;
 }
