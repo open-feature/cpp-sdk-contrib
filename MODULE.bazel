@@ -14,3 +14,18 @@ git_override(
     remote = "https://github.com/open-feature/cpp-sdk.git",
     branch = "main",
 )
+
+bazel_dep(name = "grpc", version = "1.74.1", repo_name = "com_github_grpc_grpc")
+bazel_dep(name = "protobuf", version = "31.1", repo_name = "com_google_protobuf")
+
+bazel_dep(name = "nlohmann_json", version = "3.11.3")
+
+# Hedron's Compile Commands Extractor for Bazel
+# https://github.com/hedronvision/bazel-compile-commands-extractor
+bazel_dep(name = "hedron_compile_commands", dev_dependency = True)
+git_override(
+    module_name = "hedron_compile_commands",
+    remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
+    # commit = "abb61a688167623088f8768cc9264798df6a9d10",
+    commit = "02d15621b528efd877f5d5657c4b738523a0eb17",
+)

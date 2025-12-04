@@ -4,7 +4,7 @@ cc_library(
     name = "flagd_provider",
     srcs = ["src/provider.cpp"],
     hdrs = ["include/flagd/provider.h"],
-    includes = ["include"],
+    strip_include_prefix = "include",
     visibility = ["//visibility:public"],
     deps = [
         ":flagd_configuration",
@@ -17,7 +17,7 @@ cc_library(
     name = "flagd_configuration",
     srcs = ["src/configuration.cpp"],
     hdrs = ["include/flagd/configuration.h"],
-    includes = ["include"],
+    strip_include_prefix = "include",
     visibility = ["//visibility:public"],
     deps = [
         "@abseil-cpp//absl/strings",

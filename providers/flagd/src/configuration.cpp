@@ -37,12 +37,12 @@ struct Defaults {
 static std::string GetEnvStr(const std::string_view name,
                              const std::string_view default_value = "") {
   const char* val = std::getenv(std::string(name).c_str());
-  return val ? std::string(val) : std::string(default_value);
+  return (val != nullptr) ? std::string(val) : std::string(default_value);
 }
 
 static int GetEnvInt(const std::string_view name, int default_value) {
   const char* val = std::getenv(std::string(name).c_str());
-  if (val) {
+  if (val != nullptr) {
     try {
       return std::stoi(val);
     } catch (...) {
@@ -54,13 +54,13 @@ static int GetEnvInt(const std::string_view name, int default_value) {
 
 static bool GetEnvBool(const std::string_view name, bool default_value) {
   const char* val = std::getenv(std::string(name).c_str());
-  if (!val) {
+  if (val == nullptr) {
     return default_value;
   }
-  std::string s(val);
-  std::transform(s.begin(), s.end(), s.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
-  return s == "true" || s == "1";
+  std::string str(val);
+  std::transform(str.begin(), str.end(), str.begin(),
+                 [](unsigned char chr) { return std::tolower(chr); });
+  return str == "true" || str == "1";
 }
 
 FlagdProviderConfig::FlagdProviderConfig()
@@ -93,8 +93,9 @@ FlagdProviderConfig::FlagdProviderConfig()
 
 std::string FlagdProviderConfig::get_effective_target_uri() const {
   if (target_uri_.has_value() && !target_uri_->empty()) return *target_uri_;
-  if (socket_path_.has_value() && !socket_path_->empty())
+  if (socket_path_.has_value() && !socket_path_->empty()) {
     return absl::StrCat("unix://", *socket_path_);
+  }
   return absl::StrCat(host_, ":", std::to_string(port_));
 }
 

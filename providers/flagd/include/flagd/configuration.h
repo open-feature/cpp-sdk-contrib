@@ -29,6 +29,11 @@ class FlagdProviderConfig {
   std::optional<std::string> get_offline_flag_source_path() const;
   int get_offline_poll_interval_ms() const;
 
+  // --- Helper ---
+  // Returns the effective Target URI used for gRPC connection.
+  // Priority: Explicit TargetURI > SocketPath > Host:Port
+  std::string get_effective_target_uri() const;
+
   // --- Setters ---
   FlagdProviderConfig& set_host(std::string_view host);
   FlagdProviderConfig& set_port(int port);
@@ -41,11 +46,6 @@ class FlagdProviderConfig {
   FlagdProviderConfig& set_provider_id(std::string_view provider_id);
   FlagdProviderConfig& set_offline_flag_source_path(std::string_view path);
   FlagdProviderConfig& set_offline_poll_interval_ms(int interval_ms);
-
-  // --- Helper ---
-  // Returns the effective Target URI used for gRPC connection.
-  // Priority: Explicit TargetURI > SocketPath > Host:Port
-  std::string get_effective_target_uri() const;
 
  private:
   std::string host_;
