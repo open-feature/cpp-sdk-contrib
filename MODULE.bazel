@@ -15,11 +15,6 @@ git_override(
     branch = "main",
 )
 
-bazel_dep(name = "grpc", version = "1.74.1", repo_name = "com_github_grpc_grpc")
-bazel_dep(name = "protobuf", version = "31.1", repo_name = "com_google_protobuf")
-
-bazel_dep(name = "nlohmann_json", version = "3.11.3")
-
 # Hedron's Compile Commands Extractor for Bazel
 # https://github.com/hedronvision/bazel-compile-commands-extractor
 bazel_dep(name = "hedron_compile_commands", dev_dependency = True)
