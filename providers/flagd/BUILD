@@ -8,8 +8,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":flagd_configuration",
-        "@abseil-cpp/absl/status",
-        "@openfeature_cpp_sdk",
+        "@abseil-cpp//absl/status",
+        "@openfeature_cpp_sdk//src:openfeature_cpp_sdk",
     ],
 )
 
@@ -21,6 +21,6 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "@abseil-cpp//absl/strings",
-        "@openfeature_cpp_sdk",
+        "@openfeature_cpp_sdk//src:openfeature_cpp_sdk",
     ],
 )

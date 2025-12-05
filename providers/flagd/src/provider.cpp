@@ -2,6 +2,8 @@
 
 #include <openfeature/provider.h>
 
+#include <optional>
+
 #include "absl/status/status.h"
 #include "flagd/configuration.h"
 
@@ -31,11 +33,13 @@ absl::Status FlagdProvider::Shutdown() {
   return absl::UnimplementedError("Shutdown is not implemented yet!");
 }
 
-std::unique_ptr<openfeature::ProviderEvaluation<bool>>
+std::unique_ptr<openfeature::BoolResolutionDetails>
 FlagdProvider::GetBooleanEvaluation(const std::string_view flag,
                                     bool default_value,
                                     const openfeature::EvaluationContext& ctx) {
-  return nullptr;
+  return std::make_unique<openfeature::BoolResolutionDetails>(
+      default_value, openfeature::Reason::kDefault, "default-variant",
+      openfeature::FlagMetadata(), std::nullopt, std::nullopt);
 }
 
 }  // namespace flagd
