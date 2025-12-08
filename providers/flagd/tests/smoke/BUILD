@@ -2,7 +2,7 @@ load("@rules_cc//cc:defs.bzl", "cc_test")
 
 cc_test(
     name = "openfeature",
-    srcs = ["smoke/openfeature.cpp"],
+    srcs = ["openfeature.cpp"],
     deps = [
         "//providers/flagd:flagd_configuration",
         "//providers/flagd:flagd_provider",

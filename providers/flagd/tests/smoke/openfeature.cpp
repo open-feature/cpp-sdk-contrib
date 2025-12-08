@@ -6,7 +6,7 @@
 #include "gtest/gtest.h"
 #include "openfeature/provider.h"
 
-TEST(GeneralTest, ProviderCreation) {
+TEST(FlagdProviderTest, ProviderCreation) {
   flagd::FlagdProviderConfig config =
       flagd::FlagdProviderConfig().set_host("localhost");
 
@@ -15,7 +15,8 @@ TEST(GeneralTest, ProviderCreation) {
 
   provider->Init({}).IgnoreError();
 
-  auto details = provider->GetBooleanEvaluation("test_flag", false, {});
+  std::unique_ptr<openfeature::BoolResolutionDetails> details =
+      provider->GetBooleanEvaluation("test_flag", false, {});
 
   auto expected_details = openfeature::BoolResolutionDetails{
       false, openfeature::Reason::kDefault, "default-variant", {}};
