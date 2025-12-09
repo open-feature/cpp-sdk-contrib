@@ -85,7 +85,7 @@ void GrpcSync::WaitForUpdates() {
     if (shutdown_requested_) break;
 
     try {
-      auto raw = json::parse(response.flag_configuration());
+      nlohmann::json raw = json::parse(response.flag_configuration());
 
       UpdateFlags(raw);
     } catch (const std::exception& e) {

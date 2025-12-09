@@ -11,9 +11,20 @@ cc_test(
     ],
 )
 
-cc_binary(
+cc_test(
     name = "sync",
     srcs = ["sync.cpp"],
+    deps = [
+        "//providers/flagd:sync",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_binary(
+    name = "grpc_sync",
+    srcs = ["grpc_sync.cpp"],
     deps = [
         "//providers/flagd:flagd_configuration",
         "//providers/flagd:sync",
