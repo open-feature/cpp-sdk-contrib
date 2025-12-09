@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_test", "cc_binary")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_test")
 
 cc_test(
     name = "openfeature",
@@ -12,7 +12,7 @@ cc_test(
 )
 
 cc_binary(
-    name = "sync_test",
+    name = "sync",
     srcs = ["sync.cpp"],
     deps = [
         "//providers/flagd:flagd_configuration",

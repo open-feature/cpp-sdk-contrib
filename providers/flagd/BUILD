@@ -33,11 +33,11 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":flagd_configuration",
-        "//providers/flagd/openfeature:flagd_sync_cc_grpc",
-        "//providers/flagd/openfeature:flagd_sync_cc_proto",
         "@abseil-cpp//absl/status",
         "@com_github_grpc_grpc//:grpc++",
+        "@flagd-schemas//:flagd_sync_cc_grpc",
+        "@flagd-schemas//:flagd_sync_cc_proto",
         "@nlohmann_json//:json",
-        "@openfeature_cpp_sdk",
+        "@openfeature_cpp_sdk//src:openfeature_cpp_sdk",
     ],
 )
