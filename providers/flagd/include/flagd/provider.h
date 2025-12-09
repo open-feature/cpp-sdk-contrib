@@ -18,10 +18,10 @@ class FlagdProvider : public openfeature::FeatureProvider {
 
   openfeature::Metadata GetMetadata() const override;
 
-  absl::Status Init(const openfeature::EvaluationContext& ctx);
-  absl::Status Shutdown();
+  absl::Status Init(const openfeature::EvaluationContext& ctx) override;
+  absl::Status Shutdown() override;
 
-  std::unique_ptr<openfeature::ProviderEvaluation<bool>> GetBooleanEvaluation(
+  std::unique_ptr<openfeature::BoolResolutionDetails> GetBooleanEvaluation(
       std::string_view flag, bool default_value,
       const openfeature::EvaluationContext& ctx) override;
 
