@@ -72,7 +72,7 @@ CheckOptions:
     value: lower_case
   - key: readability-identifier-naming.IgnoreMainLikeFunctions
     value: 1
-  - key: readability-identifier-naming.MethodIgnoredRegexp
-    value: "^(get_|set_|is_|has_)[a-z0-9_]+$"
   - key: readability-braces-around-statements.ShortStatementLines
     value: 1
+
+SystemHeaders: true

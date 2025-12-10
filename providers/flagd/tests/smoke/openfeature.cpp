@@ -8,7 +8,7 @@
 
 TEST(FlagdProviderTest, ProviderCreation) {
   flagd::FlagdProviderConfig config =
-      flagd::FlagdProviderConfig().set_host("localhost");
+      flagd::FlagdProviderConfig().SetHost("localhost");
 
   std::shared_ptr<openfeature::FeatureProvider> provider =
       std::make_shared<flagd::FlagdProvider>(config);
