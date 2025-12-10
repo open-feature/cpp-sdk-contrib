@@ -6,7 +6,7 @@
 #include <atomic>
 
 #include "absl/status/status.h"
-#include "flagd/configuration.h"
+#include "configuration.h"
 
 namespace flagd {
 

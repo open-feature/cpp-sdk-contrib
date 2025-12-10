@@ -1,11 +1,11 @@
-#include "flagd/provider.h"
+#include "provider.h"
 
 #include <openfeature/provider.h>
 
 #include <optional>
 
 #include "absl/status/status.h"
-#include "flagd/configuration.h"
+#include "configuration.h"
 
 namespace flagd {
 

@@ -1,10 +1,10 @@
 #include <memory>
 #include <optional>
 
-#include "flagd/configuration.h"
-#include "flagd/provider.h"
 #include "gtest/gtest.h"
 #include "openfeature/provider.h"
+#include "providers/flagd/src/configuration.h"
+#include "providers/flagd/src/provider.h"
 
 TEST(FlagdProviderTest, ProviderCreation) {
   flagd::FlagdProviderConfig config =
