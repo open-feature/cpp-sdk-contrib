@@ -14,38 +14,38 @@ class FlagdProviderConfig {
   FlagdProviderConfig();
 
   // --- Getters ---
-  const std::string& get_host() const;
-  int get_port() const;
-  std::optional<std::string> get_target_uri() const;
-  bool get_tls() const;
-  std::optional<std::string> get_socket_path() const;
-  std::optional<std::string> get_cert_path() const;
+  const std::string& GetHost() const;
+  int GetPort() const;
+  std::optional<std::string> GetTargetUri() const;
+  bool GetTls() const;
+  std::optional<std::string> GetSocketPath() const;
+  std::optional<std::string> GetCertPath() const;
 
-  int get_deadline_ms() const;
+  int GetDeadlineMs() const;
 
-  std::optional<std::string> get_selector() const;
-  std::optional<std::string> get_provider_id() const;
+  std::optional<std::string> GetSelector() const;
+  std::optional<std::string> GetProviderId() const;
 
-  std::optional<std::string> get_offline_flag_source_path() const;
-  int get_offline_poll_interval_ms() const;
-
-  // --- Setters ---
-  FlagdProviderConfig& set_host(std::string_view host);
-  FlagdProviderConfig& set_port(int port);
-  FlagdProviderConfig& set_target_uri(std::string_view uri);
-  FlagdProviderConfig& set_tls(bool tls);
-  FlagdProviderConfig& set_socket_path(std::string_view path);
-  FlagdProviderConfig& set_cert_path(std::string_view path);
-  FlagdProviderConfig& set_deadline_ms(int deadline_ms);
-  FlagdProviderConfig& set_selector(std::string_view selector);
-  FlagdProviderConfig& set_provider_id(std::string_view provider_id);
-  FlagdProviderConfig& set_offline_flag_source_path(std::string_view path);
-  FlagdProviderConfig& set_offline_poll_interval_ms(int interval_ms);
+  std::optional<std::string> GetOfflineFlagSourcePath() const;
+  int GetOfflinePollIntervalMs() const;
 
   // --- Helper ---
   // Returns the effective Target URI used for gRPC connection.
   // Priority: Explicit TargetURI > SocketPath > Host:Port
-  std::string get_effective_target_uri() const;
+  std::string GetEffectiveTargetUri() const;
+
+  // --- Setters ---
+  FlagdProviderConfig& SetHost(std::string_view host);
+  FlagdProviderConfig& SetPort(int port);
+  FlagdProviderConfig& SetTargetUri(std::string_view uri);
+  FlagdProviderConfig& SetTls(bool tls);
+  FlagdProviderConfig& SetSocketPath(std::string_view path);
+  FlagdProviderConfig& SetCertPath(std::string_view path);
+  FlagdProviderConfig& SetDeadlineMs(int deadline_ms);
+  FlagdProviderConfig& SetSelector(std::string_view selector);
+  FlagdProviderConfig& SetProviderId(std::string_view provider_id);
+  FlagdProviderConfig& SetOfflineFlagSourcePath(std::string_view path);
+  FlagdProviderConfig& SetOfflinePollIntervalMs(int interval_ms);
 
  private:
   std::string host_;
