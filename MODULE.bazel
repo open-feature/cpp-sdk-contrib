@@ -14,3 +14,17 @@ git_override(
     remote = "https://github.com/open-feature/cpp-sdk.git",
     branch = "main",
 )
+
+bazel_dep(name = "grpc", version = "1.74.1", repo_name = "com_github_grpc_grpc")
+bazel_dep(name = "protobuf", version = "31.1", repo_name = "com_google_protobuf")
+
+bazel_dep(name = "nlohmann_json", version = "3.11.3")
+
+git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+
+git_repository(
+    name = "flagd-schemas",
+    remote = "https://github.com/open-feature/flagd-schemas.git",
+    commit = "a0b8e85d4bca83728bfbf62d320936960926a262",
+    build_file = "//providers/flagd:flagd-schemas.BUILD",
+)

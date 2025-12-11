@@ -24,3 +24,20 @@ cc_library(
         "@openfeature_cpp_sdk//src:openfeature_cpp_sdk",
     ],
 )
+
+cc_library(
+    name = "sync",
+    srcs = ["src/sync.cpp"],
+    hdrs = ["include/flagd/sync.h"],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":flagd_configuration",
+        "@abseil-cpp//absl/status",
+        "@com_github_grpc_grpc//:grpc++",
+        "@flagd-schemas//:flagd_sync_cc_grpc",
+        "@flagd-schemas//:flagd_sync_cc_proto",
+        "@nlohmann_json//:json",
+        "@openfeature_cpp_sdk//src:openfeature_cpp_sdk",
+    ],
+)
