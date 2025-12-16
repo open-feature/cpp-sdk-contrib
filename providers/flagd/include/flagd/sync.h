@@ -2,7 +2,6 @@
 #define CPP_SDK_FLAGD_SYNC_H_
 
 #include <grpcpp/grpcpp.h>
-#include <openfeature/evaluation_context.h>
 
 #include <atomic>
 #include <memory>
@@ -13,6 +12,7 @@
 #include "absl/status/status.h"
 #include "flagd/configuration.h"
 #include "flagd/sync/v1/sync.grpc.pb.h"
+#include "openfeature/evaluation_context.h"
 
 namespace flagd {
 
@@ -36,7 +36,7 @@ class FlagSync {
 
 class GrpcSync final : public FlagSync {
  public:
-  explicit GrpcSync(const flagd::FlagdProviderConfig& config);
+  explicit GrpcSync(flagd::FlagdProviderConfig config);
   ~GrpcSync() override;
 
   absl::Status Init(const openfeature::EvaluationContext& ctx) override;

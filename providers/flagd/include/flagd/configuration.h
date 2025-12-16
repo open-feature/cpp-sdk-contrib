@@ -1,6 +1,9 @@
 #ifndef CPP_SDK_FLAGD_CONFIGURATION_H
 #define CPP_SDK_FLAGD_CONFIGURATION_H
 
+#include <grpcpp/security/credentials.h>
+
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -18,6 +21,7 @@ class FlagdProviderConfig {
   int GetPort() const;
   std::optional<std::string> GetTargetUri() const;
   bool GetTls() const;
+  std::shared_ptr<grpc::ChannelCredentials> GetChannelCredentials() const;
   std::optional<std::string> GetSocketPath() const;
   std::optional<std::string> GetCertPath() const;
 
@@ -34,11 +38,17 @@ class FlagdProviderConfig {
   // Priority: Explicit TargetURI > SocketPath > Host:Port
   std::string GetEffectiveTargetUri() const;
 
+  // Returns the effective Channel Credentials used for gRPC connection.
+  // Priority: Explicit ChannelCredentials > TLS/CertPath > Insecure
+  std::shared_ptr<grpc::ChannelCredentials> GetEffectiveCredentials() const;
+
   // --- Setters ---
   FlagdProviderConfig& SetHost(std::string_view host);
   FlagdProviderConfig& SetPort(int port);
   FlagdProviderConfig& SetTargetUri(std::string_view uri);
   FlagdProviderConfig& SetTls(bool tls);
+  FlagdProviderConfig& SetChannelCredentials(
+      std::shared_ptr<grpc::ChannelCredentials> creds);
   FlagdProviderConfig& SetSocketPath(std::string_view path);
   FlagdProviderConfig& SetCertPath(std::string_view path);
   FlagdProviderConfig& SetDeadlineMs(int deadline_ms);
@@ -52,6 +62,7 @@ class FlagdProviderConfig {
   int port_;
   std::optional<std::string> target_uri_;
   bool tls_;
+  std::shared_ptr<grpc::ChannelCredentials> channel_credentials_;
   std::optional<std::string> socket_path_;
   std::optional<std::string> cert_path_;
 

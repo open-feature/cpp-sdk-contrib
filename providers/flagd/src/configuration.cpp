@@ -1,7 +1,11 @@
 #include "flagd/configuration.h"
 
+#include <grpcpp/security/credentials.h>
+
 #include <algorithm>
 #include <cstdlib>
+#include <fstream>
+#include <sstream>
 #include <string>
 
 #include "absl/strings/str_cat.h"
@@ -99,6 +103,28 @@ std::string FlagdProviderConfig::GetEffectiveTargetUri() const {
   return absl::StrCat(host_, ":", std::to_string(port_));
 }
 
+std::shared_ptr<grpc::ChannelCredentials>
+FlagdProviderConfig::GetEffectiveCredentials() const {
+  if (channel_credentials_) {
+    return channel_credentials_;
+  }
+
+  if (tls_) {
+    grpc::SslCredentialsOptions ssl_opts;
+    if (cert_path_.has_value() && !cert_path_->empty()) {
+      std::ifstream file(*cert_path_);
+      if (file.is_open()) {
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        ssl_opts.pem_root_certs = buffer.str();
+      }
+    }
+    return grpc::SslCredentials(ssl_opts);
+  }
+
+  return grpc::InsecureChannelCredentials();
+}
+
 // --- Getters ---
 const std::string& FlagdProviderConfig::GetHost() const { return host_; }
 int FlagdProviderConfig::GetPort() const { return port_; }
@@ -106,6 +132,10 @@ std::optional<std::string> FlagdProviderConfig::GetTargetUri() const {
   return target_uri_;
 }
 bool FlagdProviderConfig::GetTls() const { return tls_; }
+std::shared_ptr<grpc::ChannelCredentials>
+FlagdProviderConfig::GetChannelCredentials() const {
+  return channel_credentials_;
+}
 std::optional<std::string> FlagdProviderConfig::GetSocketPath() const {
   return socket_path_;
 }
@@ -142,6 +172,11 @@ FlagdProviderConfig& FlagdProviderConfig::SetTargetUri(std::string_view uri) {
 }
 FlagdProviderConfig& FlagdProviderConfig::SetTls(bool tls) {
   tls_ = tls;
+  return *this;
+}
+FlagdProviderConfig& FlagdProviderConfig::SetChannelCredentials(
+    std::shared_ptr<grpc::ChannelCredentials> creds) {
+  channel_credentials_ = creds;
   return *this;
 }
 FlagdProviderConfig& FlagdProviderConfig::SetSocketPath(std::string_view path) {
