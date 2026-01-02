@@ -7,7 +7,9 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <utility>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 
 namespace flagd {
@@ -103,7 +105,7 @@ std::string FlagdProviderConfig::GetEffectiveTargetUri() const {
   return absl::StrCat(host_, ":", std::to_string(port_));
 }
 
-std::shared_ptr<grpc::ChannelCredentials>
+absl::StatusOr<std::shared_ptr<grpc::ChannelCredentials>>
 FlagdProviderConfig::GetEffectiveCredentials() const {
   if (channel_credentials_) {
     return channel_credentials_;
@@ -117,6 +119,9 @@ FlagdProviderConfig::GetEffectiveCredentials() const {
         std::stringstream buffer;
         buffer << file.rdbuf();
         ssl_opts.pem_root_certs = buffer.str();
+      } else {
+        return absl::InternalError("Failed to open certificate file: " +
+                                   *cert_path_);
       }
     }
     return grpc::SslCredentials(ssl_opts);
@@ -176,7 +181,7 @@ FlagdProviderConfig& FlagdProviderConfig::SetTls(bool tls) {
 }
 FlagdProviderConfig& FlagdProviderConfig::SetChannelCredentials(
     std::shared_ptr<grpc::ChannelCredentials> creds) {
-  channel_credentials_ = creds;
+  channel_credentials_ = std::move(creds);
   return *this;
 }
 FlagdProviderConfig& FlagdProviderConfig::SetSocketPath(std::string_view path) {

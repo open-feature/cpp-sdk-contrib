@@ -4,6 +4,7 @@
 #include <memory>
 #include <mutex>
 #include <nlohmann/json.hpp>
+#include <optional>
 #include <thread>
 
 #include "absl/status/status.h"
@@ -35,19 +36,20 @@ std::shared_ptr<const nlohmann::json> FlagSync::GetFlags() const {
 }
 
 GrpcSync::GrpcSync(flagd::FlagdProviderConfig config)
-    : config_(std::move(config)) {
-  std::string target = config_.GetEffectiveTargetUri();
-
-  std::shared_ptr<grpc::ChannelCredentials> creds =
-      config_.GetEffectiveCredentials();
-
-  channel_ = grpc::CreateChannel(target, creds);
-  stub_ = FlagSyncService::NewStub(channel_);
-}
+    : config_(std::move(config)) {}
 
 GrpcSync::~GrpcSync() { GrpcSync::Shutdown().IgnoreError(); }
 
 absl::Status GrpcSync::Init(const openfeature::EvaluationContext& ctx) {
+  std::string target = config_.GetEffectiveTargetUri();
+  absl::StatusOr<std::shared_ptr<grpc::ChannelCredentials>> creds =
+      config_.GetEffectiveCredentials();
+
+  if (!creds.ok()) return creds.status();
+
+  channel_ = grpc::CreateChannel(target, *creds);
+  stub_ = FlagSyncService::NewStub(channel_);
+
   shutdown_requested_ = false;
   background_thread_ = std::thread(&GrpcSync::WaitForUpdates, this);
   return absl::OkStatus();
@@ -90,7 +92,7 @@ void GrpcSync::WaitForUpdates() {
     if (shutdown_requested_) break;
 
     try {
-      nlohmann::json raw = Json::parse(response.flag_configuration());
+      Json raw = Json::parse(response.flag_configuration());
 
       UpdateFlags(raw);
     } catch (const std::exception& e) {

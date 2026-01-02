@@ -8,6 +8,8 @@
 #include <string>
 #include <string_view>
 
+#include "absl/status/statusor.h"
+
 namespace flagd {
 
 class FlagdProviderConfig {
@@ -40,7 +42,8 @@ class FlagdProviderConfig {
 
   // Returns the effective Channel Credentials used for gRPC connection.
   // Priority: Explicit ChannelCredentials > TLS/CertPath > Insecure
-  std::shared_ptr<grpc::ChannelCredentials> GetEffectiveCredentials() const;
+  absl::StatusOr<std::shared_ptr<grpc::ChannelCredentials>>
+  GetEffectiveCredentials() const;
 
   // --- Setters ---
   FlagdProviderConfig& SetHost(std::string_view host);
