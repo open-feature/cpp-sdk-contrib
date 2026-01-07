@@ -21,7 +21,7 @@ class Evaluator {
   nlohmann::json Evaluate(const nlohmann::json& logic,
                           const nlohmann::json& data) const;
 
-  void RegisterOperation(const std::string& operation, OpFunc func);
+  void RegisterOperation(std::string_view operation, OpFunc func);
 
  private:
   nlohmann::json EvaluateOp(const std::string& operation,
