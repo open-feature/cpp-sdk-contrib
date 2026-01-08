@@ -11,7 +11,7 @@ namespace flagd {
 
 class Evaluator {
  public:
-  // You can assume that the second parameter will be an array
+  // The second parameter will be an array.
   using OpFunc = std::function<nlohmann::json(
       const Evaluator&, const nlohmann::json&, const nlohmann::json&)>;
 
@@ -21,7 +21,7 @@ class Evaluator {
   nlohmann::json Evaluate(const nlohmann::json& logic,
                           const nlohmann::json& data) const;
 
-  void RegisterOperation(std::string_view operation, OpFunc func);
+  void RegisterOperation(std::string_view operation, const OpFunc& func);
 
  private:
   nlohmann::json EvaluateOp(const std::string& operation,

@@ -5,27 +5,33 @@
 namespace flagd::ops {
 
 bool Truthy(const nlohmann::json& value) {
-  if (value.is_null()) {
-    return false;
-  }
-  if (value.is_boolean()) {
-    return value.get<bool>();
-  }
-  if (value.is_number()) {
-    if (value.is_number_float()) {
+  using JsonType = nlohmann::json::value_t;
+
+  switch (value.type()) {
+    case JsonType::null:
+      return false;
+
+    case JsonType::boolean:
+      return value.get<bool>();
+
+    case JsonType::number_integer:
+    case JsonType::number_unsigned:
+      return value.get<int64_t>() != 0;
+
+    case JsonType::number_float:
       return value.get<double>() != 0.0;
-    }
-    // Integers and Unsigned
-    return value != 0;
+
+    case JsonType::string:
+      return !value.get<std::string>().empty();
+
+    case JsonType::array:
+      return !value.empty();
+
+    case JsonType::object:
+    default:
+      // Objects and any other types are considered truthy.
+      return true;
   }
-  if (value.is_string()) {
-    return !value.get<std::string>().empty();
-  }
-  if (value.is_array()) {
-    return !value.empty();
-  }
-  // Objects and anything else are truthy
-  return true;
 }
 
 }  // namespace flagd::ops

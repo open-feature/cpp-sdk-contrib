@@ -7,6 +7,13 @@
 
 namespace flagd::ops {
 
+namespace {
+nlohmann::json::json_pointer CreateJsonPointer(std::string path) {
+  std::replace(path.begin(), path.end(), '.', '/');
+  return nlohmann::json::json_pointer("/" + path);
+}
+}
+
 nlohmann::json Var(const Evaluator& eval, const nlohmann::json& values,
                    const nlohmann::json& data) {
   if (values.empty()) {
@@ -30,11 +37,8 @@ nlohmann::json Var(const Evaluator& eval, const nlohmann::json& values,
 
   if (path.empty()) return data;
 
-  std::replace(path.begin(), path.end(), '.', '/');
-  std::string pointer_path = "/" + path;
-
   try {
-    nlohmann::json::json_pointer ptr(pointer_path);
+    auto ptr = CreateJsonPointer(path);
     if (data.contains(ptr)) {
       return data[ptr];
     }

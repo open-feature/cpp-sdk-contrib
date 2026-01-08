@@ -13,8 +13,9 @@ Evaluator::Evaluator() {
   RegisterOperation("and", ops::And);
 }
 
-void Evaluator::RegisterOperation(std::string_view operation, OpFunc func) {
-  operations_.emplace(operation, std::move(func));
+void Evaluator::RegisterOperation(std::string_view operation,
+                                  const OpFunc& func) {
+  operations_.emplace(operation, func);
 }
 
 nlohmann::json Evaluator::Evaluate(const nlohmann::json& logic,
