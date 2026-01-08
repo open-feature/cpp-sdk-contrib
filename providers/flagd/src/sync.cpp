@@ -11,9 +11,9 @@
 #include "flagd/configuration.h"
 #include "flagd/sync/v1/sync.grpc.pb.h"
 
-using flagd::sync::v1::FlagSyncService;
-using flagd::sync::v1::SyncFlagsRequest;
-using flagd::sync::v1::SyncFlagsResponse;
+using ::flagd::sync::v1::FlagSyncService;
+using ::flagd::sync::v1::SyncFlagsRequest;
+using ::flagd::sync::v1::SyncFlagsResponse;
 using Json = nlohmann::json;
 
 namespace flagd {
@@ -35,8 +35,7 @@ std::shared_ptr<const nlohmann::json> FlagSync::GetFlags() const {
   return current_flags_;
 }
 
-GrpcSync::GrpcSync(flagd::FlagdProviderConfig config)
-    : config_(std::move(config)) {}
+GrpcSync::GrpcSync(FlagdProviderConfig config) : config_(std::move(config)) {}
 
 GrpcSync::~GrpcSync() { GrpcSync::Shutdown().IgnoreError(); }
 

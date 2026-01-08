@@ -1,14 +1,13 @@
 #ifndef CPP_SDK_FLAGD_CONFIGURATION_H
 #define CPP_SDK_FLAGD_CONFIGURATION_H
 
-#include <grpcpp/security/credentials.h>
-
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "grpcpp/security/credentials.h"
 
 namespace flagd {
 
