@@ -12,7 +12,7 @@ nlohmann::json::json_pointer CreateJsonPointer(std::string path) {
   std::replace(path.begin(), path.end(), '.', '/');
   return nlohmann::json::json_pointer("/" + path);
 }
-}
+}  // namespace
 
 nlohmann::json Var(const Evaluator& eval, const nlohmann::json& values,
                    const nlohmann::json& data) {
