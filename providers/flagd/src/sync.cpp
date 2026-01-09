@@ -1,4 +1,4 @@
-#include "flagd/sync.h"
+#include "sync.h"
 
 #include <atomic>
 #include <memory>
