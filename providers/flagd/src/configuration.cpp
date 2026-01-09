@@ -113,6 +113,8 @@ FlagdProviderConfig::GetEffectiveCredentials() const {
 
   if (tls_) {
     grpc::SslCredentialsOptions ssl_opts;
+    // If we don't provide ssl_opts.pem_root_certs, grpc will use defaults.
+    // https://grpc.github.io/grpc/cpp/structgrpc_1_1_ssl_credentials_options.html
     if (cert_path_.has_value() && !cert_path_->empty()) {
       std::ifstream file(*cert_path_);
       if (file.is_open()) {
