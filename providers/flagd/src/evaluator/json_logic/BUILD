@@ -1,9 +1,9 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
-    name = "evaluator",
+    name = "json_logic",
     srcs = [
-        "evaluator.cpp",
+        "json_logic.cpp",
         "ops/array.cpp",
         "ops/data.cpp",
         "ops/logic.cpp",
@@ -12,7 +12,7 @@ cc_library(
         "ops/utils.cpp",
     ],
     hdrs = [
-        "evaluator.h",
+        "json_logic.h",
         "ops/array.h",
         "ops/data.h",
         "ops/logic.h",

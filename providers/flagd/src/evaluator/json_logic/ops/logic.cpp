@@ -1,11 +1,11 @@
 #include "logic.h"
 
-#include "../evaluator.h"
+#include "../json_logic.h"
 #include "utils.h"
 
-namespace flagd::ops {
+namespace json_logic::ops {
 
-nlohmann::json And(const Evaluator& eval, const nlohmann::json& values,
+nlohmann::json And(const JsonLogic& eval, const nlohmann::json& values,
                    const nlohmann::json& data) {
   if (values.empty()) {
     return values;
@@ -13,7 +13,7 @@ nlohmann::json And(const Evaluator& eval, const nlohmann::json& values,
 
   nlohmann::json res;
   for (const auto& value : values) {
-    res = eval.Evaluate(value, data);
+    res = eval.Apply(value, data);
     if (!Truthy(res)) {
       break;
     }
@@ -21,4 +21,4 @@ nlohmann::json And(const Evaluator& eval, const nlohmann::json& values,
   return res;
 }
 
-}  // namespace flagd::ops
+}  // namespace json_logic::ops

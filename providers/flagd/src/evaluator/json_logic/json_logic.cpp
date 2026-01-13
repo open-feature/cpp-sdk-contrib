@@ -1,4 +1,4 @@
-#include "evaluator.h"
+#include "json_logic.h"
 
 #include <string>
 #include <utility>
@@ -6,20 +6,20 @@
 #include "ops/data.h"
 #include "ops/logic.h"
 
-namespace flagd {
+namespace json_logic {
 
-Evaluator::Evaluator() {
+JsonLogic::JsonLogic() {
   RegisterOperation("var", ops::Var);
   RegisterOperation("and", ops::And);
 }
 
-void Evaluator::RegisterOperation(std::string_view operation,
+void JsonLogic::RegisterOperation(std::string_view operation,
                                   const OpFunc& func) {
   operations_.emplace(operation, func);
 }
 
-nlohmann::json Evaluator::Evaluate(const nlohmann::json& logic,
-                                   const nlohmann::json& data) const {
+nlohmann::json JsonLogic::Apply(const nlohmann::json& logic,
+                                const nlohmann::json& data) const {
   if (logic.is_primitive()) {
     return logic;
   }
@@ -27,7 +27,7 @@ nlohmann::json Evaluator::Evaluate(const nlohmann::json& logic,
   if (logic.is_array()) {
     nlohmann::json result = nlohmann::json::array();
     for (const auto& item : logic) {
-      result.push_back(Evaluate(item, data));
+      result.push_back(Apply(item, data));
     }
     return result;
   }
@@ -43,15 +43,15 @@ nlohmann::json Evaluator::Evaluate(const nlohmann::json& logic,
     // whole object. Here we went with the first option.
     auto iter = logic.begin();
     std::string const& operation = iter.key();
-    return EvaluateOp(operation, iter.value(), data);
+    return ApplyOp(operation, iter.value(), data);
   }
 
   return {};
 }
 
-nlohmann::json Evaluator::EvaluateOp(const std::string& operation,
-                                     const nlohmann::json& values,
-                                     const nlohmann::json& data) const {
+nlohmann::json JsonLogic::ApplyOp(const std::string& operation,
+                                  const nlohmann::json& values,
+                                  const nlohmann::json& data) const {
   auto iter = operations_.find(operation);
   if (iter != operations_.end()) {
     // We are ensuring that every operation is receiving array as data, so that
@@ -65,4 +65,4 @@ nlohmann::json Evaluator::EvaluateOp(const std::string& operation,
   return {};
 }
 
-}  // namespace flagd
+}  // namespace json_logic

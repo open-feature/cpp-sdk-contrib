@@ -2,7 +2,7 @@
 
 #include <string>
 
-namespace flagd::ops {
+namespace json_logic::ops {
 
 bool Truthy(const nlohmann::json& value) {
   using JsonType = nlohmann::json::value_t;
@@ -34,4 +34,4 @@ bool Truthy(const nlohmann::json& value) {
   }
 }
 
-}  // namespace flagd::ops
+}  // namespace json_logic::ops

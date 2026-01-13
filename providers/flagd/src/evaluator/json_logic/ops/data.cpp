@@ -3,9 +3,9 @@
 #include <algorithm>
 #include <string>
 
-#include "../evaluator.h"
+#include "../json_logic.h"
 
-namespace flagd::ops {
+namespace json_logic::ops {
 
 namespace {
 nlohmann::json::json_pointer CreateJsonPointer(std::string path) {
@@ -14,7 +14,7 @@ nlohmann::json::json_pointer CreateJsonPointer(std::string path) {
 }
 }  // namespace
 
-nlohmann::json Var(const Evaluator& eval, const nlohmann::json& values,
+nlohmann::json Var(const JsonLogic& eval, const nlohmann::json& values,
                    const nlohmann::json& data) {
   if (values.empty()) {
     return data;
@@ -32,7 +32,7 @@ nlohmann::json Var(const Evaluator& eval, const nlohmann::json& values,
   } else if (values[0].is_null()) {
     return data;
   } else {
-    return eval.Evaluate(default_val, data);
+    return eval.Apply(default_val, data);
   }
 
   if (path.empty()) return data;
@@ -46,7 +46,7 @@ nlohmann::json Var(const Evaluator& eval, const nlohmann::json& values,
     // Fallthrough to return default
   }
 
-  return eval.Evaluate(default_val, data);
+  return eval.Apply(default_val, data);
 }
 
-}  // namespace flagd::ops
+}  // namespace json_logic::ops

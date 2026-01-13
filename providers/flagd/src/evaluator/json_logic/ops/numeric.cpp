@@ -1,5 +1,5 @@
 #include "numeric.h"
 
-namespace flagd::ops {
+namespace json_logic::ops {
 // Numeric operations to be implemented
-}  // namespace flagd::ops
+}  // namespace json_logic::ops
