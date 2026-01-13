@@ -1,4 +1,4 @@
-#include "flagd/configuration.h"
+#include "configuration.h"
 
 #include <grpcpp/security/credentials.h>
 

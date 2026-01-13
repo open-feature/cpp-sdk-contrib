@@ -2,9 +2,9 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
     name = "flagd_provider",
-    srcs = ["src/provider.cpp"],
-    hdrs = ["include/flagd/provider.h"],
-    strip_include_prefix = "include",
+    srcs = ["provider.cpp"],
+    hdrs = ["provider.h"],
+    include_prefix = "flagd",
     visibility = ["//visibility:public"],
     deps = [
         ":flagd_configuration",
@@ -15,9 +15,9 @@ cc_library(
 
 cc_library(
     name = "flagd_configuration",
-    srcs = ["src/configuration.cpp"],
-    hdrs = ["include/flagd/configuration.h"],
-    strip_include_prefix = "include",
+    srcs = ["configuration.cpp"],
+    hdrs = ["configuration.h"],
+    include_prefix = "flagd",
     visibility = ["//visibility:public"],
     deps = [
         "@abseil-cpp//absl/strings",
@@ -28,9 +28,9 @@ cc_library(
 
 cc_library(
     name = "sync",
-    srcs = ["src/sync.cpp"],
-    hdrs = ["include/flagd/sync.h"],
-    includes = ["include"],
+    srcs = ["sync.cpp"],
+    hdrs = ["sync.h"],
+    include_prefix = "flagd",
     visibility = ["//visibility:public"],
     deps = [
         ":flagd_configuration",
