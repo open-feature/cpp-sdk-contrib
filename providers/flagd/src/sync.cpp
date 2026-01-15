@@ -1,7 +1,6 @@
 #include "sync.h"
 
 #include <atomic>
-#include <fstream>
 #include <memory>
 #include <mutex>
 #include <nlohmann/json-schema.hpp>
@@ -24,13 +23,16 @@ namespace flagd {
 
 namespace {
 void Loader(const nlohmann::json_uri& uri, Json& schema) {
-  const std::string path = uri.path();
+  const std::string& path = uri.path();
+  auto pos = path.find_last_of('/');
+  std::string filename =
+      (pos == std::string::npos) ? path : path.substr(pos + 1);
 
-  if (absl::EndsWith(path, "flagd.json")) {
+  if (filename == "flagd.json") {
     schema = Json::parse(schema::FlagdSchema);
-  } else if (absl::EndsWith(path, "flags.json")) {
+  } else if (filename == "flags.json") {
     schema = Json::parse(schema::FlagsSchema);
-  } else if (absl::EndsWith(path, "targeting.json")) {
+  } else if (filename == "targeting.json") {
     schema = Json::parse(schema::TargetingSchema);
   } else {
     // TODO(#10): We should log an error here
