@@ -42,13 +42,9 @@ struct FlagSync::Validator {
   json_validator validator;
 
   Validator() : validator(Loader) {
-    try {
-      // Initialize with the root schema. This implicitly triggers the Loader if
-      // the root schema has $refs to other URIs
-      validator.set_root_schema(Json::parse(schema::FlagdSchema));
-    } catch (const std::exception& e) {
-      // TODO(#10): We should log an error here
-    }
+    // Initialize with the root schema. This implicitly triggers the Loader if
+    // the root schema has $refs to other URIs
+    validator.set_root_schema(Json::parse(schema::FlagdSchema));
   }
 
   bool Validate(const Json& json) const {
