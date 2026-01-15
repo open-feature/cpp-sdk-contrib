@@ -1,13 +1,16 @@
 #include "sync.h"
 
 #include <atomic>
+#include <fstream>
 #include <memory>
 #include <mutex>
+#include <nlohmann/json-schema.hpp>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <thread>
 
 #include "absl/status/status.h"
+#include "embedded_schemas.h"
 #include "flagd/configuration.h"
 #include "flagd/sync/v1/sync.grpc.pb.h"
 
@@ -15,15 +18,65 @@ using ::flagd::sync::v1::FlagSyncService;
 using ::flagd::sync::v1::SyncFlagsRequest;
 using ::flagd::sync::v1::SyncFlagsResponse;
 using Json = nlohmann::json;
+using nlohmann::json_schema::json_validator;
 
 namespace flagd {
 
-FlagSync::FlagSync() {
+namespace {
+void Loader(const nlohmann::json_uri& uri, Json& schema) {
+  std::string uri_str = uri.to_string();
+
+  if (uri_str.find("/flagd.json") != std::string::npos) {
+    schema = Json::parse(schema::FlagdSchema);
+  } else if (uri_str.find("/flags.json") != std::string::npos) {
+    schema = Json::parse(schema::FlagsSchema);
+  } else if (uri_str.find("/targeting.json") != std::string::npos) {
+    schema = Json::parse(schema::TargetingSchema);
+  } else {
+    // TODO(#10): We should log an error here
+  }
+}
+}  // namespace
+
+struct FlagSync::Validator {
+  json_validator validator;
+
+  Validator() : validator(Loader) {
+    try {
+      // Initialize with the root schema. This implicitly triggers the Loader if
+      // the root schema has $refs to other URIs
+      validator.set_root_schema(Json::parse(schema::FlagdSchema));
+    } catch (const std::exception& e) {
+      // TODO(#10): We should log an error here
+    }
+  }
+
+  bool Validate(const Json& json) const {
+    try {
+      validator.validate(json);
+      return true;
+    } catch (const std::exception& e) {
+      return false;
+    }
+  }
+};
+
+FlagSync::FlagSync() : validator_(std::make_unique<Validator>()) {
   current_flags_ = std::make_shared<nlohmann::json>(nlohmann::json::object());
 }
 
+FlagSync::~FlagSync() = default;
+
 void FlagSync::UpdateFlags(const nlohmann::json& new_json) {
-  auto new_snapshot = std::make_shared<const nlohmann::json>(new_json);
+  if (validator_) {
+    if (!validator_->Validate(new_json)) {
+      // Validation failed, do not update flags.
+      // TODO(#10): We should log about it
+      return;
+    }
+  }
+
+  auto new_snapshot = std::make_shared<const nlohmann::json>(new_json["flags"]);
   {
     std::scoped_lock lock(flags_mutex_);
     current_flags_ = std::move(new_snapshot);
