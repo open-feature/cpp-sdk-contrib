@@ -24,13 +24,13 @@ namespace flagd {
 
 namespace {
 void Loader(const nlohmann::json_uri& uri, Json& schema) {
-  std::string uri_str = uri.to_string();
+  const std::string path = uri.path();
 
-  if (uri_str.find("/flagd.json") != std::string::npos) {
+  if (absl::EndsWith(path, "flagd.json")) {
     schema = Json::parse(schema::FlagdSchema);
-  } else if (uri_str.find("/flags.json") != std::string::npos) {
+  } else if (absl::EndsWith(path, "flags.json")) {
     schema = Json::parse(schema::FlagsSchema);
-  } else if (uri_str.find("/targeting.json") != std::string::npos) {
+  } else if (absl::EndsWith(path, "targeting.json")) {
     schema = Json::parse(schema::TargetingSchema);
   } else {
     // TODO(#10): We should log an error here

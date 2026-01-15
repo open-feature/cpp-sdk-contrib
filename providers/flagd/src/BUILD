@@ -58,7 +58,7 @@ genrule(
 
         for f in $(SRCS); do
             # 1. Get filename without extension (flagd.json -> flagd)
-            name=$$(basename $$f .json)
+            name=$$(basename $$f .json | sed 's/-/_/g')
             
             # 2. Capitalize first letter (flagd -> Flagd)
             first_char=$${name:0:1}
