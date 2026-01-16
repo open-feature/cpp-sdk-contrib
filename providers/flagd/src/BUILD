@@ -53,26 +53,19 @@ genrule(
     cmd = """
         echo '#ifndef FLAGD_JSON_EMBEDDED_SCHEMAS_H_' > $@
         echo '#define FLAGD_JSON_EMBEDDED_SCHEMAS_H_' >> $@
+        echo '#include <map>' >> $@
         echo '#include <string>' >> $@
         echo 'namespace schema {' >> $@
+        echo 'static const std::map<std::string, std::string> schemas = {' >> $@
 
         for f in $(SRCS); do
-            # 1. Get filename without extension (flagd.json -> flagd)
-            name=$$(basename $$f .json | sed 's/-/_/g')
-            
-            # 2. Capitalize first letter (flagd -> Flagd)
-            first_char=$${name:0:1}
-            rest_chars=$${name:1}
-            cap_name="$$(echo $$first_char | tr '[:lower:]' '[:upper:]')$$rest_chars"
-            
-            var_name="$${cap_name}Schema"
-
-            # 3. Write C++ variable safely
-            echo "constexpr const char* $$var_name = R\\\"raw(" >> $@
+            name=$$(basename $$f)
+            echo "{ \\\"$$name\\\", R\\\"raw(" >> $@
             cat $$f >> $@
-            echo ")raw\\\";" >> $@
+            echo ")raw\\\" }," >> $@
         done
 
+        echo '};' >> $@
         echo '}  // namespace schema' >> $@
         echo '#endif  // FLAGD_JSON_EMBEDDED_SCHEMAS_H_' >> $@
     """,

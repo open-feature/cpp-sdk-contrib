@@ -27,13 +27,9 @@ void Loader(const nlohmann::json_uri& uri, Json& schema) {
   auto pos = path.find_last_of('/');
   std::string filename =
       (pos == std::string::npos) ? path : path.substr(pos + 1);
-
-  if (filename == "flagd.json") {
-    schema = Json::parse(schema::FlagdSchema);
-  } else if (filename == "flags.json") {
-    schema = Json::parse(schema::FlagsSchema);
-  } else if (filename == "targeting.json") {
-    schema = Json::parse(schema::TargetingSchema);
+  auto schema_it = schema::schemas.find(filename);
+  if (schema_it != schema::schemas.end()) {
+    schema = Json::parse(schema_it->second);
   } else {
     // TODO(#10): We should log an error here
   }
@@ -46,7 +42,7 @@ struct FlagSync::Validator {
   Validator() : validator(Loader) {
     // Initialize with the root schema. This implicitly triggers the Loader if
     // the root schema has $refs to other URIs
-    validator.set_root_schema(Json::parse(schema::FlagdSchema));
+    validator.set_root_schema(Json::parse(schema::schemas.at("flagd.json")));
   }
 
   bool Validate(const Json& json) const {
@@ -54,6 +50,7 @@ struct FlagSync::Validator {
       validator.validate(json);
       return true;
     } catch (const std::exception& e) {
+      // TODO(#10): Log the validation error with details from e.what();
       return false;
     }
   }
