@@ -57,7 +57,7 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
 
   openfeature::Reason reason = openfeature::Reason::kTargetingMatch;
   if (variant.empty()) {
-    // For veird reason the json schema is not veryfing that,
+    // For weird reason the json schema is not verifying that,
     // so we need to check manually.
     if (!flag_config.contains("defaultVariant")) {
       return std::make_unique<openfeature::ResolutionDetails<T>>(
@@ -84,7 +84,7 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
     value = variants.at(variant).get<T>();
   } catch (const nlohmann::json::exception& e) {
     return std::make_unique<openfeature::ResolutionDetails<T>>(
-        default_value, openfeature::Reason::kError, "",
+        default_value, openfeature::Reason::kError, variant,
         openfeature::FlagMetadata(), openfeature::ErrorCode::kTypeMismatch,
         e.what());
   }
