@@ -1,4 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_python//python:defs.bzl", "py_binary")
 
 cc_library(
     name = "flagd_provider",
@@ -46,29 +47,18 @@ cc_library(
     ],
 )
 
+py_binary(
+    name = "generate_schema_header_bin",
+    srcs = ["generate_schema_header.py"],
+    main = "generate_schema_header.py",
+)
+
 genrule(
     name = "generate_schema_header",
     srcs = ["@flagd-schemas//:json_schemas"],
     outs = ["embedded_schemas.h"],
-    cmd = """
-        echo '#ifndef FLAGD_JSON_EMBEDDED_SCHEMAS_H_' > $@
-        echo '#define FLAGD_JSON_EMBEDDED_SCHEMAS_H_' >> $@
-        echo '#include <map>' >> $@
-        echo '#include <string>' >> $@
-        echo 'namespace schema {' >> $@
-        echo 'static const std::map<std::string, std::string> schemas = {' >> $@
-
-        for f in $(SRCS); do
-            name=$$(basename $$f)
-            echo "{ \\\"$$name\\\", R\\\"raw(" >> $@
-            cat $$f >> $@
-            echo ")raw\\\" }," >> $@
-        done
-
-        echo '};' >> $@
-        echo '}  // namespace schema' >> $@
-        echo '#endif  // FLAGD_JSON_EMBEDDED_SCHEMAS_H_' >> $@
-    """,
+    cmd = "$(location :generate_schema_header_bin) --output $@ $(SRCS)",
+    tools = [":generate_schema_header_bin"],
 )
 
 cc_library(
