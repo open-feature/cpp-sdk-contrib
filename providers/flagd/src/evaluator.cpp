@@ -21,7 +21,7 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
         "No flags available");
   }
 
-  auto flag_it = flags->find(std::string(flag_key));
+  auto flag_it = flags->find(flag_key);
   if (flag_it == flags->end()) {
     return std::make_unique<openfeature::ResolutionDetails<T>>(
         default_value, openfeature::Reason::kError, "",
@@ -55,8 +55,10 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
      */
   }
 
-  openfeature::Reason reason = openfeature::Reason::kTargetingMatch;
-  if (variant.empty()) {
+  openfeature::Reason reason;
+  if (!variant.empty()) {
+    reason = openfeature::Reason::kTargetingMatch;
+  } else {
     // For weird reason the json schema is not verifying that,
     // so we need to check manually.
     if (!flag_config.contains("defaultVariant")) {
