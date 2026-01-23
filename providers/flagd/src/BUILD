@@ -1,5 +1,4 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("@rules_python//python:defs.bzl", "py_binary")
 
 cc_library(
     name = "flagd_provider",
@@ -34,7 +33,7 @@ cc_library(
     include_prefix = "flagd",
     visibility = ["//visibility:public"],
     deps = [
-        ":embedded_schemas",
+        "//providers/flagd/tools:embedded_schemas",
         ":flagd_configuration",
         "@abseil-cpp//absl/status",
         "@com_github_grpc_grpc//:grpc++",
@@ -45,25 +44,4 @@ cc_library(
         "@openfeature_cpp_sdk//openfeature",
         "@openfeature_cpp_sdk//openfeature:evaluation_context",
     ],
-)
-
-py_binary(
-    name = "generate_schema_header_bin",
-    srcs = ["generate_schema_header.py"],
-    main = "generate_schema_header.py",
-)
-
-genrule(
-    name = "generate_schema_header",
-    srcs = ["@flagd-schemas//:json_schemas"],
-    outs = ["embedded_schemas.h"],
-    cmd = "$(location :generate_schema_header_bin) --output $@ $(SRCS)",
-    tools = [":generate_schema_header_bin"],
-)
-
-cc_library(
-    name = "embedded_schemas",
-    hdrs = ["embedded_schemas.h"],
-    includes = ["."],
-    visibility = ["//visibility:public"],
 )
