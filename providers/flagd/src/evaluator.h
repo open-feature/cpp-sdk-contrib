@@ -21,10 +21,7 @@ class Evaluator {
       std::string_view flag_key, bool default_value,
       const openfeature::EvaluationContext& ctx) = 0;
 
-  // TODO: Add ResolveString
-  // TODO: Add ResolveInt
-  // TODO: Add ResolveFloat
-  // TODO: Add ResolveObject
+  // TODO: Add other resolve functions (int, object etc.) once SDK defines them
 };
 
 class JsonLogicEvaluator : public Evaluator {

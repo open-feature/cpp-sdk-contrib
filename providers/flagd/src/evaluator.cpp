@@ -1,7 +1,9 @@
 #include "evaluator.h"
 
+#include <memory>
 #include <nlohmann/json.hpp>
 
+#include "absl/strings/str_cat.h"
 #include "sync.h"
 
 namespace flagd {
@@ -26,13 +28,21 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
     return std::make_unique<openfeature::ResolutionDetails<T>>(
         default_value, openfeature::Reason::kError, "",
         openfeature::FlagMetadata(), openfeature::ErrorCode::kFlagNotFound,
-        "Flag not found");
+        absl::StrCat("flag: ", flag_key, " not found"));
   }
 
   const nlohmann::json& flag_config = *flag_it;
+
+  if (flag_config["state"] == "DISABLED") {
+    return std::make_unique<openfeature::ResolutionDetails<T>>(
+        default_value, openfeature::Reason::kDisabled, "",
+        openfeature::FlagMetadata(), openfeature::ErrorCode::kFlagNotFound,
+        absl::StrCat("flag: ", flag_key, " is disabled"));
+  }
+
   std::string variant;
 
-  if (flag_config.contains("targeting")) {
+  if (flag_config.contains("targeting") && !flag_config["targeting"].empty()) {
     /*
      * TODO: Invoke JsonLogic here once implemented.
      *
@@ -59,13 +69,12 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
   if (!variant.empty()) {
     reason = openfeature::Reason::kTargetingMatch;
   } else {
-    // For weird reason the json schema is not verifying that,
-    // so we need to check manually.
     if (!flag_config.contains("defaultVariant")) {
       return std::make_unique<openfeature::ResolutionDetails<T>>(
           default_value, openfeature::Reason::kError, "",
-          openfeature::FlagMetadata(), openfeature::ErrorCode::kParseError,
-          "No default variant defined in flag definition.");
+          openfeature::FlagMetadata(), openfeature::ErrorCode::kFlagNotFound,
+          absl::StrCat("flag: ", flag_key,
+                       " doesn't have defaultVariant defined."));
     }
 
     variant = flag_config["defaultVariant"];
@@ -78,7 +87,8 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
     return std::make_unique<openfeature::ResolutionDetails<T>>(
         default_value, openfeature::Reason::kError, variant,
         openfeature::FlagMetadata(), openfeature::ErrorCode::kGeneral,
-        "Variant not found in config");
+        absl::StrCat("flag: ", flag_key,
+                     " doesn't contain evaluated variant: ", variant, "."));
   }
 
   T value;
