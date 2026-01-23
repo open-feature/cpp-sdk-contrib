@@ -36,7 +36,8 @@ void Loader(const nlohmann::json_uri& uri, Json& schema) {
 }
 }  // namespace
 
-struct FlagSync::Validator {
+class FlagSync::Validator {
+ public:
   json_validator validator;
 
   Validator() : validator(Loader) {

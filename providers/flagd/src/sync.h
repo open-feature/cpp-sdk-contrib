@@ -33,7 +33,7 @@ class FlagSync {
   mutable std::mutex flags_mutex_;
   std::shared_ptr<const nlohmann::json> current_flags_;
 
-  struct Validator;
+  class Validator;
   std::unique_ptr<Validator> validator_;
 };
 
