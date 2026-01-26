@@ -164,7 +164,7 @@ void GrpcSync::WaitForUpdates() {
   if (first_read) {
     std::scoped_lock lock(state_mutex_);
     if (state_ == State::kInitializing) {
-      state_ = State::kInitialized;
+      state_ = State::kUninitialized;
       if (status.ok()) {
         init_status_ =
             absl::InternalError("Stream closed before receiving any data");
