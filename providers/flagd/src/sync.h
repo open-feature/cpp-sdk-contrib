@@ -4,6 +4,7 @@
 #include <grpcpp/grpcpp.h>
 
 #include <atomic>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <nlohmann/json.hpp>
@@ -43,6 +44,13 @@ class GrpcSync final : public FlagSync {
   absl::Status Shutdown() override;
 
  private:
+  enum class State : uint8_t {
+    kUninitialized,
+    kInitializing,
+    kInitialized,
+    kShuttingDown,
+  };
+
   void WaitForUpdates();
 
   std::shared_ptr<grpc::Channel> channel_;
@@ -53,6 +61,11 @@ class GrpcSync final : public FlagSync {
 
   std::thread background_thread_;
   std::atomic<bool> shutdown_requested_{false};
+
+  std::mutex state_mutex_;
+  std::condition_variable init_cv_;
+  State state_ = State::kUninitialized;
+  absl::Status init_status_;
 
   FlagdProviderConfig config_;
 };
