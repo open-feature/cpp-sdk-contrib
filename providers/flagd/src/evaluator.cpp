@@ -91,6 +91,8 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
                      " doesn't contain evaluated variant: ", variant, "."));
   }
 
+  // TODO: Currently this function doesn't differentiate between int and float,
+  // We might need to verify those castings once #flagd/1481 issue is resolved
   T value;
   try {
     value = variants.at(variant).get<T>();
