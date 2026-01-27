@@ -2,10 +2,12 @@
 
 #include <openfeature/provider.h>
 
+#include <cstdlib>
 #include <optional>
 
 #include "absl/status/status.h"
-#include "configuration.h"
+#include "flagd/configuration.h"
+#include "flagd/sync.h"
 
 namespace flagd {
 
@@ -14,7 +16,14 @@ openfeature::Metadata FlagdProvider::GetMetadata() const {
 }
 
 FlagdProvider::FlagdProvider(FlagdProviderConfig config)
-    : configuration_(std::move(config)), is_ready_(false) {}
+    : configuration_(std::move(config)), is_ready_(false) {
+  if (configuration_.GetOfflineFlagSourcePath().has_value()) {
+    // TODO(#20) Implement File sync
+    exit(1);
+  }
+
+  sync_ = std::make_unique<GrpcSync>(configuration_);
+}
 
 FlagdProvider::~FlagdProvider() {
   if (is_ready_) {
@@ -24,13 +33,21 @@ FlagdProvider::~FlagdProvider() {
 }
 
 absl::Status FlagdProvider::Init(const openfeature::EvaluationContext& ctx) {
-  return absl::UnimplementedError("Init is not implemented yet!");
+  if (is_ready_) return absl::OkStatus();
+
+  absl::Status status = sync_->Init(ctx);
+  if (status.ok()) {
+    is_ready_ = true;
+  }
+  return status;
 }
 
 absl::Status FlagdProvider::Shutdown() {
   if (!is_ready_) return absl::OkStatus();
 
-  return absl::UnimplementedError("Shutdown is not implemented yet!");
+  absl::Status status = sync_->Shutdown();
+  is_ready_ = false;
+  return status;
 }
 
 std::unique_ptr<openfeature::BoolResolutionDetails>

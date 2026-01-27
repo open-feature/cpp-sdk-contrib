@@ -8,6 +8,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":flagd_configuration",
+        ":sync",
         "@abseil-cpp//absl/status",
         "@openfeature_cpp_sdk//openfeature",
     ],
