@@ -4,16 +4,16 @@
 #include <nlohmann/json.hpp>
 
 #include "absl/status/status.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-class TestableSync : public flagd::FlagSync {
+class MockSync : public flagd::FlagSync {
  public:
   using flagd::FlagSync::FlagSync;
 
-  absl::Status Init(const openfeature::EvaluationContext& ctx) override {
-    return absl::OkStatus();
-  }
-  absl::Status Shutdown() override { return absl::OkStatus(); }
+  MOCK_METHOD(absl::Status, Init, (const openfeature::EvaluationContext& ctx),
+              (override));
+  MOCK_METHOD(absl::Status, Shutdown, (), (override));
 
   void TriggerUpdate(const nlohmann::json& new_json) {
     this->UpdateFlags(new_json);
@@ -22,7 +22,7 @@ class TestableSync : public flagd::FlagSync {
 
 class FlagSyncTest : public ::testing::Test {
  protected:
-  TestableSync sync_;
+  MockSync sync_;
 };
 
 TEST_F(FlagSyncTest, HelperMethodsUpdateAndRetrieveFlags) {
@@ -65,6 +65,10 @@ TEST_F(FlagSyncTest, HelperMethodsUpdateAndRetrieveFlags) {
 
 TEST_F(FlagSyncTest, InitAndShutdownReturnOk) {
   openfeature::EvaluationContext ctx;
+  EXPECT_CALL(sync_, Init(testing::_))
+      .WillOnce(testing::Return(absl::OkStatus()));
+  EXPECT_CALL(sync_, Shutdown()).WillOnce(testing::Return(absl::OkStatus()));
+
   EXPECT_TRUE(sync_.Init(ctx).ok());
   EXPECT_TRUE(sync_.Shutdown().ok());
 }

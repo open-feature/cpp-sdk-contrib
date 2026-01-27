@@ -17,6 +17,7 @@ cc_test(
     deps = [
         "//providers/flagd/src:sync",
         "@abseil-cpp//absl/status",
+        "@googletest//:gtest",
         "@googletest//:gtest_main",
         "@nlohmann_json//:json",
     ],

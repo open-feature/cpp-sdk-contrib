@@ -57,9 +57,10 @@ class FlagSync::Validator {
   }
 };
 
-FlagSync::FlagSync() : validator_(std::make_unique<Validator>()) {
-  current_flags_ = std::make_shared<nlohmann::json>(nlohmann::json::object());
-}
+FlagSync::FlagSync()
+    : current_flags_(
+          std::make_shared<nlohmann::json>(nlohmann::json::object())),
+      validator_(std::make_unique<Validator>()) {}
 
 FlagSync::~FlagSync() = default;
 
