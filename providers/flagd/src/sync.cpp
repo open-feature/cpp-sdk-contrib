@@ -102,6 +102,7 @@ absl::Status GrpcSync::Init(const openfeature::EvaluationContext& ctx) {
           "Cannot initialize while shutting down");
     }
     state_ = State::kInitializing;
+    shutdown_requested_ = false;
   }
 
   std::string target = config_.GetEffectiveTargetUri();
@@ -118,8 +119,6 @@ absl::Status GrpcSync::Init(const openfeature::EvaluationContext& ctx) {
 
   channel_ = grpc::CreateChannel(target, *creds);
   stub_ = FlagSyncService::NewStub(channel_);
-
-  shutdown_requested_ = false;
 
   try {
     background_thread_ = std::thread(&GrpcSync::WaitForUpdates, this);
