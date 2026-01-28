@@ -20,7 +20,7 @@ namespace flagd {
 class FlagSync {
  public:
   FlagSync();
-  virtual ~FlagSync() = default;
+  virtual ~FlagSync();
 
   virtual absl::Status Init(const openfeature::EvaluationContext& ctx) = 0;
   virtual absl::Status Shutdown() = 0;
@@ -33,6 +33,9 @@ class FlagSync {
  private:
   mutable std::mutex flags_mutex_;
   std::shared_ptr<const nlohmann::json> current_flags_;
+
+  class Validator;
+  std::unique_ptr<Validator> validator_;
 };
 
 class GrpcSync final : public FlagSync {

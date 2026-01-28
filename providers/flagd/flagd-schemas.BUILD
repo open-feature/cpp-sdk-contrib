@@ -25,3 +25,9 @@ cc_grpc_library(
     visibility = ["@//providers/flagd:__subpackages__"],
     deps = [":flagd_sync_cc_proto"],
 )
+
+filegroup(
+    name = "json_schemas",
+    srcs = glob(["json/*.json"]),
+    visibility = ["//visibility:public"],
+)
