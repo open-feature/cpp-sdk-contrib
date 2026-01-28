@@ -156,7 +156,16 @@ void GrpcSync::WaitForUpdates() {
       }
     } catch (const std::exception& e) {
       // TODO(#10): We should log an error here
-      continue;
+      if (first_read) {
+        first_read = false;
+        std::scoped_lock lock(state_mutex_);
+        state_ = State::kUninitialized;
+        init_status_ = absl::InternalError(
+            std::string("Failed to parse initial flag configuration: ") +
+            e.what());
+        init_cv_.notify_all();
+        break;
+      }
     }
   }
 
