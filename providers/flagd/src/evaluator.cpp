@@ -44,7 +44,7 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
 
   if (flag_config.contains("targeting") && !flag_config["targeting"].empty()) {
     /*
-     * TODO: Invoke JsonLogic here once implemented.
+     * TODO(#18): Invoke JsonLogic here once implemented.
      *
      * Example variables:
      * const nlohmann::json& targeting_rule = flag_config["targeting"];
@@ -91,8 +91,9 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
                      " doesn't contain evaluated variant: ", variant, "."));
   }
 
-  // TODO: Currently this function doesn't differentiate between int and float,
-  // We might need to verify those castings once #flagd/1481 issue is resolved
+  // TODO(#29): Currently this function doesn't differentiate between int and
+  // float, We might need to verify those castings once #flagd/1481 issue is
+  // resolved.
   T value;
   try {
     value = variants.at(variant).get<T>();
