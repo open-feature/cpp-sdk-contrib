@@ -45,3 +45,18 @@ cc_library(
         "@openfeature_cpp_sdk//openfeature:evaluation_context",
     ],
 )
+
+cc_library(
+    name = "evaluator",
+    srcs = ["evaluator.cpp"],
+    hdrs = ["evaluator.h"],
+    include_prefix = "flagd",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":sync",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+        "@openfeature_cpp_sdk//openfeature",
+        "@openfeature_cpp_sdk//openfeature:evaluation_context",
+    ],
+)
