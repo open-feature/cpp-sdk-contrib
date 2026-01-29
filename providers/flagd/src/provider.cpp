@@ -19,7 +19,7 @@ FlagdProvider::FlagdProvider(FlagdProviderConfig config)
 
 FlagdProvider::~FlagdProvider() {
   if (is_ready_) {
-    absl::Status status = Shutdown();
+    absl::Status status = FlagdProvider::Shutdown();
     if (!status.ok()) {
       LOG(ERROR) << "Error during FlagdProvider shutdown: " << status;
     }
