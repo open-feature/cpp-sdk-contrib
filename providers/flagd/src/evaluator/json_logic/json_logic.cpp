@@ -3,8 +3,8 @@
 #include <string>
 #include <utility>
 
-#include "ops/data.h"
-#include "ops/logic.h"
+#include "data.h"
+#include "logic.h"
 
 namespace json_logic {
 

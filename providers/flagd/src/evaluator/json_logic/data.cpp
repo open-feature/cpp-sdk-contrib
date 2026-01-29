@@ -3,15 +3,17 @@
 #include <algorithm>
 #include <string>
 
-#include "../json_logic.h"
+#include "json_logic.h"
 
 namespace json_logic::ops {
 
 namespace {
+
 nlohmann::json::json_pointer CreateJsonPointer(std::string path) {
   std::replace(path.begin(), path.end(), '.', '/');
   return nlohmann::json::json_pointer("/" + path);
 }
+
 }  // namespace
 
 nlohmann::json Var(const JsonLogic& eval, const nlohmann::json& values,
@@ -38,7 +40,7 @@ nlohmann::json Var(const JsonLogic& eval, const nlohmann::json& values,
   if (path.empty()) return data;
 
   try {
-    auto ptr = CreateJsonPointer(path);
+    nlohmann::json::json_pointer ptr = CreateJsonPointer(path);
     if (data.contains(ptr)) {
       return data[ptr];
     }
@@ -48,5 +50,7 @@ nlohmann::json Var(const JsonLogic& eval, const nlohmann::json& values,
 
   return eval.Apply(default_val, data);
 }
+
+// TODO(#35): Implement the rest of Data operators
 
 }  // namespace json_logic::ops

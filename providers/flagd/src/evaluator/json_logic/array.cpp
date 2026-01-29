@@ -1,5 +1,7 @@
 #include "array.h"
 
 namespace json_logic::ops {
-// Array operations to be implemented
+
+// TODO(#36): Implement Array operations
+
 }  // namespace json_logic::ops

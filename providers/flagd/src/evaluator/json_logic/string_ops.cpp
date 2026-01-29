@@ -1,5 +1,7 @@
 #include "string_ops.h"
 
 namespace json_logic::ops {
-// String operations to be implemented
+
+// TODO(#34): Implement String operations
+
 }  // namespace json_logic::ops

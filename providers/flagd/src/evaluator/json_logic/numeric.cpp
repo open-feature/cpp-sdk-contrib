@@ -1,5 +1,7 @@
 #include "numeric.h"
 
 namespace json_logic::ops {
-// Numeric operations to be implemented
+
+// TODO(#33): Implement Numeric operations
+
 }  // namespace json_logic::ops

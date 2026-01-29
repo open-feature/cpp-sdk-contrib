@@ -3,7 +3,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include "../json_logic.h"
+#include "json_logic.h"
 
 namespace json_logic::ops {
 
