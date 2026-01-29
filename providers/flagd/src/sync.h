@@ -48,7 +48,6 @@ class GrpcSync final : public FlagSync {
  private:
   void WaitForUpdates();
 
-  std::shared_ptr<grpc::Channel> channel_;
   std::unique_ptr<flagd::sync::v1::FlagSyncService::Stub> stub_;
   std::shared_ptr<grpc::ClientContext> context_;
   enum class State : uint8_t {

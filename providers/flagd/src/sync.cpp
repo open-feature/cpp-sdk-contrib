@@ -102,7 +102,9 @@ absl::Status GrpcSync::Init(const openfeature::EvaluationContext& ctx) {
     case State::kShuttingDown:
       lifecycle_cv_.wait(lock,
                          [this] { return state_ == State::kUninitialized; });
-    case State::kUninitialized:;
+      break;
+    case State::kUninitialized:
+      break;
   }
 
   state_ = State::kInitializing;
