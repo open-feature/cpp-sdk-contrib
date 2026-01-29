@@ -1,18 +1,15 @@
 module(name = "cpp_sdk_contrib")
 
 bazel_dep(name = "rules_cc", version = "0.2.8")
-
+bazel_dep(name = "rules_python", version = "1.1.0")
 bazel_dep(name = "rules_proto", version = "7.1.0")
-
 bazel_dep(name = "googletest", version = "1.17.0.bcr.2")
-
 bazel_dep(name = "abseil-cpp", version = "20250512.1")
-
 bazel_dep(name = "openfeature_cpp_sdk")
 git_override(
     module_name = "openfeature_cpp_sdk",
-    remote = "https://github.com/open-feature/cpp-sdk.git",
     branch = "main",
+    remote = "https://github.com/open-feature/cpp-sdk.git",
 )
 
 # Hedron's Compile Commands Extractor for Bazel
@@ -20,22 +17,28 @@ git_override(
 bazel_dep(name = "hedron_compile_commands", dev_dependency = True)
 git_override(
     module_name = "hedron_compile_commands",
-    remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
     # Not official but well established fork with a fix to header only libraries
     # https://github.com/hedronvision/bazel-compile-commands-extractor/pull/219
     commit = "02d15621b528efd877f5d5657c4b738523a0eb17",
+    remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
 )
 
 bazel_dep(name = "grpc", version = "1.74.1", repo_name = "com_github_grpc_grpc")
 bazel_dep(name = "protobuf", version = "31.1", repo_name = "com_google_protobuf")
-
 bazel_dep(name = "nlohmann_json", version = "3.11.3")
 
 git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 git_repository(
     name = "flagd-schemas",
-    remote = "https://github.com/open-feature/flagd-schemas.git",
-    commit = "a0b8e85d4bca83728bfbf62d320936960926a262",
     build_file = "//providers/flagd:flagd-schemas.BUILD",
+    commit = "a0b8e85d4bca83728bfbf62d320936960926a262",
+    remote = "https://github.com/open-feature/flagd-schemas.git",
+)
+
+git_repository(
+    name = "nlohmann_json_schema_validator",
+    build_file = "//providers/flagd:json_schema_validator.BUILD",
+    remote = "https://github.com/pboettch/json-schema-validator.git",
+    tag = "2.3.0",
 )

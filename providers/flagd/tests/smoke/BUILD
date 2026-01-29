@@ -4,8 +4,8 @@ cc_test(
     name = "openfeature",
     srcs = ["openfeature.cpp"],
     deps = [
-        "//providers/flagd:flagd_configuration",
-        "//providers/flagd:flagd_provider",
+        "//providers/flagd/src:flagd_configuration",
+        "//providers/flagd/src:flagd_provider",
         "@googletest//:gtest_main",
         "@openfeature_cpp_sdk//openfeature",
     ],
@@ -15,8 +15,9 @@ cc_test(
     name = "sync",
     srcs = ["sync.cpp"],
     deps = [
-        "//providers/flagd:sync",
+        "//providers/flagd/src:sync",
         "@abseil-cpp//absl/status",
+        "@googletest//:gtest",
         "@googletest//:gtest_main",
         "@nlohmann_json//:json",
     ],
@@ -26,7 +27,7 @@ cc_binary(
     name = "grpc_sync",
     srcs = ["grpc_sync.cpp"],
     deps = [
-        "//providers/flagd:flagd_configuration",
-        "//providers/flagd:sync",
+        "//providers/flagd/src:flagd_configuration",
+        "//providers/flagd/src:sync",
     ],
 )
