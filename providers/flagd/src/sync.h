@@ -3,7 +3,6 @@
 
 #include <grpcpp/grpcpp.h>
 
-#include <atomic>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -47,28 +46,24 @@ class GrpcSync final : public FlagSync {
   absl::Status Shutdown() override;
 
  private:
-  enum class State : uint8_t {
-    kUninitialized,
-    kInitializing,
-    kInitialized,
-    kShuttingDown,
-  };
-
   void WaitForUpdates();
 
   std::shared_ptr<grpc::Channel> channel_;
   std::unique_ptr<flagd::sync::v1::FlagSyncService::Stub> stub_;
-
-  std::mutex connection_mutex_;
-  std::unique_ptr<grpc::ClientContext> context_;
+  std::shared_ptr<grpc::ClientContext> context_;
+  enum class State : uint8_t {
+    kUninitialized,
+    kInitializing,  // Thread started, waiting for first connection
+    kReady,         // First sync complete, running normally
+    kShuttingDown   // Shutdown requested, cleaning up
+  };
 
   std::thread background_thread_;
-  std::atomic<bool> shutdown_requested_{false};
 
-  std::mutex state_mutex_;
-  std::condition_variable init_cv_;
+  std::mutex lifecycle_mutex_;
+  std::condition_variable lifecycle_cv_;
   State state_ = State::kUninitialized;
-  absl::Status init_status_;
+  absl::Status init_result_;
 
   FlagdProviderConfig config_;
 };
