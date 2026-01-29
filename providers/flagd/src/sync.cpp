@@ -8,6 +8,7 @@
 #include <optional>
 #include <thread>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "embedded_schemas.h"
 #include "flagd/configuration.h"
@@ -31,7 +32,7 @@ void Loader(const nlohmann::json_uri& uri, Json& schema) {
   if (schema_it != schema::schemas.end()) {
     schema = Json::parse(schema_it->second);
   } else {
-    // TODO(#10): We should log an error here
+    LOG(ERROR) << "Schema not found for filename: " << filename;
   }
 }
 }  // namespace
@@ -51,7 +52,7 @@ class FlagSync::Validator {
       validator.validate(json);
       return true;
     } catch (const std::exception& e) {
-      // TODO(#10): Log the validation error with details from e.what();
+      LOG(ERROR) << "Flag configuration validation failed: " << e.what();
       return false;
     }
   }
@@ -68,7 +69,7 @@ void FlagSync::UpdateFlags(const nlohmann::json& new_json) {
   if (validator_) {
     if (!validator_->Validate(new_json)) {
       // Validation failed, do not update flags.
-      // TODO(#10): We should log about it
+      LOG(ERROR) << "Flag configuration validation failed, skipping update.";
       return;
     }
   }
@@ -87,7 +88,12 @@ std::shared_ptr<const nlohmann::json> FlagSync::GetFlags() const {
 
 GrpcSync::GrpcSync(FlagdProviderConfig config) : config_(std::move(config)) {}
 
-GrpcSync::~GrpcSync() { GrpcSync::Shutdown().IgnoreError(); }
+GrpcSync::~GrpcSync() {
+  absl::Status status = GrpcSync::Shutdown();
+  if (!status.ok()) {
+    LOG(ERROR) << "Error during GrpcSync shutdown: " << status;
+  }
+}
 
 absl::Status GrpcSync::Init(const openfeature::EvaluationContext& ctx) {
   std::string target = config_.GetEffectiveTargetUri();
@@ -145,7 +151,8 @@ void GrpcSync::WaitForUpdates() {
 
       UpdateFlags(raw);
     } catch (const std::exception& e) {
-      continue;  // TODO(#10): We should log an error here
+      LOG(ERROR) << "Failed to parse flag configuration: " << e.what();
+      continue;
     }
   }
 

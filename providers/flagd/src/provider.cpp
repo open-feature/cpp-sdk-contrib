@@ -4,6 +4,7 @@
 
 #include <optional>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "configuration.h"
 
@@ -18,8 +19,10 @@ FlagdProvider::FlagdProvider(FlagdProviderConfig config)
 
 FlagdProvider::~FlagdProvider() {
   if (is_ready_) {
-    Shutdown()
-        .IgnoreError();  // We should probably Log this, once Logging is set up
+    absl::Status status = Shutdown();
+    if (!status.ok()) {
+      LOG(ERROR) << "Error during FlagdProvider shutdown: " << status;
+    }
   }
 }
 
