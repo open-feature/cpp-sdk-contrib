@@ -1,0 +1,3 @@
+# Fixes for weird errors related to linker script
+build --copt=-fno-asynchronous-unwind-tables
+build --linkopt=-Wl,--gc-sections

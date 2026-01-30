@@ -1,4 +1,4 @@
 exports_files([
-    "flagd-schemas.BUILD",
+    "flagd_schemas.BUILD",
     "json_schema_validator.BUILD",
 ])
