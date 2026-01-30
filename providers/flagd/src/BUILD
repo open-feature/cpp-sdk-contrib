@@ -8,6 +8,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":flagd_configuration",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@openfeature_cpp_sdk//openfeature",
     ],
@@ -33,8 +34,9 @@ cc_library(
     include_prefix = "flagd",
     visibility = ["//visibility:public"],
     deps = [
-        "//providers/flagd/tools:embedded_schemas",
         ":flagd_configuration",
+        "//providers/flagd/tools:embedded_schemas",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@com_github_grpc_grpc//:grpc++",
         "@flagd-schemas//:flagd_sync_cc_grpc",
