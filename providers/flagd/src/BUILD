@@ -8,6 +8,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":flagd_configuration",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@openfeature_cpp_sdk//openfeature",
     ],
@@ -33,14 +34,30 @@ cc_library(
     include_prefix = "flagd",
     visibility = ["//visibility:public"],
     deps = [
-        "//providers/flagd/tools:embedded_schemas",
         ":flagd_configuration",
+        "//providers/flagd/tools:embedded_schemas",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@com_github_grpc_grpc//:grpc++",
         "@flagd-schemas//:flagd_sync_cc_grpc",
         "@flagd-schemas//:flagd_sync_cc_proto",
         "@nlohmann_json//:json",
         "@nlohmann_json_schema_validator//:json_schema_validator",
+        "@openfeature_cpp_sdk//openfeature",
+        "@openfeature_cpp_sdk//openfeature:evaluation_context",
+    ],
+)
+
+cc_library(
+    name = "evaluator",
+    srcs = ["evaluator.cpp"],
+    hdrs = ["evaluator.h"],
+    include_prefix = "flagd",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":sync",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
         "@openfeature_cpp_sdk//openfeature",
         "@openfeature_cpp_sdk//openfeature:evaluation_context",
     ],
