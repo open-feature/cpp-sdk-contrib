@@ -20,7 +20,7 @@ FlagdProvider::FlagdProvider(FlagdProviderConfig config)
     : configuration_(std::move(config)), is_ready_(false) {
   if (configuration_.GetOfflineFlagSourcePath().has_value()) {
     // TODO(#20) Implement File sync
-    exit(1);
+    LOG(FATAL) << "File sync is not implemented yet!";
   }
 
   sync_ = std::make_unique<GrpcSync>(configuration_);
