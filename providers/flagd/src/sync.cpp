@@ -1,6 +1,5 @@
 #include "sync.h"
 
-#include <atomic>
 #include <memory>
 #include <mutex>
 #include <nlohmann/json-schema.hpp>
@@ -10,6 +9,7 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "embedded_schemas.h"
 #include "flagd/configuration.h"
 #include "flagd/sync/v1/sync.grpc.pb.h"
@@ -96,31 +96,97 @@ GrpcSync::~GrpcSync() {
 }
 
 absl::Status GrpcSync::Init(const openfeature::EvaluationContext& ctx) {
+  std::unique_lock lock(lifecycle_mutex_);
+
+  switch (state_) {
+    case State::kReady:
+      return absl::OkStatus();
+    case State::kInitializing:
+      lifecycle_cv_.wait(lock,
+                         [this] { return state_ != State::kInitializing; });
+      return (state_ == State::kReady) ? absl::OkStatus() : init_result_;
+    case State::kShuttingDown:
+      lifecycle_cv_.wait(lock,
+                         [this] { return state_ == State::kUninitialized; });
+      break;
+    case State::kUninitialized:
+      break;
+  }
+
+  state_ = State::kInitializing;
+  init_result_ = absl::UnknownError("Initialization incomplete");
+
   std::string target = config_.GetEffectiveTargetUri();
   absl::StatusOr<std::shared_ptr<grpc::ChannelCredentials>> creds =
       config_.GetEffectiveCredentials();
+  if (!creds.ok()) {
+    state_ = State::kUninitialized;
+    return creds.status();
+  }
 
-  if (!creds.ok()) return creds.status();
+  std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(target, *creds);
+  stub_ = FlagSyncService::NewStub(channel);
 
-  channel_ = grpc::CreateChannel(target, *creds);
-  stub_ = FlagSyncService::NewStub(channel_);
+  context_ = std::make_shared<grpc::ClientContext>();
 
-  shutdown_requested_ = false;
-  background_thread_ = std::thread(&GrpcSync::WaitForUpdates, this);
+  try {
+    background_thread_ = std::thread(&GrpcSync::WaitForUpdates, this);
+  } catch (const std::exception& e) {
+    state_ = State::kUninitialized;
+    return absl::InternalError(
+        absl::StrCat("Failed to spawn thread: ", e.what()));
+  }
+
+  lifecycle_cv_.wait(lock, [this] { return state_ != State::kInitializing; });
+
+  if (state_ != State::kReady) {
+    if (background_thread_.joinable()) {
+      lock.unlock();
+      background_thread_.join();
+      lock.lock();
+    }
+    return init_result_;
+  }
+
   return absl::OkStatus();
 }
 
 absl::Status GrpcSync::Shutdown() {
-  if (shutdown_requested_.exchange(true)) return absl::OkStatus();
+  std::unique_lock lock(lifecycle_mutex_);
 
-  {
-    std::scoped_lock lock(connection_mutex_);
-    if (context_) context_->TryCancel();
+  if (state_ == State::kUninitialized) {
+    return absl::OkStatus();
   }
 
+  if (state_ == State::kShuttingDown) {
+    lifecycle_cv_.wait(lock,
+                       [this] { return state_ == State::kUninitialized; });
+    return absl::OkStatus();
+  }
+
+  State previous_state = state_;
+  state_ = State::kShuttingDown;
+
+  if (context_) {
+    context_->TryCancel();
+  }
+
+  lock.unlock();
   if (background_thread_.joinable()) {
     background_thread_.join();
   }
+  lock.lock();
+
+  context_.reset();
+  stub_.reset();
+  state_ = State::kUninitialized;
+
+  if (previous_state == State::kInitializing) {
+    init_result_ =
+        absl::CancelledError("Shutdown called during initialization");
+  }
+
+  lifecycle_cv_.notify_all();
 
   return absl::OkStatus();
 }
@@ -131,34 +197,63 @@ void GrpcSync::WaitForUpdates() {
 
   if (config_.GetProviderId().has_value() &&
       !config_.GetProviderId()->empty()) {
-    request.set_provider_id(config_.GetProviderId()->data());
+    request.set_provider_id(*config_.GetProviderId());
   }
 
+  std::shared_ptr<grpc::ClientContext> local_ctx;
   {
-    std::scoped_lock lock(connection_mutex_);
-    if (shutdown_requested_) return;
-    context_ = std::make_unique<grpc::ClientContext>();
+    std::scoped_lock lock(lifecycle_mutex_);
+    local_ctx = context_;
   }
 
-  auto reader = stub_->SyncFlags(context_.get(), request);
+  if (!local_ctx) return;
+
+  auto reader = stub_->SyncFlags(local_ctx.get(), request);
   SyncFlagsResponse response;
 
+  bool first_read = true;
   while (reader->Read(&response)) {
-    if (shutdown_requested_) break;
-
     try {
       Json raw = Json::parse(response.flag_configuration());
 
       UpdateFlags(raw);
+
+      if (first_read) {
+        std::scoped_lock lock(lifecycle_mutex_);
+        if (state_ == State::kInitializing) {
+          state_ = State::kReady;
+          init_result_ = absl::OkStatus();
+          lifecycle_cv_.notify_all();
+        }
+        first_read = false;
+      }
     } catch (const std::exception& e) {
       LOG(ERROR) << "Failed to parse flag configuration: " << e.what();
-      continue;
+      if (first_read) {
+        std::scoped_lock lock(lifecycle_mutex_);
+        if (state_ == State::kInitializing) {
+          state_ = State::kUninitialized;
+          init_result_ =
+              absl::InternalError(absl::StrCat("Parse error: ", e.what()));
+          lifecycle_cv_.notify_all();
+        }
+        // If we fail first read, we abort the stream
+        return;
+      }
     }
   }
 
+  grpc::Status status = reader->Finish();
+
   {
-    std::scoped_lock lock(connection_mutex_);
-    context_.reset();
+    std::scoped_lock lock(lifecycle_mutex_);
+    if (state_ == State::kInitializing) {
+      state_ = State::kUninitialized;
+      init_result_ = status.ok()
+                         ? absl::InternalError("Stream closed immediately")
+                         : absl::InternalError(status.error_message());
+      lifecycle_cv_.notify_all();
+    }
   }
 }
 

@@ -139,3 +139,20 @@ TEST_F(FlagSyncTest, ThreadSafety_ReadersAndWriters) {
   EXPECT_EQ((*final_flags)["myFlag"]["variants"]["iteration"], kIterations - 1)
       << "";
 }
+
+TEST(GrpcSyncTest, InitTwiceDoesNotCrash) {
+  flagd::FlagdProviderConfig config;
+  flagd::GrpcSync sync(config);
+  openfeature::EvaluationContext ctx;
+
+  // First call might fail because no server is running, but it shouldn't crash
+  auto status1 = sync.Init(ctx);
+
+  // Second call should also not crash and return the same status or a sensible
+  // one
+  auto status2 = sync.Init(ctx);
+
+  EXPECT_EQ(status1.code(), status2.code());
+
+  sync.Shutdown().IgnoreError();
+}
