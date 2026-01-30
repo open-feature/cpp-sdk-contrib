@@ -111,13 +111,14 @@ absl::Status GrpcSync::Init(const openfeature::EvaluationContext& ctx) {
   init_result_ = absl::UnknownError("Initialization incomplete");
 
   std::string target = config_.GetEffectiveTargetUri();
-  auto creds = config_.GetEffectiveCredentials();
+  absl::StatusOr<std::shared_ptr<grpc::ChannelCredentials>> creds =
+      config_.GetEffectiveCredentials();
   if (!creds.ok()) {
     state_ = State::kUninitialized;
     return creds.status();
   }
 
-  auto channel = grpc::CreateChannel(target, *creds);
+  std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(target, *creds);
   stub_ = FlagSyncService::NewStub(channel);
 
   context_ = std::make_shared<grpc::ClientContext>();
