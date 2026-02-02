@@ -4,9 +4,11 @@
 #include <openfeature/provider.h>
 
 #include <atomic>
+#include <memory>
 
 #include "absl/status/status.h"
 #include "flagd/configuration.h"
+#include "flagd/sync.h"
 
 namespace flagd {
 
@@ -29,6 +31,7 @@ class FlagdProvider : public openfeature::FeatureProvider {
 
  private:
   FlagdProviderConfig configuration_;
+  std::unique_ptr<FlagSync> sync_;
   std::atomic<bool> is_ready_;
 };
 
