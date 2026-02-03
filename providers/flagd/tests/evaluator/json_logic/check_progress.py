@@ -15,6 +15,10 @@ def run_tests():
     
     # Run command, capturing stdout and stderr
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+    # Return code: 0 - all tests passed, 3 - execution passed but not all testcases
+    if result.returncode != 0 and result.returncode != 3:
+        raise Exception("gbazelisk command failed to run:\n" + result.stdout)
     
     return result.stdout
 
