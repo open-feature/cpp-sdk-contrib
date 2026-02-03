@@ -7,6 +7,8 @@
 using json_logic::JsonLogic;
 using nlohmann::json;
 
+// TODO(#38): These tests are temporary. In a subsequent PR, official tests will
+// be used and these will be removed.
 class OpsTest : public ::testing::Test {
  protected:
   JsonLogic json_logic_;
