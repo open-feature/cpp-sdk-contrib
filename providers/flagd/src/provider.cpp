@@ -23,7 +23,9 @@ FlagdProvider::FlagdProvider(FlagdProviderConfig config)
     LOG(FATAL) << "File sync is not implemented yet!";
   }
 
-  sync_ = std::make_unique<GrpcSync>(configuration_);
+  sync_ = std::make_shared<GrpcSync>(configuration_);
+
+  evaluator_ = std::make_unique<JsonLogicEvaluator>(sync_);
 }
 
 FlagdProvider::~FlagdProvider() {
@@ -57,9 +59,13 @@ std::unique_ptr<openfeature::BoolResolutionDetails>
 FlagdProvider::GetBooleanEvaluation(const std::string_view flag,
                                     bool default_value,
                                     const openfeature::EvaluationContext& ctx) {
-  return std::make_unique<openfeature::BoolResolutionDetails>(
-      default_value, openfeature::Reason::kDefault, "default-variant",
-      openfeature::FlagMetadata(), std::nullopt, std::nullopt);
+  if (!is_ready_) {
+    return std::make_unique<openfeature::BoolResolutionDetails>(
+        default_value, openfeature::Reason::kError, "",
+        openfeature::FlagMetadata(), openfeature::ErrorCode::kProviderNotReady,
+        "Provider not ready");
+  }
+  return evaluator_->ResolveBoolean(flag, default_value, ctx);
 }
 
 }  // namespace flagd
