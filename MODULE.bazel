@@ -40,5 +40,5 @@ git_repository(
     name = "nlohmann_json_schema_validator",
     build_file = "//providers/flagd:json_schema_validator.BUILD",
     remote = "https://github.com/pboettch/json-schema-validator.git",
-    tag = "2.3.0",
+    tag = "2.4.0",
 )
