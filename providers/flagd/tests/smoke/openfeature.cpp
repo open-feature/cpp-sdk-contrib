@@ -13,13 +13,17 @@ TEST(FlagdProviderTest, ProviderCreation) {
   std::shared_ptr<openfeature::FeatureProvider> provider =
       std::make_shared<flagd::FlagdProvider>(config);
 
-  provider->Init({}).IgnoreError();
-
   std::unique_ptr<openfeature::BoolResolutionDetails> details =
       provider->GetBooleanEvaluation("test_flag", false, {});
 
+  // We didn't call Init, so the provider is not ready.
   auto expected_details = openfeature::BoolResolutionDetails{
-      false, openfeature::Reason::kDefault, "default-variant", {}};
+      false,
+      openfeature::Reason::kError,
+      "",
+      {},
+      openfeature::ErrorCode::kProviderNotReady,
+      "Provider not ready"};
 
   EXPECT_EQ(details->GetValue(), expected_details.GetValue());
   EXPECT_EQ(details->GetReason(), expected_details.GetReason());

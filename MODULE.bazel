@@ -24,8 +24,8 @@ git_override(
 )
 
 bazel_dep(name = "grpc", version = "1.76.0", repo_name = "com_github_grpc_grpc")
-bazel_dep(name = "protobuf", version = "33.4", repo_name = "com_google_protobuf")
-bazel_dep(name = "nlohmann_json", version = "3.12.0")
+bazel_dep(name = "protobuf", version = "33.5", repo_name = "com_google_protobuf")
+bazel_dep(name = "nlohmann_json", version = "3.12.0.bcr.1")
 
 git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
@@ -40,5 +40,5 @@ git_repository(
     name = "nlohmann_json_schema_validator",
     build_file = "//providers/flagd:json_schema_validator.BUILD",
     remote = "https://github.com/pboettch/json-schema-validator.git",
-    tag = "2.3.0",
+    tag = "2.4.0",
 )
