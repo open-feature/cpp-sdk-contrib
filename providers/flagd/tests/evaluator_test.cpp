@@ -95,4 +95,7 @@ TEST_F(EvaluatorTest, ResolveBoolean_VariantNotFound) {
   EXPECT_EQ(result->GetValue(), false);  // Default value
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kError);
   EXPECT_EQ(result->GetErrorCode(), openfeature::ErrorCode::kGeneral);
+  EXPECT_EQ(result->GetErrorMessage(),
+            "flag: my-broken-flag doesn't contain evaluated variant: "
+            "missing-variant.");
 }
