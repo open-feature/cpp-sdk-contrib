@@ -13,8 +13,11 @@ TEST(FlagdProviderTest, ProviderCreation) {
   std::shared_ptr<openfeature::FeatureProvider> provider =
       std::make_shared<flagd::FlagdProvider>(config);
 
+  openfeature::EvaluationContext ctx =
+      openfeature::EvaluationContext::Builder().build();
+
   std::unique_ptr<openfeature::BoolResolutionDetails> details =
-      provider->GetBooleanEvaluation("test_flag", false, {});
+      provider->GetBooleanEvaluation("test_flag", false, ctx);
 
   // We didn't call Init, so the provider is not ready.
   auto expected_details = openfeature::BoolResolutionDetails{

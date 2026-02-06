@@ -7,7 +7,10 @@
 int main() {
   flagd::GrpcSync test = flagd::GrpcSync(flagd::FlagdProviderConfig());
 
-  test.Init(openfeature::EvaluationContext()).IgnoreError();
+  openfeature::EvaluationContext ctx =
+      openfeature::EvaluationContext::Builder().build();
+
+  test.Init(ctx).IgnoreError();
 
   for (int i = 0; i < 20; i++) {
     auto config = test.GetFlags();

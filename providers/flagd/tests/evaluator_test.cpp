@@ -41,7 +41,8 @@ TEST_F(EvaluatorTest, ResolveBoolean_Success) {
 
   sync_->TriggerUpdate(flags);
 
-  openfeature::EvaluationContext ctx;
+  openfeature::EvaluationContext ctx =
+      openfeature::EvaluationContext::Builder().build();
   auto result = evaluator_->ResolveBoolean("my-bool-flag", false, ctx);
 
   EXPECT_EQ(result->GetValue(), true);
@@ -54,7 +55,8 @@ TEST_F(EvaluatorTest, ResolveBoolean_FlagNotFound) {
   nlohmann::json flags = {{"flags", {}}};
   sync_->TriggerUpdate(flags);
 
-  openfeature::EvaluationContext ctx;
+  openfeature::EvaluationContext ctx =
+      openfeature::EvaluationContext::Builder().build();
   auto result = evaluator_->ResolveBoolean("missing-flag", true, ctx);
 
   EXPECT_EQ(result->GetValue(), true);  // Default value
@@ -72,7 +74,8 @@ TEST_F(EvaluatorTest, ResolveBoolean_TypeMismatch) {
 
   sync_->TriggerUpdate(flags);
 
-  openfeature::EvaluationContext ctx;
+  openfeature::EvaluationContext ctx =
+      openfeature::EvaluationContext::Builder().build();
   auto result = evaluator_->ResolveBoolean("my-string-flag", false, ctx);
 
   EXPECT_EQ(result->GetValue(), false);  // Default value
@@ -89,7 +92,8 @@ TEST_F(EvaluatorTest, ResolveBoolean_VariantNotFound) {
 
   sync_->TriggerUpdate(flags);
 
-  openfeature::EvaluationContext ctx;
+  openfeature::EvaluationContext ctx =
+      openfeature::EvaluationContext::Builder().build();
   auto result = evaluator_->ResolveBoolean("my-broken-flag", false, ctx);
 
   EXPECT_EQ(result->GetValue(), false);  // Default value
