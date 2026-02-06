@@ -16,7 +16,7 @@ std::unique_ptr<openfeature::ResolutionDetails<T>>
 JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
                                const openfeature::EvaluationContext& ctx) {
   std::shared_ptr<const nlohmann::json> flags = sync_->GetFlags();
-  if (flags != nullptr) {
+  if (flags == nullptr) {
     return std::make_unique<openfeature::ResolutionDetails<T>>(
         default_value, openfeature::Reason::kError, "",
         openfeature::FlagMetadata(), openfeature::ErrorCode::kParseError,

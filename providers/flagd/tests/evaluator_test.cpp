@@ -17,7 +17,7 @@ class TestableSync : public flagd::FlagSync {
   absl::Status Shutdown() override { return absl::OkStatus(); }
 
   void TriggerUpdate(const nlohmann::json& new_json) {
-    this->UpdateFlags(new_json["flags"]);
+    this->UpdateFlags(new_json);
   }
 };
 
@@ -95,5 +95,7 @@ TEST_F(EvaluatorTest, ResolveBoolean_VariantNotFound) {
   EXPECT_EQ(result->GetValue(), false);  // Default value
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kError);
   EXPECT_EQ(result->GetErrorCode(), openfeature::ErrorCode::kGeneral);
-  EXPECT_EQ(result->GetErrorMessage(), "Variant not found in config");
+  EXPECT_EQ(result->GetErrorMessage(),
+            "flag: my-broken-flag doesn't contain evaluated variant: "
+            "missing-variant.");
 }
