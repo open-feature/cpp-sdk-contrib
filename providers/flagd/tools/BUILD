@@ -1,5 +1,5 @@
-load("@rules_python//python:defs.bzl", "py_binary")
 load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_python//python:defs.bzl", "py_binary")
 
 py_binary(
     name = "generate_schema_header_bin",
@@ -10,7 +10,7 @@ py_binary(
 
 genrule(
     name = "generate_schema_header",
-    srcs = ["@flagd-schemas//:json_schemas"],
+    srcs = ["@flagd_schemas//:json_schemas"],
     outs = ["embedded_schemas.h"],
     cmd = "$(location :generate_schema_header_bin) --output $@ $(SRCS)",
     tools = [":generate_schema_header_bin"],
