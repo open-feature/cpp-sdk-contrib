@@ -7,6 +7,7 @@ cc_library(
     include_prefix = "flagd",
     visibility = ["//visibility:public"],
     deps = [
+        ":evaluator",
         ":flagd_configuration",
         ":sync",
         "@abseil-cpp//absl/log",
