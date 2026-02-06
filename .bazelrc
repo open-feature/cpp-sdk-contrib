@@ -1,3 +1,4 @@
-# Fixes for weird errors related to linker script
+# Workaround for errors related to linker script when compiling abseil:
+# error: relocation refers to local symbol "...", which is defined in a discarded section
 build --copt=-fno-asynchronous-unwind-tables
 build --linkopt=-Wl,--gc-sections
