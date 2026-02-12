@@ -4,11 +4,8 @@
 #include <utility>
 
 #include "absl/status/status.h"
-#include "array.h"
 #include "data.h"
 #include "logic.h"
-#include "numeric.h"
-#include "string_ops.h"
 
 namespace json_logic {
 
@@ -16,6 +13,8 @@ JsonLogic::JsonLogic() {
   RegisterOperation("var", ops::Var);
   RegisterOperation("missing", ops::Missing);
   RegisterOperation("missing_some", ops::MissingSome);
+
+  RegisterOperation("And", ops::And);
 }
 
 void JsonLogic::RegisterOperation(std::string_view operation,
