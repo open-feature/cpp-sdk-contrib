@@ -37,7 +37,7 @@ TEST_P(JsonLogicTest, RunCase) {
 }
 
 std::vector<json> LoadTests() {
-  // This file is downloaded from: https://jsonlogic.com/tests.json
+  // This file is generated from ./generate_tests_annotations.py
   std::string file_path =
       "providers/flagd/tests/evaluator/json_logic/tests_annotated.json";
   std::ifstream f(file_path);
