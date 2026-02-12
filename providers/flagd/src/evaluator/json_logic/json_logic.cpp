@@ -3,14 +3,19 @@
 #include <string>
 #include <utility>
 
+#include "absl/status/status.h"
+#include "array.h"
 #include "data.h"
 #include "logic.h"
+#include "numeric.h"
+#include "string_ops.h"
 
 namespace json_logic {
 
 JsonLogic::JsonLogic() {
   RegisterOperation("var", ops::Var);
-  RegisterOperation("and", ops::And);
+  RegisterOperation("missing", ops::Missing);
+  RegisterOperation("missing_some", ops::MissingSome);
 }
 
 void JsonLogic::RegisterOperation(std::string_view operation,
@@ -45,28 +50,31 @@ absl::StatusOr<nlohmann::json> JsonLogic::Apply(
     // When object have more than one key, some execute only the first one,
     // and some treat it as an invalid rule and treat it as data, returning the
     // whole object. Here we went with the first option.
-    auto iter = logic.begin();
+    nlohmann::json::const_iterator iter = logic.begin();
     std::string const& operation = iter.key();
-    return ApplyOp(operation, iter.value(), data);
+
+    absl::StatusOr<nlohmann::json> operation_result =
+        ApplyOp(operation, iter.value(), data);
+
+    if (!operation_result.ok()) {
+      return logic;
+    }
+    return operation_result;
   }
 
-  return nlohmann::json();
+  return nlohmann::json{};
 }
 
 absl::StatusOr<nlohmann::json> JsonLogic::ApplyOp(
     const std::string& operation, const nlohmann::json& values,
     const nlohmann::json& data) const {
-  auto iter = operations_.find(operation);
+  absl::flat_hash_map<std::string, OpFunc>::const_iterator iter =
+      operations_.find(operation);
   if (iter != operations_.end()) {
-    // We are ensuring that every operation is receiving array as data, so that
-    // the functions won't have to check for that
-    if (values.is_array()) {
-      return iter->second(*this, values, data);
-    }
-    return iter->second(*this, nlohmann::json::array({values}), data);
+    return iter->second(*this, values, data);
   }
 
-  return nlohmann::json();
+  return absl::InvalidArgumentError("Unknown operation: " + operation);
 }
 
 }  // namespace json_logic
