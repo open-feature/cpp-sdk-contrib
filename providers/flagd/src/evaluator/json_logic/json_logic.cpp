@@ -49,7 +49,7 @@ absl::StatusOr<nlohmann::json> JsonLogic::Apply(
     // When object have more than one key, some execute only the first one,
     // and some treat it as an invalid rule and treat it as data, returning the
     // whole object. Here we went with the first option.
-    nlohmann::json::const_iterator iter = logic.begin();
+    auto iter = logic.begin();
     std::string const& operation = iter.key();
 
     absl::StatusOr<nlohmann::json> operation_result =
@@ -61,14 +61,13 @@ absl::StatusOr<nlohmann::json> JsonLogic::Apply(
     return operation_result;
   }
 
-  return nlohmann::json{};
+  return nlohmann::json();
 }
 
 absl::StatusOr<nlohmann::json> JsonLogic::ApplyOp(
     const std::string& operation, const nlohmann::json& values,
     const nlohmann::json& data) const {
-  absl::flat_hash_map<std::string, OpFunc>::const_iterator iter =
-      operations_.find(operation);
+  auto iter = operations_.find(operation);
   if (iter != operations_.end()) {
     return iter->second(*this, values, data);
   }
