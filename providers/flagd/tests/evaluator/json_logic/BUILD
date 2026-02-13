@@ -19,3 +19,25 @@ cc_test(
         "@nlohmann_json//:json",
     ],
 )
+
+cc_test(
+    name = "json_logic_official_test",
+    srcs = ["json_logic_official_test.cpp"],
+    data = ["tests.json"],
+    deps = [
+        "//providers/flagd/src/evaluator/json_logic",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "json_logic_annotated_test",
+    srcs = ["json_logic_annotated_test.cpp"],
+    data = ["tests_annotated.json"],
+    deps = [
+        "//providers/flagd/src/evaluator/json_logic",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
