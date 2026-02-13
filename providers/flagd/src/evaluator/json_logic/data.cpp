@@ -16,8 +16,9 @@ nlohmann::json::json_pointer CreateJsonPointer(std::string path) {
 
 }  // namespace
 
-nlohmann::json Var(const JsonLogic& eval, const nlohmann::json& values,
-                   const nlohmann::json& data) {
+absl::StatusOr<nlohmann::json> Var(const JsonLogic& eval,
+                                   const nlohmann::json& values,
+                                   const nlohmann::json& data) {
   if (values.empty()) {
     return data;
   }
@@ -34,7 +35,9 @@ nlohmann::json Var(const JsonLogic& eval, const nlohmann::json& values,
   } else if (values[0].is_null()) {
     return data;
   } else {
-    return eval.Apply(default_val, data);
+    auto res = eval.Apply(default_val, data);
+    if (!res.ok()) return res.status();
+    return res.value();
   }
 
   if (path.empty()) return data;
@@ -48,7 +51,9 @@ nlohmann::json Var(const JsonLogic& eval, const nlohmann::json& values,
     // Fallthrough to return default
   }
 
-  return eval.Apply(default_val, data);
+  auto res = eval.Apply(default_val, data);
+  if (!res.ok()) return res.status();
+  return res.value();
 }
 
 // TODO(#35): Implement the rest of Data operators
