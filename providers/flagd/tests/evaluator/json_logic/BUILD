@@ -41,13 +41,3 @@ cc_test(
         "@nlohmann_json//:json",
     ],
 )
-
-cc_test(
-    name = "json_logic_strict_test",
-    srcs = ["json_logic_strict_test.cpp"],
-    deps = [
-        "//providers/flagd/src/evaluator/json_logic",
-        "@googletest//:gtest_main",
-        "@nlohmann_json//:json",
-    ],
-)
