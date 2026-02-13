@@ -77,7 +77,7 @@ def get_args(logic, op):
 
 
 def resolve_var(data, var_name):
-    if var_name == "":
+    if var_name == "" or var_name is None:
         return data
     if not isinstance(data, (dict, list)):
         return None
@@ -98,7 +98,7 @@ def resolve_var(data, var_name):
     return curr
 
 
-def recursive_scan(node, data, path=""):
+def recursive_scan(node, data):
     """
     Scans the logic tree recursively.
     Returns exclusion_reason (str) or None.
@@ -210,7 +210,7 @@ def recursive_scan(node, data, path=""):
     # --- Recursive Step ---
     for arg in args:
         if isinstance(arg, dict):
-            reason = recursive_scan(arg, data, path + f"/{op}")
+            reason = recursive_scan(arg, data)
             if reason:
                 return reason
 

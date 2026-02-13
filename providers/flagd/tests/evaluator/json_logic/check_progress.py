@@ -9,7 +9,7 @@ Usage:
     python3 check_progress.py
 
 Requirements:
-    - gbazelisk (or bazel) must be in the PATH.
+    - gbazelisk must be in the PATH.
     - Must be run from a directory where gbazelisk can find the workspace.
 """
 import subprocess
