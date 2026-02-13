@@ -14,7 +14,7 @@ JsonLogic::JsonLogic() {
   RegisterOperation("missing", ops::Missing);
   RegisterOperation("missing_some", ops::MissingSome);
 
-  RegisterOperation("And", ops::And);
+  RegisterOperation("and", ops::And);
 }
 
 void JsonLogic::RegisterOperation(std::string_view operation,
