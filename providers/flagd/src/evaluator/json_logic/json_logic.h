@@ -12,7 +12,6 @@ namespace json_logic {
 
 class JsonLogic {
  public:
-  // The second parameter will be an array.
   using OpFunc = std::function<absl::StatusOr<nlohmann::json>(
       const JsonLogic&, const nlohmann::json&, const nlohmann::json&)>;
 

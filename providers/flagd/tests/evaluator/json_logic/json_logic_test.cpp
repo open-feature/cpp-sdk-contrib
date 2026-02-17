@@ -49,7 +49,7 @@ TEST_F(JsonLogicTest, ApplyUnknownOperator) {
   json data = json::object();
   json logic = json::parse(R"({"unknown_op": [1, 2]})");
 
-  EXPECT_EQ(json_logic_.Apply(logic, data).value(), nullptr);
+  EXPECT_EQ(json_logic_.Apply(logic, data).value(), logic);
 }
 
 TEST_F(JsonLogicTest, CustomOperation) {

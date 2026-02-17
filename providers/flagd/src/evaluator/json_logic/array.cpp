@@ -17,9 +17,7 @@ absl::StatusOr<nlohmann::json> Merge(const JsonLogic& eval,
   nlohmann::json result = nlohmann::json::array();
   for (const nlohmann::json& val : resolved_values) {
     if (val.is_array()) {
-      for (const nlohmann::json& item : val) {
-        result.push_back(item);
-      }
+      result.insert(result.end(), val.begin(), val.end());
     } else {
       result.push_back(val);
     }

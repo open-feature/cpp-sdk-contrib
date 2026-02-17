@@ -83,9 +83,11 @@ absl::StatusOr<nlohmann::json> JsonLogic::Apply(
     absl::StatusOr<nlohmann::json> operation_result =
         ApplyOp(operation, iter.value(), data);
 
-    if (!operation_result.ok()) {
-      return nlohmann::json();
+    if (!operation_result.ok() &&
+        operation_result.status().code() == absl::StatusCode::kNotFound) {
+      return logic;
     }
+
     return operation_result;
   }
 
@@ -100,7 +102,7 @@ absl::StatusOr<nlohmann::json> JsonLogic::ApplyOp(
     return iter->second(*this, values, data);
   }
 
-  return absl::InvalidArgumentError("Unknown operation: " + operation);
+  return absl::NotFoundError("Unknown operation: " + operation);
 }
 
 }  // namespace json_logic

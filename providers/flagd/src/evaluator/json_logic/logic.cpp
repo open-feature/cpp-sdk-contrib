@@ -10,8 +10,8 @@ namespace {
 absl::StatusOr<bool> GetBool(const JsonLogic& eval,
                              const nlohmann::json& values,
                              const nlohmann::json& data) {
-  absl::StatusOr result = eval.Apply(values, data);
-  if (!result.ok()) return result;
+  absl::StatusOr<nlohmann::json> result = eval.Apply(values, data);
+  if (!result.ok()) return result.status();
   return Truthy(result.value());
 }
 }  // namespace
@@ -26,7 +26,7 @@ absl::StatusOr<nlohmann::json> And(const JsonLogic& eval,
 
   for (const nlohmann::json& val : sugar) {
     absl::StatusOr<bool> res = GetBool(eval, val, data);
-    if (!res.ok()) return res;
+    if (!res.ok()) return res.status();
     if (!*res) return false;
   }
   return true;
@@ -42,7 +42,7 @@ absl::StatusOr<nlohmann::json> Or(const JsonLogic& eval,
 
   for (const nlohmann::json& val : sugar) {
     absl::StatusOr<bool> res = GetBool(eval, val, data);
-    if (!res.ok()) return res;
+    if (!res.ok()) return res.status();
     if (*res) return true;
   }
   return false;
