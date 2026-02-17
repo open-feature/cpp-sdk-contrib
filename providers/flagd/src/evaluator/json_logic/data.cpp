@@ -49,9 +49,7 @@ absl::StatusOr<nlohmann::json> Var(const JsonLogic& eval,
     // Fallthrough to return default
   }
 
-  auto res = eval.Apply(default_val, data);
-  if (!res.ok()) return res.status();
-  return res.value();
+  return eval.Apply(default_val, data);
 }
 
 // TODO(#35): Implement the rest of Data operators
