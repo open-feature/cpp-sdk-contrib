@@ -4,8 +4,11 @@
 #include <utility>
 
 #include "absl/status/status.h"
+#include "array.h"
 #include "data.h"
 #include "logic.h"
+#include "numeric.h"
+#include "string_ops.h"
 
 namespace json_logic {
 
@@ -15,6 +18,31 @@ JsonLogic::JsonLogic() {
   RegisterOperation("missing_some", ops::MissingSome);
 
   RegisterOperation("and", ops::And);
+  RegisterOperation("or", ops::Or);
+  RegisterOperation("!", ops::Not);
+  RegisterOperation("!!", ops::DoubleNegation);
+  RegisterOperation("if", ops::If);
+  RegisterOperation("?:", ops::If);
+  RegisterOperation("===", ops::StrictEquals);
+  RegisterOperation("!==", ops::StrictNotEquals);
+
+  RegisterOperation("+", ops::Add);
+  RegisterOperation("-", ops::Subtract);
+  RegisterOperation("*", ops::Multiply);
+  RegisterOperation("/", ops::Divide);
+  RegisterOperation("%", ops::Modulo);
+  RegisterOperation("min", ops::Min);
+  RegisterOperation("max", ops::Max);
+  RegisterOperation("<", ops::LessThan);
+  RegisterOperation("<=", ops::LessThanOrEqual);
+  RegisterOperation(">", ops::GreaterThan);
+  RegisterOperation(">=", ops::GreaterThanOrEqual);
+
+  RegisterOperation("cat", ops::Cat);
+  RegisterOperation("substr", ops::Substr);
+  RegisterOperation("in", ops::In);
+
+  RegisterOperation("merge", ops::Merge);
 }
 
 void JsonLogic::RegisterOperation(std::string_view operation,
@@ -56,7 +84,7 @@ absl::StatusOr<nlohmann::json> JsonLogic::Apply(
         ApplyOp(operation, iter.value(), data);
 
     if (!operation_result.ok()) {
-      return logic;
+      return nlohmann::json();
     }
     return operation_result;
   }

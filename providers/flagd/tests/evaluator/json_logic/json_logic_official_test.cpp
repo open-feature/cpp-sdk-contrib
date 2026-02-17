@@ -33,7 +33,8 @@ TEST_P(JsonLogicTest, RunCase) {
 
   EXPECT_EQ(result_json, expected)
       << "Rule: " << rule << "\nData: " << data << "\nExpected: " << expected
-      << "\nGot: " << result;
+      << "\nGot: "
+      << (result.ok() ? result->dump() : result.status().ToString());
 }
 
 std::vector<json> LoadTests() {

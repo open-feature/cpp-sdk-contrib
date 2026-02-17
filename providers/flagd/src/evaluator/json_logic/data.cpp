@@ -39,7 +39,7 @@ absl::StatusOr<nlohmann::json> Var(const JsonLogic& eval,
   std::string key;
 
   if (values.is_array()) {
-    if (values.size() > 0) {
+    if (!values.empty()) {
       absl::StatusOr<nlohmann::json> resolved_key = eval.Apply(values[0], data);
       if (!resolved_key.ok()) return resolved_key;
       key_object = resolved_key.value();
@@ -52,6 +52,10 @@ absl::StatusOr<nlohmann::json> Var(const JsonLogic& eval,
     }
   } else {
     key_object = values;
+  }
+
+  if (key_object.is_null()) {
+    return data;
   }
 
   if (!key_object.is_string()) {
@@ -111,13 +115,22 @@ absl::StatusOr<nlohmann::json> MissingSome(const JsonLogic& eval,
         "MissingSome requires exactly two arguments.");
   }
 
-  if (!values[0].is_number_unsigned()) {
+  absl::StatusOr<nlohmann::json> resolved_min_res = eval.Apply(values[0], data);
+  if (!resolved_min_res.ok()) return resolved_min_res;
+  const nlohmann::json& resolved_min = *resolved_min_res;
+
+  if (!resolved_min.is_number_unsigned()) {
     return absl::InvalidArgumentError(
         "MissingSome min_required must be an unsigned integer.");
   }
-  uint64_t min_required = values[0].get<uint64_t>();
+  uint64_t min_required = resolved_min.get<uint64_t>();
 
-  const nlohmann::json& keys = values[1];
+  const nlohmann::json& keys_logic = values[1];
+  absl::StatusOr<nlohmann::json> resolved_keys_res =
+      eval.Apply(keys_logic, data);
+  if (!resolved_keys_res.ok()) return resolved_keys_res;
+  const nlohmann::json& keys = *resolved_keys_res;
+
   if (!keys.is_array()) {
     return absl::InvalidArgumentError("MissingSome keys must be an array.");
   }

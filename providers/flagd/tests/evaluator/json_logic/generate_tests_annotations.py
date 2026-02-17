@@ -128,7 +128,7 @@ def recursive_scan(node, data):
             else:
                 v_name = v_args
 
-            if isinstance(v_name, (str, int)):
+            if isinstance(v_name, str):
                 val = resolve_var(data, v_name)
                 if val is None and isinstance(v_args, list) and len(v_args) > 1:
                     val = v_args[1]
@@ -204,8 +204,8 @@ def recursive_scan(node, data):
     if op == "var":
         v_args = get_args(node, "var")
         v_name = v_args[0] if isinstance(v_args, list) and len(v_args) > 0 else v_args
-        if is_literal(v_name) and not isinstance(v_name, (str, int)) and v_name != "":
-            return f"Operator 'var' has non-string/int key: {v_name}"
+        if is_literal(v_name) and not isinstance(v_name, str) and v_name != "":
+            return f"Operator 'var' has non-string key: {v_name} (type: {type(v_name).__name__})"
 
     # --- Recursive Step ---
     for arg in args:

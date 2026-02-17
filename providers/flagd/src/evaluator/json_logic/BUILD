@@ -24,6 +24,7 @@ cc_library(
     deps = [
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@nlohmann_json//:json",
     ],
 )
