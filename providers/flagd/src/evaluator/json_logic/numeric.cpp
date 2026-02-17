@@ -130,8 +130,8 @@ class Number {
           if constexpr (std::is_integral_v<LeftType> &&
                         std::is_integral_v<RightType>) {
             // Check if both can be represented as int64_t without loss
-            int64_t lhs_i64 = static_cast<int64_t>(lhs_val);
-            int64_t rhs_i64 = static_cast<int64_t>(rhs_val);
+            auto lhs_i64 = static_cast<int64_t>(lhs_val);
+            auto rhs_i64 = static_cast<int64_t>(rhs_val);
 
             bool lhs_fits =
                 (static_cast<decltype(lhs_val)>(lhs_i64) == lhs_val);
@@ -172,7 +172,7 @@ class Number {
         [](auto lhs_val, auto rhs_val) -> absl::StatusOr<Number> {
           if constexpr (std::is_floating_point_v<decltype(lhs_val)> ||
                         std::is_floating_point_v<decltype(rhs_val)>) {
-            double divisor = static_cast<double>(rhs_val);
+            auto divisor = static_cast<double>(rhs_val);
             if (divisor == 0.0) {
               return absl::InvalidArgumentError("Modulo by zero");
             }

@@ -74,7 +74,7 @@ absl::StatusOr<nlohmann::json> If(const JsonLogic& eval,
                                   const nlohmann::json& values,
                                   const nlohmann::json& data) {
   if (!values.is_array()) return values;
-  if (values.size() == 0) return data;
+  if (values.empty()) return data;
 
   for (size_t i = 0; i < values.size() - 1; i += 2) {
     absl::StatusOr<bool> check = GetBool(eval, values[i], data);
