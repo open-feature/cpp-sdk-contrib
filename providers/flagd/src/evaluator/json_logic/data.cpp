@@ -35,9 +35,7 @@ absl::StatusOr<nlohmann::json> Var(const JsonLogic& eval,
   } else if (values[0].is_null()) {
     return data;
   } else {
-    auto res = eval.Apply(default_val, data);
-    if (!res.ok()) return res.status();
-    return res.value();
+    return eval.Apply(default_val, data);
   }
 
   if (path.empty()) return data;
