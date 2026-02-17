@@ -15,19 +15,21 @@ class JsonLogicTest : public ::testing::Test {
 TEST_F(JsonLogicTest, ApplyPrimitives) {
   json data = json::object();
 
-  EXPECT_EQ(json_logic_.Apply(json(true), data), true);
-  EXPECT_EQ(json_logic_.Apply(json(false), data), false);
-  EXPECT_EQ(json_logic_.Apply(json(123), data), 123);
-  EXPECT_EQ(json_logic_.Apply(json(12.34), data), 12.34);
-  EXPECT_EQ(json_logic_.Apply(json("string"), data), "string");
-  EXPECT_EQ(json_logic_.Apply(json(nullptr), data), nullptr);
+  EXPECT_EQ(json_logic_.Apply(json(true), data).value(), true);
+  EXPECT_EQ(json_logic_.Apply(json(false), data).value(), false);
+  EXPECT_EQ(json_logic_.Apply(json(123), data).value(), 123);
+  EXPECT_EQ(json_logic_.Apply(json(12.34), data).value(), 12.34);
+  EXPECT_EQ(json_logic_.Apply(json("string"), data).value(), "string");
+  EXPECT_EQ(json_logic_.Apply(json(nullptr), data).value(), nullptr);
 }
 
 TEST_F(JsonLogicTest, ApplyArray) {
   json data = json::object();
   json logic = json::array({1, "two", true});
 
-  json result = json_logic_.Apply(logic, data);
+  auto result_or = json_logic_.Apply(logic, data);
+  ASSERT_TRUE(result_or.ok());
+  json result = result_or.value();
 
   EXPECT_TRUE(result.is_array());
   EXPECT_EQ(result.size(), 3);
@@ -40,22 +42,22 @@ TEST_F(JsonLogicTest, ApplyEmptyObject) {
   json data = json::object();
   json logic = json::object();
 
-  EXPECT_EQ(json_logic_.Apply(logic, data), logic);
+  EXPECT_EQ(json_logic_.Apply(logic, data).value(), logic);
 }
 
 TEST_F(JsonLogicTest, ApplyUnknownOperator) {
   json data = json::object();
   json logic = json::parse(R"({"unknown_op": [1, 2]})");
 
-  EXPECT_EQ(json_logic_.Apply(logic, data), nullptr);
+  EXPECT_EQ(json_logic_.Apply(logic, data).value(), nullptr);
 }
 
 TEST_F(JsonLogicTest, CustomOperation) {
   json_logic_.RegisterOperation(
-      "custom", [](const JsonLogic&, const json& args, const json&) {
-        return "custom_result";
-      });
+      "custom",
+      [](const JsonLogic&, const json& args,
+         const json&) -> absl::StatusOr<json> { return "custom_result"; });
 
   json logic = json::parse(R"({"custom": []})");
-  EXPECT_EQ(json_logic_.Apply(logic, {}), "custom_result");
+  EXPECT_EQ(json_logic_.Apply(logic, {}).value(), "custom_result");
 }

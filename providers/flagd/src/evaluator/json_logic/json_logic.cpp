@@ -18,8 +18,8 @@ void JsonLogic::RegisterOperation(std::string_view operation,
   operations_.emplace(operation, func);
 }
 
-nlohmann::json JsonLogic::Apply(const nlohmann::json& logic,
-                                const nlohmann::json& data) const {
+absl::StatusOr<nlohmann::json> JsonLogic::Apply(
+    const nlohmann::json& logic, const nlohmann::json& data) const {
   if (logic.is_primitive()) {
     return logic;
   }
@@ -27,7 +27,11 @@ nlohmann::json JsonLogic::Apply(const nlohmann::json& logic,
   if (logic.is_array()) {
     nlohmann::json result = nlohmann::json::array();
     for (const auto& item : logic) {
-      result.push_back(Apply(item, data));
+      auto applied = Apply(item, data);
+      if (!applied.ok()) {
+        return applied.status();
+      }
+      result.push_back(applied.value());
     }
     return result;
   }
@@ -46,12 +50,12 @@ nlohmann::json JsonLogic::Apply(const nlohmann::json& logic,
     return ApplyOp(operation, iter.value(), data);
   }
 
-  return {};
+  return nlohmann::json();
 }
 
-nlohmann::json JsonLogic::ApplyOp(const std::string& operation,
-                                  const nlohmann::json& values,
-                                  const nlohmann::json& data) const {
+absl::StatusOr<nlohmann::json> JsonLogic::ApplyOp(
+    const std::string& operation, const nlohmann::json& values,
+    const nlohmann::json& data) const {
   auto iter = operations_.find(operation);
   if (iter != operations_.end()) {
     // We are ensuring that every operation is receiving array as data, so that
@@ -62,7 +66,7 @@ nlohmann::json JsonLogic::ApplyOp(const std::string& operation,
     return iter->second(*this, nlohmann::json::array({values}), data);
   }
 
-  return {};
+  return nlohmann::json();
 }
 
 }  // namespace json_logic

@@ -5,15 +5,20 @@
 
 namespace json_logic::ops {
 
-nlohmann::json And(const JsonLogic& eval, const nlohmann::json& values,
-                   const nlohmann::json& data) {
+absl::StatusOr<nlohmann::json> And(const JsonLogic& eval,
+                                   const nlohmann::json& values,
+                                   const nlohmann::json& data) {
   if (values.empty()) {
     return values;
   }
 
   nlohmann::json res;
   for (const auto& value : values) {
-    res = eval.Apply(value, data);
+    auto applied = eval.Apply(value, data);
+    if (!applied.ok()) {
+      return applied.status();
+    }
+    res = applied.value();
     if (!Truthy(res)) {
       break;
     }

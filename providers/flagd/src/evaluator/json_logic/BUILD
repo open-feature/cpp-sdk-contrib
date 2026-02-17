@@ -3,18 +3,18 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 cc_library(
     name = "json_logic",
     srcs = [
-        "json_logic.cpp",
         "array.cpp",
         "data.cpp",
+        "json_logic.cpp",
         "logic.cpp",
         "numeric.cpp",
         "string_ops.cpp",
         "utils.cpp",
     ],
     hdrs = [
-        "json_logic.h",
         "array.h",
         "data.h",
+        "json_logic.h",
         "logic.h",
         "numeric.h",
         "string_ops.h",
@@ -23,6 +23,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status:statusor",
         "@nlohmann_json//:json",
     ],
 )

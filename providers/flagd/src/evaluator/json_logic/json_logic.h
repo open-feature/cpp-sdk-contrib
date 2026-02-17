@@ -6,27 +6,28 @@
 #include <string>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/statusor.h"
 
 namespace json_logic {
 
 class JsonLogic {
  public:
   // The second parameter will be an array.
-  using OpFunc = std::function<nlohmann::json(
+  using OpFunc = std::function<absl::StatusOr<nlohmann::json>(
       const JsonLogic&, const nlohmann::json&, const nlohmann::json&)>;
 
   JsonLogic();
   ~JsonLogic() = default;
 
-  nlohmann::json Apply(const nlohmann::json& logic,
-                       const nlohmann::json& data) const;
+  absl::StatusOr<nlohmann::json> Apply(const nlohmann::json& logic,
+                                       const nlohmann::json& data) const;
 
   void RegisterOperation(std::string_view operation, const OpFunc& func);
 
  private:
-  nlohmann::json ApplyOp(const std::string& operation,
-                         const nlohmann::json& values,
-                         const nlohmann::json& data) const;
+  absl::StatusOr<nlohmann::json> ApplyOp(const std::string& operation,
+                                         const nlohmann::json& values,
+                                         const nlohmann::json& data) const;
 
   absl::flat_hash_map<std::string, OpFunc> operations_;
 };

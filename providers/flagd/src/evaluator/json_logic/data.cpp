@@ -16,8 +16,9 @@ nlohmann::json::json_pointer CreateJsonPointer(std::string path) {
 
 }  // namespace
 
-nlohmann::json Var(const JsonLogic& eval, const nlohmann::json& values,
-                   const nlohmann::json& data) {
+absl::StatusOr<nlohmann::json> Var(const JsonLogic& eval,
+                                   const nlohmann::json& values,
+                                   const nlohmann::json& data) {
   if (values.empty()) {
     return data;
   }
