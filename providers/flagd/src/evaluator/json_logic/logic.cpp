@@ -24,12 +24,19 @@ absl::StatusOr<nlohmann::json> And(const JsonLogic& eval,
     sugar = nlohmann::json::array({values});
   }
 
-  for (const nlohmann::json& val : sugar) {
-    absl::StatusOr<bool> res = GetBool(eval, val, data);
-    if (!res.ok()) return res.status();
-    if (!*res) return false;
+  if (sugar.empty()) {
+    return absl::InvalidArgumentError(
+        "And with empty array is currently undefined behaviour");
   }
-  return true;
+
+  nlohmann::json last_val;
+  for (const nlohmann::json& val : sugar) {
+    absl::StatusOr<nlohmann::json> res = eval.Apply(val, data);
+    if (!res.ok()) return res.status();
+    last_val = res.value();
+    if (!Truthy(last_val)) return last_val;
+  }
+  return last_val;
 }
 
 absl::StatusOr<nlohmann::json> Or(const JsonLogic& eval,
@@ -40,12 +47,19 @@ absl::StatusOr<nlohmann::json> Or(const JsonLogic& eval,
     sugar = nlohmann::json::array({values});
   }
 
-  for (const nlohmann::json& val : sugar) {
-    absl::StatusOr<bool> res = GetBool(eval, val, data);
-    if (!res.ok()) return res.status();
-    if (*res) return true;
+  if (sugar.empty()) {
+    return absl::InvalidArgumentError(
+        "Or with empty array is currently undefined behaviour");
   }
-  return false;
+
+  nlohmann::json last_val;
+  for (const nlohmann::json& val : sugar) {
+    absl::StatusOr<nlohmann::json> res = eval.Apply(val, data);
+    if (!res.ok()) return res.status();
+    last_val = res.value();
+    if (Truthy(last_val)) return last_val;
+  }
+  return last_val;
 }
 
 absl::StatusOr<nlohmann::json> Not(const JsonLogic& eval,
@@ -73,8 +87,10 @@ absl::StatusOr<nlohmann::json> DoubleNegation(const JsonLogic& eval,
 absl::StatusOr<nlohmann::json> If(const JsonLogic& eval,
                                   const nlohmann::json& values,
                                   const nlohmann::json& data) {
-  if (!values.is_array()) return values;
-  if (values.empty()) return data;
+  if (!values.is_array() || values.empty()) {
+    return absl::InvalidArgumentError(
+        "`If` operator accepts only non-empty array argument");
+  }
 
   for (size_t i = 0; i < values.size() - 1; i += 2) {
     absl::StatusOr<bool> check = GetBool(eval, values[i], data);
@@ -86,7 +102,8 @@ absl::StatusOr<nlohmann::json> If(const JsonLogic& eval,
   if (values.size() % 2 == 1) {
     return eval.Apply(values.back(), data);
   }
-  return nullptr;
+  return absl::InvalidArgumentError(
+      "No `if` operator rule matched and no default provided");
 }
 
 absl::StatusOr<nlohmann::json> StrictEquals(const JsonLogic& eval,
