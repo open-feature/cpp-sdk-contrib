@@ -129,17 +129,14 @@ class Number {
           using RightType = decltype(rhs_val);
           if constexpr (std::is_integral_v<LeftType> &&
                         std::is_integral_v<RightType>) {
-            // Check if both can be represented as int64_t without loss
-            auto lhs_i64 = static_cast<int64_t>(lhs_val);
-            auto rhs_i64 = static_cast<int64_t>(rhs_val);
-
-            bool lhs_fits =
-                (static_cast<decltype(lhs_val)>(lhs_i64) == lhs_val);
-            bool rhs_fits =
-                (static_cast<decltype(rhs_val)>(rhs_i64) == rhs_val);
-
-            if (lhs_fits && rhs_fits) {
-              return Number(lhs_i64 - rhs_i64);
+            if ((!std::is_unsigned_v<LeftType> ||
+                 lhs_val <= static_cast<uint64_t>(
+                                std::numeric_limits<int64_t>::max())) &&
+                (!std::is_unsigned_v<RightType> ||
+                 rhs_val <= static_cast<uint64_t>(
+                                std::numeric_limits<int64_t>::max()))) {
+              return Number(static_cast<int64_t>(lhs_val) -
+                            static_cast<int64_t>(rhs_val));
             }
 
             // Fallback for very large unsigned values that don't fit in int64_t

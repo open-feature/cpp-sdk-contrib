@@ -109,7 +109,10 @@ absl::StatusOr<nlohmann::json> If(const JsonLogic& eval,
 absl::StatusOr<nlohmann::json> StrictEquals(const JsonLogic& eval,
                                             const nlohmann::json& values,
                                             const nlohmann::json& data) {
-  if (!values.is_array() || values.size() < 2) return false;
+  if (!values.is_array() || values.size() != 2) {
+    return absl::InvalidArgumentError(
+        "`===` operator requires exactly two arguments.");
+  }
 
   absl::StatusOr<nlohmann::json> left = eval.Apply(values[0], data);
   if (!left.ok()) return left.status();
@@ -123,7 +126,10 @@ absl::StatusOr<nlohmann::json> StrictEquals(const JsonLogic& eval,
 absl::StatusOr<nlohmann::json> StrictNotEquals(const JsonLogic& eval,
                                                const nlohmann::json& values,
                                                const nlohmann::json& data) {
-  if (!values.is_array() || values.size() < 2) return true;
+  if (!values.is_array() || values.size() != 2) {
+    return absl::InvalidArgumentError(
+        "`!==` operator requires exactly two arguments.");
+  }
 
   absl::StatusOr<nlohmann::json> left = eval.Apply(values[0], data);
   if (!left.ok()) return left.status();

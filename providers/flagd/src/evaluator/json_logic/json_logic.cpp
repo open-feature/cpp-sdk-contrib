@@ -23,7 +23,9 @@ JsonLogic::JsonLogic() {
   RegisterOperation("!!", ops::DoubleNegation);
   RegisterOperation("if", ops::If);
   RegisterOperation("?:", ops::If);
+  RegisterOperation("==", ops::StrictEquals);
   RegisterOperation("===", ops::StrictEquals);
+  RegisterOperation("!=", ops::StrictNotEquals);
   RegisterOperation("!==", ops::StrictNotEquals);
 
   RegisterOperation("+", ops::Add);
