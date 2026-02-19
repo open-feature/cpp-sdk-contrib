@@ -33,6 +33,7 @@ openfeature::Value JsonToValue(const nlohmann::json& json_val) {
   }
   if (json_val.is_array()) {
     std::vector<openfeature::Value> vec;
+    vec.reserve(json_val.size());
     for (const auto& item : json_val) {
       vec.push_back(JsonToValue(item));
     }
