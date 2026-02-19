@@ -65,7 +65,7 @@ class JsonLogicEvaluator : public Evaluator {
  private:
   template <typename T>
   std::unique_ptr<openfeature::ResolutionDetails<T>> ResolveAny(
-      std::string_view flag_key, const T& default_value,
+      std::string_view flag_key, T default_value,
       const openfeature::EvaluationContext& ctx);
 
   std::shared_ptr<FlagSync> sync_;

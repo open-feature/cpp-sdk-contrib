@@ -52,7 +52,7 @@ TEST_F(EvaluatorTest, ResolveBoolean_Success) {
 }
 
 TEST_F(EvaluatorTest, ResolveBoolean_FlagNotFound) {
-  nlohmann::json flags = {{"flags", {}}};
+  nlohmann::json flags = {{"flags", nlohmann::json::object()}};
   sync_->TriggerUpdate(flags);
 
   openfeature::EvaluationContext ctx =
@@ -175,13 +175,19 @@ TEST_F(EvaluatorTest, ResolveObject_Success) {
   auto result =
       evaluator_->ResolveObject("my-object-flag", openfeature::Value(), ctx);
 
-  EXPECT_TRUE(result->GetValue().IsStructure());
-  const auto* structure = result->GetValue().AsStructure();
+  auto resolved_value = result->GetValue();
+
+  EXPECT_TRUE(resolved_value.IsStructure());
+
+  const auto* structure = resolved_value.AsStructure();
   ASSERT_NE(structure, nullptr);
-  EXPECT_EQ(structure->at("foo").AsString(), "bar");
-  EXPECT_EQ(structure->at("baz").AsInt(), 123);
+
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kStatic);
   EXPECT_EQ(result->GetVariant(), "obj1");
+
+  EXPECT_TRUE(structure->at("foo").IsString());
+  EXPECT_EQ(structure->at("foo").AsString().value(), "bar");
+  EXPECT_EQ(structure->at("baz").AsInt().value(), 123);
 }
 
 TEST_F(EvaluatorTest, ResolveString_TypeMismatch) {

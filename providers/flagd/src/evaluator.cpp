@@ -26,9 +26,8 @@ openfeature::Value JsonToValue(const nlohmann::json& json_val) {
   }
   if (json_val.is_object()) {
     std::map<std::string, openfeature::Value> map;
-    for (auto item_it = json_val.begin(); item_it != json_val.end();
-         ++item_it) {
-      map.emplace(item_it.key(), JsonToValue(item_it.value()));
+    for (const auto& [key, value] : json_val.items()) {
+      map.emplace(key, JsonToValue(value));
     }
     return {map};
   }
@@ -51,13 +50,12 @@ JsonLogicEvaluator::JsonLogicEvaluator(std::shared_ptr<FlagSync> sync)
 
 template <typename T>
 std::unique_ptr<openfeature::ResolutionDetails<T>>
-JsonLogicEvaluator::ResolveAny(std::string_view flag_key,
-                               const T& default_value,
+JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
                                const openfeature::EvaluationContext& ctx) {
   std::shared_ptr<const nlohmann::json> flags = sync_->GetFlags();
   if (flags == nullptr) {
     return std::make_unique<openfeature::ResolutionDetails<T>>(
-        default_value, openfeature::Reason::kError, "",
+        std::move(default_value), openfeature::Reason::kError, "",
         openfeature::FlagMetadata(), openfeature::ErrorCode::kParseError,
         "No flags available");
   }
@@ -65,7 +63,7 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key,
   auto flag_it = flags->find(flag_key);
   if (flag_it == flags->end()) {
     return std::make_unique<openfeature::ResolutionDetails<T>>(
-        default_value, openfeature::Reason::kError, "",
+        std::move(default_value), openfeature::Reason::kError, "",
         openfeature::FlagMetadata(), openfeature::ErrorCode::kFlagNotFound,
         absl::StrCat("flag: ", flag_key, " not found"));
   }
@@ -74,7 +72,7 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key,
 
   if (flag_config["state"] == "DISABLED") {
     return std::make_unique<openfeature::ResolutionDetails<T>>(
-        default_value, openfeature::Reason::kDisabled, "",
+        std::move(default_value), openfeature::Reason::kDisabled, "",
         openfeature::FlagMetadata(), openfeature::ErrorCode::kFlagNotFound,
         absl::StrCat("flag: ", flag_key, " is disabled"));
   }
@@ -110,7 +108,7 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key,
   } else {
     if (!flag_config.contains("defaultVariant")) {
       return std::make_unique<openfeature::ResolutionDetails<T>>(
-          default_value, openfeature::Reason::kError, "",
+          std::move(default_value), openfeature::Reason::kError, "",
           openfeature::FlagMetadata(), openfeature::ErrorCode::kFlagNotFound,
           absl::StrCat("flag: ", flag_key,
                        " doesn't have defaultVariant defined."));
@@ -124,7 +122,7 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key,
 
   if (!variants.contains(variant)) {
     return std::make_unique<openfeature::ResolutionDetails<T>>(
-        default_value, openfeature::Reason::kError, variant,
+        std::move(default_value), openfeature::Reason::kError, variant,
         openfeature::FlagMetadata(), openfeature::ErrorCode::kGeneral,
         absl::StrCat("flag: ", flag_key,
                      " doesn't contain evaluated variant: ", variant, "."));
@@ -142,14 +140,14 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key,
     }
   } catch (const nlohmann::json::exception& err) {
     return std::make_unique<openfeature::ResolutionDetails<T>>(
-        default_value, openfeature::Reason::kError, variant,
+        std::move(default_value), openfeature::Reason::kError, variant,
         openfeature::FlagMetadata(), openfeature::ErrorCode::kTypeMismatch,
         err.what());
   }
 
   return std::make_unique<openfeature::ResolutionDetails<T>>(
-      value, reason, variant, openfeature::FlagMetadata(), std::nullopt,
-      std::nullopt);
+      std::move(value), reason, variant, openfeature::FlagMetadata(),
+      std::nullopt, std::nullopt);
 }
 
 std::unique_ptr<openfeature::BoolResolutionDetails>
@@ -184,7 +182,7 @@ std::unique_ptr<openfeature::ObjectResolutionDetails>
 JsonLogicEvaluator::ResolveObject(std::string_view flag_key,
                                   openfeature::Value default_value,
                                   const openfeature::EvaluationContext& ctx) {
-  return ResolveAny(flag_key, default_value, ctx);
+  return ResolveAny(flag_key, std::move(default_value), ctx);
 }
 
 }  // namespace flagd
