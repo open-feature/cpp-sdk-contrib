@@ -57,6 +57,7 @@ cc_library(
     include_prefix = "flagd",
     visibility = ["//visibility:public"],
     deps = [
+        "//providers/flagd/src/evaluator/json_logic:json_logic",
         ":sync",
         "@abseil-cpp//absl/strings",
         "@nlohmann_json//:json",

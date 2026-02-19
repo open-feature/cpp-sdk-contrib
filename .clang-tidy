@@ -5,6 +5,7 @@ Checks: "
   performance-*,
   -google-readability-todo,
   -readability-convert-member-functions-to-static,
+  -readability-function-cognitive-complexity,
   -modernize-use-trailing-return-type,
   -modernize-use-nodiscard,
   "
