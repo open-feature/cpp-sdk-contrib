@@ -3,6 +3,7 @@
 #include <chrono>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <optional>
 
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
@@ -32,6 +33,8 @@ nlohmann::json ContextToJson(const openfeature::EvaluationContext& ctx) {
       json[key] = *dbl_val;
     } else if (const auto* bool_val = std::any_cast<bool>(&value)) {
       json[key] = *bool_val;
+    } else {
+      LOG(WARNING) << "Unsupported attribute type for key: " << key;
     }
   }
   return json;
