@@ -43,7 +43,8 @@ TEST_F(EvaluatorTest, ResolveBoolean_Success) {
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
-  auto result = evaluator_->ResolveBoolean("my-bool-flag", false, ctx);
+  std::unique_ptr<openfeature::BoolResolutionDetails> result =
+      evaluator_->ResolveBoolean("my-bool-flag", false, ctx);
 
   EXPECT_EQ(result->GetValue(), true);
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kStatic);
@@ -57,7 +58,8 @@ TEST_F(EvaluatorTest, ResolveBoolean_FlagNotFound) {
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
-  auto result = evaluator_->ResolveBoolean("missing-flag", true, ctx);
+  std::unique_ptr<openfeature::BoolResolutionDetails> result =
+      evaluator_->ResolveBoolean("missing-flag", true, ctx);
 
   EXPECT_EQ(result->GetValue(), true);  // Default value
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kError);
@@ -76,7 +78,8 @@ TEST_F(EvaluatorTest, ResolveBoolean_TypeMismatch) {
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
-  auto result = evaluator_->ResolveBoolean("my-string-flag", false, ctx);
+  std::unique_ptr<openfeature::BoolResolutionDetails> result =
+      evaluator_->ResolveBoolean("my-string-flag", false, ctx);
 
   EXPECT_EQ(result->GetValue(), false);  // Default value
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kError);
@@ -94,7 +97,8 @@ TEST_F(EvaluatorTest, ResolveBoolean_VariantNotFound) {
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
-  auto result = evaluator_->ResolveBoolean("my-broken-flag", false, ctx);
+  std::unique_ptr<openfeature::BoolResolutionDetails> result =
+      evaluator_->ResolveBoolean("my-broken-flag", false, ctx);
 
   EXPECT_EQ(result->GetValue(), false);  // Default value
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kError);
@@ -116,7 +120,8 @@ TEST_F(EvaluatorTest, ResolveString_Success) {
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
-  auto result = evaluator_->ResolveString("my-string-flag", "default", ctx);
+  std::unique_ptr<openfeature::StringResolutionDetails> result =
+      evaluator_->ResolveString("my-string-flag", "default", ctx);
 
   EXPECT_EQ(result->GetValue(), "value1");
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kStatic);
@@ -134,7 +139,8 @@ TEST_F(EvaluatorTest, ResolveInteger_Success) {
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
-  auto result = evaluator_->ResolveInteger("my-int-flag", 0, ctx);
+  std::unique_ptr<openfeature::IntResolutionDetails> result =
+      evaluator_->ResolveInteger("my-int-flag", 0, ctx);
 
   EXPECT_EQ(result->GetValue(), 2);
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kStatic);
@@ -152,7 +158,8 @@ TEST_F(EvaluatorTest, ResolveDouble_Success) {
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
-  auto result = evaluator_->ResolveDouble("my-double-flag", 0.0, ctx);
+  std::unique_ptr<openfeature::DoubleResolutionDetails> result =
+      evaluator_->ResolveDouble("my-double-flag", 0.0, ctx);
 
   EXPECT_DOUBLE_EQ(result->GetValue(), 1.1);
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kStatic);
@@ -172,14 +179,15 @@ TEST_F(EvaluatorTest, ResolveObject_Success) {
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
-  auto result =
+  std::unique_ptr<openfeature::ObjectResolutionDetails> result =
       evaluator_->ResolveObject("my-object-flag", openfeature::Value(), ctx);
 
-  auto resolved_value = result->GetValue();
+  openfeature::Value resolved_value = result->GetValue();
 
   EXPECT_TRUE(resolved_value.IsStructure());
 
-  const auto* structure = resolved_value.AsStructure();
+  const std::map<std::string, openfeature::Value>* structure =
+      resolved_value.AsStructure();
   ASSERT_NE(structure, nullptr);
 
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kStatic);
@@ -201,7 +209,8 @@ TEST_F(EvaluatorTest, ResolveString_TypeMismatch) {
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
-  auto result = evaluator_->ResolveString("my-int-flag", "default", ctx);
+  std::unique_ptr<openfeature::StringResolutionDetails> result =
+      evaluator_->ResolveString("my-int-flag", "default", ctx);
 
   EXPECT_EQ(result->GetValue(), "default");
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kError);
@@ -219,7 +228,8 @@ TEST_F(EvaluatorTest, ResolveInteger_TypeMismatch) {
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
-  auto result = evaluator_->ResolveInteger("my-string-flag", 0, ctx);
+  std::unique_ptr<openfeature::IntResolutionDetails> result =
+      evaluator_->ResolveInteger("my-string-flag", 0, ctx);
 
   EXPECT_EQ(result->GetValue(), 0);
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kError);
@@ -237,7 +247,8 @@ TEST_F(EvaluatorTest, ResolveDouble_TypeMismatch) {
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
-  auto result = evaluator_->ResolveDouble("my-string-flag", 0.0, ctx);
+  std::unique_ptr<openfeature::DoubleResolutionDetails> result =
+      evaluator_->ResolveDouble("my-string-flag", 0.0, ctx);
 
   EXPECT_EQ(result->GetValue(), 0.0);
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kError);
