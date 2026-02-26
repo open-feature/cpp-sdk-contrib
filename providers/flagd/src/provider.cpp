@@ -68,4 +68,56 @@ FlagdProvider::GetBooleanEvaluation(const std::string_view flag,
   return evaluator_->ResolveBoolean(flag, default_value, ctx);
 }
 
+std::unique_ptr<openfeature::StringResolutionDetails>
+FlagdProvider::GetStringEvaluation(const std::string_view flag,
+                                   std::string_view default_value,
+                                   const openfeature::EvaluationContext& ctx) {
+  if (!is_ready_) {
+    return std::make_unique<openfeature::StringResolutionDetails>(
+        std::string(default_value), openfeature::Reason::kError, "",
+        openfeature::FlagMetadata(), openfeature::ErrorCode::kProviderNotReady,
+        "Provider not ready");
+  }
+  return evaluator_->ResolveString(flag, default_value, ctx);
+}
+
+std::unique_ptr<openfeature::IntResolutionDetails>
+FlagdProvider::GetIntegerEvaluation(const std::string_view flag,
+                                    int64_t default_value,
+                                    const openfeature::EvaluationContext& ctx) {
+  if (!is_ready_) {
+    return std::make_unique<openfeature::IntResolutionDetails>(
+        default_value, openfeature::Reason::kError, "",
+        openfeature::FlagMetadata(), openfeature::ErrorCode::kProviderNotReady,
+        "Provider not ready");
+  }
+  return evaluator_->ResolveInteger(flag, default_value, ctx);
+}
+
+std::unique_ptr<openfeature::DoubleResolutionDetails>
+FlagdProvider::GetDoubleEvaluation(const std::string_view flag,
+                                   double default_value,
+                                   const openfeature::EvaluationContext& ctx) {
+  if (!is_ready_) {
+    return std::make_unique<openfeature::DoubleResolutionDetails>(
+        default_value, openfeature::Reason::kError, "",
+        openfeature::FlagMetadata(), openfeature::ErrorCode::kProviderNotReady,
+        "Provider not ready");
+  }
+  return evaluator_->ResolveDouble(flag, default_value, ctx);
+}
+
+std::unique_ptr<openfeature::ObjectResolutionDetails>
+FlagdProvider::GetObjectEvaluation(const std::string_view flag,
+                                   openfeature::Value default_value,
+                                   const openfeature::EvaluationContext& ctx) {
+  if (!is_ready_) {
+    return std::make_unique<openfeature::ObjectResolutionDetails>(
+        std::move(default_value), openfeature::Reason::kError, "",
+        openfeature::FlagMetadata(), openfeature::ErrorCode::kProviderNotReady,
+        "Provider not ready");
+  }
+  return evaluator_->ResolveObject(flag, std::move(default_value), ctx);
+}
+
 }  // namespace flagd

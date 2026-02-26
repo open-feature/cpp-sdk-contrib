@@ -58,6 +58,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":sync",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
         "@nlohmann_json//:json",
         "@openfeature_cpp_sdk//openfeature",
