@@ -15,7 +15,7 @@ namespace {
 
 nlohmann::json ContextToJson(const openfeature::EvaluationContext& ctx) {
   nlohmann::json json = nlohmann::json::object();
-  auto targeting_key = ctx.GetTargetingKey();
+  std::optional<std::string_view> targeting_key = ctx.GetTargetingKey();
   if (targeting_key.has_value()) {
     json["targetingKey"] = targeting_key.value();
   }
@@ -88,12 +88,20 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
         },
     };
 
-    auto result = json_logic_.Apply(flag_config["targeting"], data);
+    absl::StatusOr<nlohmann::json> result =
+        json_logic_.Apply(flag_config["targeting"], data);
     if (result.ok()) {
       if (result.value().is_string()) {
         variant = result.value().get<std::string>();
       } else if (result.value().is_boolean()) {
         variant = result.value().get<bool>() ? "true" : "false";
+      } else {
+        // According to the flagd spec, targeting rules must return a string (the variant name).
+        // Booleans are a special case to support logical operations in boolean flags, which
+        // we map to "true"/"false" strings. Other types are not valid variant identifiers.
+        LOG(WARNING) << "Targeting rule for flag '" << flag_key
+                     << "' returned an unsupported type: " << result.value().type_name()
+                     << ". Expected string or boolean.";
       }
     } else {
       LOG(ERROR) << "JsonLogic evaluation failed for flag " << flag_key << ": "
