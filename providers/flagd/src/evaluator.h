@@ -6,8 +6,9 @@
 
 #include <memory>
 #include <nlohmann/json.hpp>
-#include <optional>
 #include <string_view>
+
+#include "flagd/evaluator/json_logic/json_logic.h"
 
 namespace flagd {
 
@@ -69,6 +70,7 @@ class JsonLogicEvaluator : public Evaluator {
       const openfeature::EvaluationContext& ctx);
 
   std::shared_ptr<FlagSync> sync_;
+  json_logic::JsonLogic json_logic_;
 };
 
 }  // namespace flagd

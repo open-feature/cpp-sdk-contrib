@@ -1,7 +1,9 @@
 #include "evaluator.h"
 
+#include <chrono>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <optional>
 
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
@@ -44,6 +46,33 @@ openfeature::Value JsonToValue(const nlohmann::json& json_val) {
   return {};
 }
 
+nlohmann::json ContextToJson(const openfeature::EvaluationContext& ctx) {
+  nlohmann::json json = nlohmann::json::object();
+  std::optional<std::string_view> targeting_key = ctx.GetTargetingKey();
+  if (targeting_key.has_value()) {
+    json["targetingKey"] = targeting_key.value();
+  }
+
+  for (const auto& [key, value] : ctx.GetAttributes()) {
+    if (const auto* str_val = std::any_cast<std::string>(&value)) {
+      json[key] = *str_val;
+    } else if (const auto* i64_val = std::any_cast<int64_t>(&value)) {
+      json[key] = *i64_val;
+    } else if (const auto* u64_val = std::any_cast<uint64_t>(&value)) {
+      json[key] = *u64_val;
+    } else if (const auto* int_val = std::any_cast<int>(&value)) {
+      json[key] = *int_val;
+    } else if (const auto* dbl_val = std::any_cast<double>(&value)) {
+      json[key] = *dbl_val;
+    } else if (const auto* bool_val = std::any_cast<bool>(&value)) {
+      json[key] = *bool_val;
+    } else {
+      LOG(WARNING) << "Unsupported attribute type for key: " << key;
+    }
+  }
+  return json;
+}
+
 }  // namespace
 
 JsonLogicEvaluator::JsonLogicEvaluator(std::shared_ptr<FlagSync> sync)
@@ -78,33 +107,47 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
         absl::StrCat("flag: ", flag_key, " is disabled"));
   }
 
-  std::string variant;
+  std::optional<std::string> variant;
 
   if (flag_config.contains("targeting") && !flag_config["targeting"].empty()) {
-    /*
-     * TODO(#18): Invoke JsonLogic here once implemented.
-     *
-     * Example variables:
-     * const nlohmann::json& targeting_rule = flag_config["targeting"];
-     *
-     * // You would need a way to convert openfeature::EvaluationContext to
-     * // nlohmann::json, e.g.:
-     * // nlohmann::json data = evaluation_context_to_json(ctx);
-     *
-     * // Then apply the logic:
-     * // nlohmann::json result = JsonLogic::Apply(targeting_rule, data);
-     *
-     * // If the result is a variant name (string):
-     * // if (result.is_string()) {
-     * //   variant = result.get<std::string>();
-     * // } else if (result.is_bool()) {
-     * //   variant = result.get<std::bool>() ? "true" : "false";
-     * // }
-     */
+    nlohmann::json data = ContextToJson(ctx);
+    // flagd also injects some special variables
+    data["$flagd"] = {
+        {"flagKey", flag_key},
+        {
+            "timestamp",
+            std::chrono::system_clock::to_time_t(
+                std::chrono::system_clock::now()),
+        },
+    };
+
+    absl::StatusOr<nlohmann::json> result =
+        json_logic_.Apply(flag_config["targeting"], data);
+    if (result.ok()) {
+      if (result.value().is_string()) {
+        variant = result.value().get<std::string>();
+      } else if (result.value().is_boolean()) {
+        variant = result.value().get<bool>() ? "true" : "false";
+      } else {
+        // According to the flagd spec, targeting rules must return a string
+        // (the variant name). Booleans are a special case to support logical
+        // operations in boolean flags, which we map to "true"/"false" strings.
+        // Other types are not valid variant identifiers.
+        LOG(WARNING) << "Targeting rule for flag '" << flag_key
+                     << "' returned an unsupported type: "
+                     << result.value().type_name()
+                     << ". Expected string or boolean.";
+      }
+    } else {
+      LOG(ERROR) << "JsonLogic evaluation failed for flag " << flag_key << ": "
+                 << result.status().message();
+    }
   }
 
   openfeature::Reason reason;
-  if (!variant.empty()) {
+  std::string variant_name;
+  if (variant.has_value()) {
+    variant_name = std::move(*variant);
     reason = openfeature::Reason::kTargetingMatch;
   } else {
     if (!flag_config.contains("defaultVariant")) {
@@ -115,18 +158,18 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
                        " doesn't have defaultVariant defined."));
     }
 
-    variant = flag_config["defaultVariant"];
+    variant_name = flag_config["defaultVariant"];
     reason = openfeature::Reason::kStatic;
   }
 
   const nlohmann::json& variants = flag_config["variants"];
 
-  if (!variants.contains(variant)) {
+  if (!variants.contains(variant_name)) {
     return std::make_unique<openfeature::ResolutionDetails<T>>(
-        std::move(default_value), openfeature::Reason::kError, variant,
+        std::move(default_value), openfeature::Reason::kError, variant_name,
         openfeature::FlagMetadata(), openfeature::ErrorCode::kGeneral,
-        absl::StrCat("flag: ", flag_key,
-                     " doesn't contain evaluated variant: ", variant, "."));
+        absl::StrCat("flag: ", flag_key, " doesn't contain evaluated variant: ",
+                     variant_name, "."));
   }
 
   // TODO(#29): Currently this function doesn't differentiate between int and
@@ -135,19 +178,19 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
   T value;
   try {
     if constexpr (std::is_same_v<T, openfeature::Value>) {
-      value = JsonToValue(variants.at(variant));
+      value = JsonToValue(variants.at(variant_name));
     } else {
-      value = variants.at(variant).get<T>();
+      value = variants.at(variant_name).get<T>();
     }
   } catch (const nlohmann::json::exception& err) {
     return std::make_unique<openfeature::ResolutionDetails<T>>(
-        std::move(default_value), openfeature::Reason::kError, variant,
+        std::move(default_value), openfeature::Reason::kError, variant_name,
         openfeature::FlagMetadata(), openfeature::ErrorCode::kTypeMismatch,
         err.what());
   }
 
   return std::make_unique<openfeature::ResolutionDetails<T>>(
-      std::move(value), reason, variant, openfeature::FlagMetadata(),
+      std::move(value), reason, variant_name, openfeature::FlagMetadata(),
       std::nullopt, std::nullopt);
 }
 
