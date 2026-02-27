@@ -96,11 +96,13 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
       } else if (result.value().is_boolean()) {
         variant = result.value().get<bool>() ? "true" : "false";
       } else {
-        // According to the flagd spec, targeting rules must return a string (the variant name).
-        // Booleans are a special case to support logical operations in boolean flags, which
-        // we map to "true"/"false" strings. Other types are not valid variant identifiers.
+        // According to the flagd spec, targeting rules must return a string
+        // (the variant name). Booleans are a special case to support logical
+        // operations in boolean flags, which we map to "true"/"false" strings.
+        // Other types are not valid variant identifiers.
         LOG(WARNING) << "Targeting rule for flag '" << flag_key
-                     << "' returned an unsupported type: " << result.value().type_name()
+                     << "' returned an unsupported type: "
+                     << result.value().type_name()
                      << ". Expected string or boolean.";
       }
     } else {
