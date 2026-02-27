@@ -46,7 +46,8 @@ openfeature::Value JsonToValue(const nlohmann::json& json_val) {
   return {};
 }
 
-openfeature::FlagMetadataValue JsonToMetadataValue(const nlohmann::json& json) {
+std::optional<openfeature::FlagMetadataValue> JsonToMetadataValue(
+    const nlohmann::json& json) {
   if (json.is_boolean()) {
     return json.get<bool>();
   }
@@ -59,7 +60,20 @@ openfeature::FlagMetadataValue JsonToMetadataValue(const nlohmann::json& json) {
   if (json.is_number_float()) {
     return json.get<double>();
   }
-  return "";
+  LOG(ERROR) << "Failed to map JSON value to openfeature::FlagMetadataValue: "
+             << json.dump();
+  return std::nullopt;
+}
+
+void EnrichMetadata(openfeature::FlagMetadata& metadata,
+                    const nlohmann::json& metadata_json) {
+  for (const auto& [key, value] : metadata_json.items()) {
+    std::optional<openfeature::FlagMetadataValue> metadata_value =
+        JsonToMetadataValue(value);
+    if (metadata_value.has_value()) {
+      metadata.data[key] = std::move(metadata_value.value());
+    }
+  }
 }
 
 nlohmann::json ContextToJson(const openfeature::EvaluationContext& ctx) {
@@ -104,9 +118,7 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
 
   openfeature::FlagMetadata flag_metadata;
   if (global_metadata_json) {
-    for (const auto& [key, value] : global_metadata_json->items()) {
-      flag_metadata.data[key] = JsonToMetadataValue(value);
-    }
+    EnrichMetadata(flag_metadata, *global_metadata_json);
   }
 
   if (flags == nullptr) {
@@ -127,9 +139,7 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
   const nlohmann::json& flag_config = *flag_it;
 
   if (flag_config.contains("metadata")) {
-    for (const auto& [key, value] : flag_config["metadata"].items()) {
-      flag_metadata.data[key] = JsonToMetadataValue(value);
-    }
+    EnrichMetadata(flag_metadata, flag_config["metadata"]);
   }
 
   if (flag_config["state"] == "DISABLED") {
