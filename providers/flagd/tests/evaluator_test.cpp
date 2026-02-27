@@ -86,6 +86,35 @@ TEST_F(EvaluatorTest, ResolveBoolean_TypeMismatch) {
   EXPECT_EQ(result->GetErrorCode(), openfeature::ErrorCode::kTypeMismatch);
 }
 
+TEST_F(EvaluatorTest, ResolveBoolean_Metadata) {
+  nlohmann::json flags = {
+      {"metadata",
+       {{"global-key", "global-value"}, {"override-key", "global-override"}}},
+      {"flags",
+       {{"my-flag",
+         {{"state", "ENABLED"},
+          {"variants", {{"on", true}, {"off", false}}},
+          {"defaultVariant", "on"},
+          {"metadata",
+           {{"flag-key", "flag-value"},
+            {"override-key", "flag-override"}}}}}}}};
+
+  sync_->TriggerUpdate(flags);
+
+  openfeature::EvaluationContext ctx =
+      openfeature::EvaluationContext::Builder().build();
+  auto result = evaluator_->ResolveBoolean("my-flag", false, ctx);
+
+  EXPECT_EQ(result->GetValue(), true);
+  const auto& metadata = result->GetFlagMetadata();
+
+  EXPECT_EQ(std::get<std::string>(metadata.data.at("global-key")),
+            "global-value");
+  EXPECT_EQ(std::get<std::string>(metadata.data.at("flag-key")), "flag-value");
+  EXPECT_EQ(std::get<std::string>(metadata.data.at("override-key")),
+            "flag-override");
+}
+
 TEST_F(EvaluatorTest, ResolveBoolean_VariantNotFound) {
   nlohmann::json flags = {{"flags",
                            {{"my-broken-flag",

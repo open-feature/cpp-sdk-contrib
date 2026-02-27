@@ -46,6 +46,22 @@ openfeature::Value JsonToValue(const nlohmann::json& json_val) {
   return {};
 }
 
+openfeature::FlagMetadataValue JsonToMetadataValue(const nlohmann::json& json) {
+  if (json.is_boolean()) {
+    return json.get<bool>();
+  }
+  if (json.is_string()) {
+    return json.get<std::string>();
+  }
+  if (json.is_number_integer()) {
+    return json.get<int64_t>();
+  }
+  if (json.is_number_float()) {
+    return json.get<double>();
+  }
+  return "";
+}
+
 nlohmann::json ContextToJson(const openfeature::EvaluationContext& ctx) {
   nlohmann::json json = nlohmann::json::object();
   std::optional<std::string_view> targeting_key = ctx.GetTargetingKey();
@@ -83,10 +99,20 @@ std::unique_ptr<openfeature::ResolutionDetails<T>>
 JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
                                const openfeature::EvaluationContext& ctx) {
   std::shared_ptr<const nlohmann::json> flags = sync_->GetFlags();
+  std::shared_ptr<const nlohmann::json> global_metadata_json =
+      sync_->GetMetadata();
+
+  openfeature::FlagMetadata flag_metadata;
+  if (global_metadata_json) {
+    for (const auto& [key, value] : global_metadata_json->items()) {
+      flag_metadata.data[key] = JsonToMetadataValue(value);
+    }
+  }
+
   if (flags == nullptr) {
     return std::make_unique<openfeature::ResolutionDetails<T>>(
         std::move(default_value), openfeature::Reason::kError, "",
-        openfeature::FlagMetadata(), openfeature::ErrorCode::kParseError,
+        flag_metadata, openfeature::ErrorCode::kParseError,
         "No flags available");
   }
 
@@ -94,16 +120,22 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
   if (flag_it == flags->end()) {
     return std::make_unique<openfeature::ResolutionDetails<T>>(
         std::move(default_value), openfeature::Reason::kError, "",
-        openfeature::FlagMetadata(), openfeature::ErrorCode::kFlagNotFound,
+        flag_metadata, openfeature::ErrorCode::kFlagNotFound,
         absl::StrCat("flag: ", flag_key, " not found"));
   }
 
   const nlohmann::json& flag_config = *flag_it;
 
+  if (flag_config.contains("metadata")) {
+    for (const auto& [key, value] : flag_config["metadata"].items()) {
+      flag_metadata.data[key] = JsonToMetadataValue(value);
+    }
+  }
+
   if (flag_config["state"] == "DISABLED") {
     return std::make_unique<openfeature::ResolutionDetails<T>>(
         std::move(default_value), openfeature::Reason::kDisabled, "",
-        openfeature::FlagMetadata(), openfeature::ErrorCode::kFlagNotFound,
+        flag_metadata, openfeature::ErrorCode::kFlagNotFound,
         absl::StrCat("flag: ", flag_key, " is disabled"));
   }
 
@@ -153,7 +185,7 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
     if (!flag_config.contains("defaultVariant")) {
       return std::make_unique<openfeature::ResolutionDetails<T>>(
           std::move(default_value), openfeature::Reason::kError, "",
-          openfeature::FlagMetadata(), openfeature::ErrorCode::kFlagNotFound,
+          flag_metadata, openfeature::ErrorCode::kFlagNotFound,
           absl::StrCat("flag: ", flag_key,
                        " doesn't have defaultVariant defined."));
     }
@@ -167,7 +199,7 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
   if (!variants.contains(variant_name)) {
     return std::make_unique<openfeature::ResolutionDetails<T>>(
         std::move(default_value), openfeature::Reason::kError, variant_name,
-        openfeature::FlagMetadata(), openfeature::ErrorCode::kGeneral,
+        flag_metadata, openfeature::ErrorCode::kGeneral,
         absl::StrCat("flag: ", flag_key, " doesn't contain evaluated variant: ",
                      variant_name, "."));
   }
@@ -185,13 +217,12 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
   } catch (const nlohmann::json::exception& err) {
     return std::make_unique<openfeature::ResolutionDetails<T>>(
         std::move(default_value), openfeature::Reason::kError, variant_name,
-        openfeature::FlagMetadata(), openfeature::ErrorCode::kTypeMismatch,
-        err.what());
+        flag_metadata, openfeature::ErrorCode::kTypeMismatch, err.what());
   }
 
   return std::make_unique<openfeature::ResolutionDetails<T>>(
-      std::move(value), reason, variant_name, openfeature::FlagMetadata(),
-      std::nullopt, std::nullopt);
+      std::move(value), reason, variant_name, flag_metadata, std::nullopt,
+      std::nullopt);
 }
 
 std::unique_ptr<openfeature::BoolResolutionDetails>
