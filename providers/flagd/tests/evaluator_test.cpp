@@ -103,10 +103,11 @@ TEST_F(EvaluatorTest, ResolveBoolean_Metadata) {
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
-  auto result = evaluator_->ResolveBoolean("my-flag", false, ctx);
+  std::unique_ptr<openfeature::BoolResolutionDetails> result =
+      evaluator_->ResolveBoolean("my-flag", false, ctx);
 
   EXPECT_EQ(result->GetValue(), true);
-  const auto& metadata = result->GetFlagMetadata();
+  const openfeature::FlagMetadata& metadata = result->GetFlagMetadata();
 
   EXPECT_EQ(std::get<std::string>(metadata.data.at("global-key")),
             "global-value");

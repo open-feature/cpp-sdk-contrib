@@ -67,6 +67,7 @@ std::optional<openfeature::FlagMetadataValue> JsonToMetadataValue(
 
 void EnrichMetadata(openfeature::FlagMetadata& metadata,
                     const nlohmann::json& metadata_json) {
+  if (!metadata_json.is_object()) return;
   for (const auto& [key, value] : metadata_json.items()) {
     std::optional<openfeature::FlagMetadataValue> metadata_value =
         JsonToMetadataValue(value);
