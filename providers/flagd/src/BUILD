@@ -59,6 +59,7 @@ cc_library(
     deps = [
         "//providers/flagd/src/evaluator/json_logic:json_logic",
         ":sync",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
         "@nlohmann_json//:json",
         "@openfeature_cpp_sdk//openfeature",
