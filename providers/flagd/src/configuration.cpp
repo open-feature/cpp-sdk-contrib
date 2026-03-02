@@ -95,6 +95,7 @@ FlagdProviderConfig::FlagdProviderConfig()
       !val.empty()) {
     offline_flag_source_path_ = val;
   }
+  int i = 2;
 }
 
 std::string FlagdProviderConfig::GetEffectiveTargetUri() const {
