@@ -80,28 +80,27 @@ absl::StatusOr<nlohmann::json> Var(const JsonLogic& eval,
 absl::StatusOr<nlohmann::json> Missing(const JsonLogic& eval,
                                        const nlohmann::json& values,
                                        const nlohmann::json& data) {
-  nlohmann::json missing = nlohmann::json::array();
-  nlohmann::json args = values;
-  if (!args.is_array()) {
-    args = nlohmann::json::array({args});
+  absl::StatusOr<nlohmann::json> resolved_args_res = eval.Apply(values, data);
+  if (!resolved_args_res.ok()) {
+    return resolved_args_res;
+  }
+  nlohmann::json resolved_args = resolved_args_res.value();
+
+  if (!resolved_args.is_array()) {
+    resolved_args = nlohmann::json::array({resolved_args});
   }
 
-  for (const nlohmann::json& arg : args) {
-    absl::StatusOr<nlohmann::json> eval_arg = eval.Apply(arg, data);
-    if (!eval_arg.ok()) {
-      return eval_arg;
-    }
-    nlohmann::json resolved_arg = eval_arg.value();
-
-    if (!resolved_arg.is_string()) {
+  nlohmann::json missing = nlohmann::json::array();
+  for (const nlohmann::json& arg : resolved_args) {
+    if (!arg.is_string()) {
       return absl::InvalidArgumentError("Missing key must be a string.");
     }
 
     absl::StatusOr<nlohmann::json> result =
-        GetVariableValue(data, resolved_arg.get<std::string>());
+        GetVariableValue(data, arg.get<std::string>());
 
     if (!result.ok()) {
-      missing.push_back(resolved_arg);
+      missing.push_back(arg);
     }
   }
   return missing;

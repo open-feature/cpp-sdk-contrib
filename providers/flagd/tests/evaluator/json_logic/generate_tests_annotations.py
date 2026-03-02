@@ -20,6 +20,8 @@ import os
 STRICT_OPS = {
     "===": "Equality",
     "!==": "Equality",
+    "==": "Equality",
+    "!=": "Equality",
     ">": "Numeric",
     ">=": "Numeric",
     "<": "Numeric",
@@ -40,6 +42,7 @@ STRICT_OPS = {
     "cat": "String",
     "substr": "String",
     "in": "String/Array",
+    "merge": "Array",
     "var": "Data",
     "missing": "Data",
     "missing_some": "Data",
@@ -52,9 +55,6 @@ IGNORED_OPS = {
     "all",
     "some",
     "none",
-    "merge",
-    "==",
-    "!=",
     "log",
 }
 
@@ -172,24 +172,20 @@ def recursive_scan(node, data):
 
     # Logic Strictness (if/?:/and/or/!/!!)
     if op in ["if", "?:", "and", "or", "!", "!!"]:
-        cond_indices = []
-        if op in ["if", "?:"]:
-            if len(args) == 3:
-                cond_indices = [0]
-            else:
-                for i in range(len(args) - 1):
-                    if i % 2 == 0:
-                        cond_indices.append(i)
-        elif op in ["and", "or"]:
-            cond_indices = range(len(args))
-        elif op in ["!", "!!"]:
-            cond_indices = [0]
+        pass
 
-        for idx in cond_indices:
-            if idx < len(resolved_args):
-                arg = resolved_args[idx]
-                if is_literal(arg) and not isinstance(arg, bool):
-                    return f"Operator '{op}' has non-boolean literal condition: {arg} (at index {idx})"
+    # Equality strictness
+    if op in ["==", "!="]:
+        if len(resolved_args) == 2:
+            left, right = resolved_args[0], resolved_args[1]
+            if is_literal(left) and is_literal(right):
+                if type(left) is not type(right):
+                    # Allow int/float cross-comparison as both are numeric
+                    if not (
+                        isinstance(left, (int, float))
+                        and isinstance(right, (int, float))
+                    ):
+                        return f"Operator '{op}' has mismatched types: {type(left).__name__} and {type(right).__name__}"
 
     # In strictness
     if op == "in":
@@ -204,7 +200,12 @@ def recursive_scan(node, data):
     if op == "var":
         v_args = get_args(node, "var")
         v_name = v_args[0] if isinstance(v_args, list) and len(v_args) > 0 else v_args
-        if is_literal(v_name) and not isinstance(v_name, str) and v_name != "":
+        if (
+            is_literal(v_name)
+            and not isinstance(v_name, str)
+            and v_name != ""
+            and not v_name == None
+        ):
             return f"Operator 'var' has non-string key: {v_name} (type: {type(v_name).__name__})"
 
     # --- Recursive Step ---
@@ -230,7 +231,7 @@ def main():
     valid_tests = [t for t in tests if isinstance(t, list) and len(t) >= 3]
 
     grouped_tests = {}
-    skipped_counts = {}
+    skipped_details = {}
 
     for t in valid_tests:
         logic = t[0]
@@ -240,18 +241,28 @@ def main():
         main_op = get_operator(logic)
 
         reason = recursive_scan(logic, data)
-        if reason:
-            skipped_counts[reason] = skipped_counts.get(reason, 0) + 1
-            continue
+        if not reason:
+            # Check expected value for boolean operators
+            if main_op in [
+                "!",
+                "!!",
+                "<",
+                "<=",
+                ">",
+                ">=",
+                "===",
+                "!==",
+                "==",
+                "!=",
+            ]:
+                if not isinstance(expected, bool):
+                    reason = f"Operator '{main_op}' expected to return non-boolean: {expected}"
 
-        # Check expected value for boolean operators
-        if main_op in ["and", "or", "!", "!!", "<", "<=", ">", ">=", "===", "!=="]:
-            if not isinstance(expected, bool):
-                reason = (
-                    f"Operator '{main_op}' expected to return non-boolean: {expected}"
-                )
-                skipped_counts[reason] = skipped_counts.get(reason, 0) + 1
-                continue
+        if reason:
+            if reason not in skipped_details:
+                skipped_details[reason] = []
+            skipped_details[reason].append(t)
+            continue
 
         if not main_op:
             main_op = "primitive"
@@ -264,8 +275,14 @@ def main():
 
     # Generate config
     output_path = os.path.join(script_dir, "tests_annotated.json")
+    
+    # We add skipped details to the JSON root but as an object (not array)
+    # so the C++ test loader (which expects arrays for groups) will skip it.
+    final_output = grouped_tests.copy()
+    final_output["__skipped__"] = skipped_details
+
     with open(output_path, "w") as f:
-        json.dump(grouped_tests, f, indent=2)
+        json.dump(final_output, f, indent=2)
 
     print(f"Generated {output_path}.")
     print(f"Included {sum(len(v) for v in grouped_tests.values())} tests.")
@@ -274,8 +291,10 @@ def main():
     )
 
     print("\nSkipped Reasons Summary:")
-    for r, c in sorted(skipped_counts.items(), key=lambda x: -x[1]):
-        print(f"  {c} tests: {r}")
+    for r, tests_list in sorted(skipped_details.items(), key=lambda x: -len(x[1])):
+        print(f"\n- {len(tests_list)} tests: {r}")
+        for st in tests_list:
+            print(f"    Logic: {json.dumps(st[0])}  Expected: {json.dumps(st[2])}")
 
 
 if __name__ == "__main__":
