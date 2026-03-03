@@ -75,8 +75,6 @@ class FlagdProviderConfig {
 
   std::optional<std::string> offline_flag_source_path_;
   int offline_poll_interval_ms_;
-
-  int Test;
 };
 
 }  // namespace flagd
