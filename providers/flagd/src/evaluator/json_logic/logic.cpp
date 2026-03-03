@@ -68,7 +68,8 @@ absl::StatusOr<nlohmann::json> Not(const JsonLogic& eval,
   if (values.is_array() && values.size() > 1) {
     return absl::InvalidArgumentError("! accepts only single argument.");
   }
-  nlohmann::json sugar = values.is_array() ? values[0] : values;
+  nlohmann::json sugar =
+      (values.is_array() && !values.empty()) ? values[0] : values;
   absl::StatusOr<bool> res = GetBool(eval, sugar, data);
   if (!res.ok()) return res.status();
   return !res.value();
@@ -80,7 +81,8 @@ absl::StatusOr<nlohmann::json> DoubleNegation(const JsonLogic& eval,
   if (values.is_array() && values.size() > 1) {
     return absl::InvalidArgumentError("!! accepts only single argument.");
   }
-  nlohmann::json sugar = values.is_array() ? values[0] : values;
+  nlohmann::json sugar =
+      (values.is_array() && !values.empty()) ? values[0] : values;
   return GetBool(eval, sugar, data);
 }
 

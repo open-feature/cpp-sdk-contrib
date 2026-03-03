@@ -178,6 +178,13 @@ class Number {
             if (rhs_val == 0) {
               return absl::InvalidArgumentError("Modulo by zero");
             }
+            if constexpr (std::is_same_v<decltype(lhs_val), int64_t> &&
+                          std::is_same_v<decltype(rhs_val), int64_t>) {
+              if (lhs_val == std::numeric_limits<int64_t>::min() &&
+                  rhs_val == -1) {
+                return Number(int64_t{0});
+              }
+            }
             return Number(lhs_val % rhs_val);
           }
         },

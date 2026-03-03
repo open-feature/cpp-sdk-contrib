@@ -73,8 +73,7 @@ absl::StatusOr<nlohmann::json> Var(const JsonLogic& eval,
     return eval.Apply(default_val.value(), data);
   }
 
-  return absl::InvalidArgumentError(
-      "Var key is missing and no default value provided.");
+  return nlohmann::json(nullptr);
 }
 
 absl::StatusOr<nlohmann::json> Missing(const JsonLogic& eval,
