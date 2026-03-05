@@ -20,6 +20,8 @@ cc_library(
         "string_ops.h",
         "utils.h",
     ],
+    include_prefix = "flagd/evaluator/json_logic",
+    strip_include_prefix = ".",
     visibility = ["//visibility:public"],
     deps = [
         "@abseil-cpp//absl/container:flat_hash_map",

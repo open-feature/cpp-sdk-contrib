@@ -1,10 +1,10 @@
 module(name = "cpp_sdk_contrib")
 
-bazel_dep(name = "rules_cc", version = "0.2.16")
-bazel_dep(name = "rules_python", version = "1.8.3")
+bazel_dep(name = "rules_cc", version = "0.2.17")
+bazel_dep(name = "rules_python", version = "1.8.5")
 bazel_dep(name = "rules_proto", version = "7.1.0")
 bazel_dep(name = "googletest", version = "1.17.0.bcr.2")
-bazel_dep(name = "abseil-cpp", version = "20250814.1")
+bazel_dep(name = "abseil-cpp", version = "20250814.2")
 bazel_dep(name = "openfeature_cpp_sdk")
 git_override(
     module_name = "openfeature_cpp_sdk",
@@ -32,7 +32,7 @@ git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl", "g
 git_repository(
     name = "flagd_schemas",
     build_file = "//providers/flagd:flagd_schemas.BUILD",
-    commit = "a0b8e85d4bca83728bfbf62d320936960926a262",
+    commit = "9f823b5b36bf219f8ea342de006fdf5013c1bc79",
     remote = "https://github.com/open-feature/flagd-schemas.git",
 )
 
