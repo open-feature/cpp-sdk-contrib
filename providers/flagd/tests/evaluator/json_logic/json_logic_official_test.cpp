@@ -21,11 +21,11 @@ TEST_P(JsonLogicTest, RunCase) {
   ASSERT_TRUE(test_case.is_array());
   ASSERT_GE(test_case.size(), 3);
 
-  json rule = test_case[0];
-  json data = test_case[1];
-  json expected = test_case[2];
+  const json& rule = test_case[0];
+  const json& data = test_case[1];
+  const json& expected = test_case[2];
 
-  std::cerr << "Running: " << rule << " on Data: " << data << std::endl;
+  std::cerr << "Running: " << rule << " on Data: " << data << "\n";
 
   absl::StatusOr<json> result = json_logic_.Apply(rule, data);
 
@@ -41,17 +41,17 @@ std::vector<json> LoadTests() {
   // This file is downloaded from: https://jsonlogic.com/tests.json
   std::string file_path =
       "providers/flagd/tests/evaluator/json_logic/tests.json";
-  std::ifstream f(file_path);
-  if (!f.is_open()) {
+  std::ifstream test_file(file_path);
+  if (!test_file.is_open()) {
     // Fallback or error. In Bazel, runfiles might be needed, but relative path
     // often works if CWD is correct. Let's try to print error.
-    std::cerr << "Could not open " << file_path << std::endl;
+    std::cerr << "Could not open " << file_path << "\n";
     return {};
   }
-  json j;
-  f >> j;
+  json tests_json;
+  test_file >> tests_json;
   std::vector<json> valid_cases;
-  for (const auto& element : j) {
+  for (const auto& element : tests_json) {
     if (element.is_array() && element.size() >= 3) {
       valid_cases.push_back(element);
     }
