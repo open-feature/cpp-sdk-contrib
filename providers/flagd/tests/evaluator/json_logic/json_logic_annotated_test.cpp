@@ -50,7 +50,7 @@ std::vector<json> LoadTests() {
   test_file >> tests_json;
   std::vector<json> valid_cases;
   if (tests_json.is_object()) {
-    for (auto& [key, cases] : tests_json.items()) {
+    for (const auto& [key, cases] : tests_json.items()) {
       if (cases.is_array()) {
         for (const auto& element : cases) {
           if (element.is_array() && element.size() >= 3) {

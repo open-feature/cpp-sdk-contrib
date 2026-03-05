@@ -29,7 +29,7 @@ TEST_F(JsonLogicTest, ApplyArray) {
 
   auto result_or = json_logic_.Apply(logic, data);
   ASSERT_TRUE(result_or.ok());
-  json result = result_or.value();
+  const json& result = result_or.value();
 
   EXPECT_TRUE(result.is_array());
   EXPECT_EQ(result.size(), 3);
