@@ -150,8 +150,7 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
     variant_name = std::move(*variant);
     reason = openfeature::Reason::kTargetingMatch;
   } else {
-    if (!flag_config.contains("defaultVariant") ||
-        flag_config["defaultVariant"].is_null()) {
+    if (flag_config.value("defaultVariant", nlohmann::json()).is_null()) {
       return std::make_unique<openfeature::ResolutionDetails<T>>(
           std::move(default_value), openfeature::Reason::kDefault, "",
           openfeature::FlagMetadata(), std::nullopt, std::nullopt);
