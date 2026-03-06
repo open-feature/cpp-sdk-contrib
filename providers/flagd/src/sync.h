@@ -54,7 +54,7 @@ class GrpcSync final : public FlagSync {
     kUninitialized,
     kInitializing,  // Thread started, waiting for first connection
     kReady,         // First sync complete, running normally
-    kShuttingDown   // Shutdown requested, cleaning up
+    kShuttingDown,  // Shutdown requested, cleaning up
   };
 
   std::thread background_thread_;

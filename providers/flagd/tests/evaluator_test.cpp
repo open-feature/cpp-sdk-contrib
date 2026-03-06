@@ -254,3 +254,60 @@ TEST_F(EvaluatorTest, ResolveDouble_TypeMismatch) {
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kError);
   EXPECT_EQ(result->GetErrorCode(), openfeature::ErrorCode::kTypeMismatch);
 }
+
+TEST_F(EvaluatorTest, ResolveBoolean_MissingDefaultVariant) {
+  nlohmann::json flags = {{"flags",
+                           {{"my-bool-flag",
+                             {{"state", "ENABLED"},
+                              {"variants", {{"on", true}, {"off", false}}}}}}}};
+
+  sync_->TriggerUpdate(flags);
+
+  openfeature::EvaluationContext ctx =
+      openfeature::EvaluationContext::Builder().build();
+  std::unique_ptr<openfeature::BoolResolutionDetails> result =
+      evaluator_->ResolveBoolean("my-bool-flag", false, ctx);
+
+  EXPECT_EQ(result->GetValue(), false);
+  EXPECT_EQ(result->GetReason(), openfeature::Reason::kDefault);
+  EXPECT_FALSE(result->GetErrorCode().has_value());
+}
+
+TEST_F(EvaluatorTest, ResolveBoolean_NullDefaultVariant) {
+  nlohmann::json flags = {{"flags",
+                           {{"my-bool-flag",
+                             {{"state", "ENABLED"},
+                              {"variants", {{"on", true}, {"off", false}}},
+                              {"defaultVariant", nullptr}}}}}};
+
+  sync_->TriggerUpdate(flags);
+
+  openfeature::EvaluationContext ctx =
+      openfeature::EvaluationContext::Builder().build();
+  std::unique_ptr<openfeature::BoolResolutionDetails> result =
+      evaluator_->ResolveBoolean("my-bool-flag", false, ctx);
+
+  EXPECT_EQ(result->GetValue(), false);
+  EXPECT_EQ(result->GetReason(), openfeature::Reason::kDefault);
+  EXPECT_FALSE(result->GetErrorCode().has_value());
+}
+
+TEST_F(EvaluatorTest, ResolveBoolean_TargetingNull_MissingDefaultVariant) {
+  nlohmann::json flags = {
+      {"flags",
+       {{"my-bool-flag",
+         {{"state", "ENABLED"},
+          {"variants", {{"on", true}, {"off", false}}},
+          {"targeting", {{"if", {{false}, "on", nullptr}}}}}}}}};
+
+  sync_->TriggerUpdate(flags);
+
+  openfeature::EvaluationContext ctx =
+      openfeature::EvaluationContext::Builder().build();
+  std::unique_ptr<openfeature::BoolResolutionDetails> result =
+      evaluator_->ResolveBoolean("my-bool-flag", false, ctx);
+
+  EXPECT_EQ(result->GetValue(), false);
+  EXPECT_EQ(result->GetReason(), openfeature::Reason::kDefault);
+  EXPECT_FALSE(result->GetErrorCode().has_value());
+}
