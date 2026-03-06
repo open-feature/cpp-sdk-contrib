@@ -148,11 +148,12 @@ TEST_F(EvaluatorTest, ResolveIntegerSuccess) {
 }
 
 TEST_F(EvaluatorTest, ResolveDoubleSuccess) {
-  float d1 = 1.1, d2 = 2.2;
+  const double double1 = 1.1;
+  const double double2 = 2.2;
   nlohmann::json flags = {{"flags",
                            {{"my-double-flag",
                              {{"state", "ENABLED"},
-                              {"variants", {{"d1", d1}, {"d2", d2}}},
+                              {"variants", {{"d1", double1}, {"d2", double2}}},
                               {"defaultVariant", "d1"}}}}}};
 
   sync_->TriggerUpdate(flags);
@@ -162,17 +163,18 @@ TEST_F(EvaluatorTest, ResolveDoubleSuccess) {
   std::unique_ptr<openfeature::DoubleResolutionDetails> result =
       evaluator_->ResolveDouble("my-double-flag", 0.0, ctx);
 
-  EXPECT_DOUBLE_EQ(result->GetValue(), d1);
+  EXPECT_DOUBLE_EQ(result->GetValue(), double1);
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kStatic);
   EXPECT_EQ(result->GetVariant(), "d1");
 }
 
 TEST_F(EvaluatorTest, ResolveObjectSuccess) {
+  const int baz = 123;
   nlohmann::json flags = {{"flags",
                            {{"my-object-flag",
                              {{"state", "ENABLED"},
                               {"variants",
-                               {{"obj1", {{"foo", "bar"}, {"baz", 123}}},
+                               {{"obj1", {{"foo", "bar"}, {"baz", baz}}},
                                 {"obj2", {{"key", true}}}}},
                               {"defaultVariant", "obj1"}}}}}};
 
@@ -196,7 +198,7 @@ TEST_F(EvaluatorTest, ResolveObjectSuccess) {
 
   EXPECT_TRUE(structure->at("foo").IsString());
   EXPECT_EQ(structure->at("foo").AsString().value(), "bar");
-  EXPECT_EQ(structure->at("baz").AsInt().value(), 123);
+  EXPECT_EQ(structure->at("baz").AsInt().value(), baz);
 }
 
 TEST_F(EvaluatorTest, ResolveStringTypeMismatch) {
@@ -256,12 +258,12 @@ TEST_F(EvaluatorTest, ResolveDoubleTypeMismatch) {
   EXPECT_EQ(result->GetErrorCode(), openfeature::ErrorCode::kTypeMismatch);
 }
 
-TEST_F(EvaluatorTest, ResolveBooleanMissingDefaultVariant) {
-  nlohmann::json flags = {{"flags",
-                           {{"my-bool-flag",
-                             {{"state", "ENABLED"},
-                              {"variants", {{"on", true}, {"off", false}}}}}}}};
+class EvaluatorDefaultVariantTest
+    : public EvaluatorTest,
+      public ::testing::WithParamInterface<nlohmann::json> {};
 
+TEST_P(EvaluatorDefaultVariantTest, ResolveBooleanReturnsDefault) {
+  nlohmann::json flags = {{"flags", GetParam()}};
   sync_->TriggerUpdate(flags);
 
   openfeature::EvaluationContext ctx =
@@ -274,41 +276,20 @@ TEST_F(EvaluatorTest, ResolveBooleanMissingDefaultVariant) {
   EXPECT_FALSE(result->GetErrorCode().has_value());
 }
 
-TEST_F(EvaluatorTest, ResolveBooleanNullDefaultVariant) {
-  nlohmann::json flags = {{"flags",
-                           {{"my-bool-flag",
-                             {{"state", "ENABLED"},
-                              {"variants", {{"on", true}, {"off", false}}},
-                              {"defaultVariant", nullptr}}}}}};
-
-  sync_->TriggerUpdate(flags);
-
-  openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
-  std::unique_ptr<openfeature::BoolResolutionDetails> result =
-      evaluator_->ResolveBoolean("my-bool-flag", false, ctx);
-
-  EXPECT_EQ(result->GetValue(), false);
-  EXPECT_EQ(result->GetReason(), openfeature::Reason::kDefault);
-  EXPECT_FALSE(result->GetErrorCode().has_value());
-}
-
-TEST_F(EvaluatorTest, ResolveBooleanTargetingNullMissingDefaultVariant) {
-  nlohmann::json flags = {
-      {"flags",
-       {{"my-bool-flag",
-         {{"state", "ENABLED"},
-          {"variants", {{"on", true}, {"off", false}}},
-          {"targeting", {{"if", {{false}, "on", nullptr}}}}}}}}};
-
-  sync_->TriggerUpdate(flags);
-
-  openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
-  std::unique_ptr<openfeature::BoolResolutionDetails> result =
-      evaluator_->ResolveBoolean("my-bool-flag", false, ctx);
-
-  EXPECT_EQ(result->GetValue(), false);
-  EXPECT_EQ(result->GetReason(), openfeature::Reason::kDefault);
-  EXPECT_FALSE(result->GetErrorCode().has_value());
-}
+INSTANTIATE_TEST_SUITE_P(
+    DefaultVariantHandling, EvaluatorDefaultVariantTest,
+    ::testing::Values(
+        // Missing default variant
+        nlohmann::json{{"my-bool-flag",
+                        {{"state", "ENABLED"},
+                         {"variants", {{"on", true}, {"off", false}}}}}},
+        // Null default variant
+        nlohmann::json{{"my-bool-flag",
+                        {{"state", "ENABLED"},
+                         {"variants", {{"on", true}, {"off", false}}},
+                         {"defaultVariant", nullptr}}}},
+        // Targeting returns null, missing default variant
+        nlohmann::json{{"my-bool-flag",
+                        {{"state", "ENABLED"},
+                         {"variants", {{"on", true}, {"off", false}}},
+                         {"targeting", {{"if", {{false}, "on", nullptr}}}}}}}));
