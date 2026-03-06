@@ -25,6 +25,7 @@ class FlagSync {
   virtual absl::Status Shutdown() = 0;
 
   std::shared_ptr<const nlohmann::json> GetFlags() const;
+  std::shared_ptr<const nlohmann::json> GetMetadata() const;
 
  protected:
   void UpdateFlags(const nlohmann::json& new_json);
@@ -32,6 +33,7 @@ class FlagSync {
  private:
   mutable std::mutex flags_mutex_;
   std::shared_ptr<const nlohmann::json> current_flags_;
+  std::shared_ptr<const nlohmann::json> global_metadata_;
 
   class Validator;
   std::unique_ptr<Validator> validator_;
@@ -54,7 +56,7 @@ class GrpcSync final : public FlagSync {
     kUninitialized,
     kInitializing,  // Thread started, waiting for first connection
     kReady,         // First sync complete, running normally
-    kShuttingDown   // Shutdown requested, cleaning up
+    kShuttingDown,  // Shutdown requested, cleaning up
   };
 
   std::thread background_thread_;
