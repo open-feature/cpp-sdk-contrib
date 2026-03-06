@@ -16,19 +16,19 @@ We use **Bazel** as our primary build system. Ensure you have [Bazelisk](https:/
 
 To build all targets in the repository:
 
-```
+```bash
 bazel build //...
 ```
 
 To run all tests:
 
-```
+```bash
 bazel test //...
 ```
 
 For individual providers (e.g., flagd):
 
-```
+```bash
 bazel test //providers/flagd/...
 ```
 
@@ -49,7 +49,7 @@ bazel run @hedron_compile_commands//:refresh_all
 ## Pull Request Process
 
 1.  **Fork** the repository and create your branch from `main`.
-```
+```bash
 git clone https://github.com/open-feature/cpp-sdk-contrib.git openfeature-cpp-sdk-contrib
 cd openfeature-cpp-sdk-contrib
 git remote add fork https://github.com/YOUR_GITHUB_USERNAME/cpp-sdk-contrib.git
@@ -57,19 +57,19 @@ git checkout -b feat/NAME_OF_FEATURE
 ```
 2.  **Implement** your changes. Ensure you include unit tests for any new logic.
 3.  **Format** your code using `clang-format`.
-```
+```bash
 find . -name '*.h' -o -name '*.cpp' | xargs clang-format -i
 ```
 4.  **Verify** that all tests pass locally.
-```
+```bash
 bazel test //...
 ```
 5.  **Commit** your changes. Use descriptive commit messages and remember to sign-off your commits with `commit -s` flag.
-```
+```bash
 git commit -m "..." -s
 ```
 6.  **Push** to your fork and submit a **Pull Request**. Remember that PR title must adhere to [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/#specification).
-```
+```bash
 git push fork feat/NAME_OF_FEATURE
 ```
 
