@@ -203,14 +203,14 @@ absl::StatusOr<std::vector<Number>> GetNumbers(const JsonLogic& eval,
                                                const nlohmann::json& values,
                                                const nlohmann::json& data,
                                                std::string_view op_name) {
-  auto resolved_res = eval.Apply(values, data);
+  absl::StatusOr<nlohmann::json> resolved_res = eval.Apply(values, data);
   if (!resolved_res.ok()) return resolved_res.status();
-  const auto& resolved = *resolved_res;
+  const nlohmann::json& resolved = *resolved_res;
 
   std::vector<Number> nums;
   if (resolved.is_array()) {
     nums.reserve(resolved.size());
-    for (const auto& item : resolved) {
+    for (const nlohmann::json& item : resolved) {
       if (!item.is_number()) {
         return absl::InvalidArgumentError(std::string(op_name) +
                                           " with non-numeric argument");
@@ -231,7 +231,8 @@ absl::StatusOr<std::vector<Number>> GetNumbers(const JsonLogic& eval,
 absl::StatusOr<nlohmann::json> Min(const JsonLogic& eval,
                                    const nlohmann::json& values,
                                    const nlohmann::json& data) {
-  auto nums_res = GetNumbers(eval, values, data, "min");
+  absl::StatusOr<std::vector<Number>> nums_res =
+      GetNumbers(eval, values, data, "min");
   if (!nums_res.ok()) return nums_res.status();
   if (nums_res->empty()) return nullptr;
 
@@ -241,7 +242,8 @@ absl::StatusOr<nlohmann::json> Min(const JsonLogic& eval,
 absl::StatusOr<nlohmann::json> Max(const JsonLogic& eval,
                                    const nlohmann::json& values,
                                    const nlohmann::json& data) {
-  auto nums_res = GetNumbers(eval, values, data, "max");
+  absl::StatusOr<std::vector<Number>> nums_res =
+      GetNumbers(eval, values, data, "max");
   if (!nums_res.ok()) return nums_res.status();
   if (nums_res->empty()) return nullptr;
 
@@ -251,7 +253,8 @@ absl::StatusOr<nlohmann::json> Max(const JsonLogic& eval,
 absl::StatusOr<nlohmann::json> Add(const JsonLogic& eval,
                                    const nlohmann::json& values,
                                    const nlohmann::json& data) {
-  auto nums_res = GetNumbers(eval, values, data, "add");
+  absl::StatusOr<std::vector<Number>> nums_res =
+      GetNumbers(eval, values, data, "add");
   if (!nums_res.ok()) return nums_res.status();
   if (nums_res->empty()) return 0;
 
@@ -263,7 +266,8 @@ absl::StatusOr<nlohmann::json> Add(const JsonLogic& eval,
 absl::StatusOr<nlohmann::json> Subtract(const JsonLogic& eval,
                                         const nlohmann::json& values,
                                         const nlohmann::json& data) {
-  auto nums_res = GetNumbers(eval, values, data, "subtract");
+  absl::StatusOr<std::vector<Number>> nums_res =
+      GetNumbers(eval, values, data, "subtract");
   if (!nums_res.ok()) return nums_res.status();
 
   if (nums_res->size() == 1) {
@@ -279,7 +283,8 @@ absl::StatusOr<nlohmann::json> Subtract(const JsonLogic& eval,
 absl::StatusOr<nlohmann::json> Multiply(const JsonLogic& eval,
                                         const nlohmann::json& values,
                                         const nlohmann::json& data) {
-  auto nums_res = GetNumbers(eval, values, data, "multiply");
+  absl::StatusOr<std::vector<Number>> nums_res =
+      GetNumbers(eval, values, data, "multiply");
   if (!nums_res.ok()) return nums_res.status();
   if (nums_res->empty()) return 1;
 
@@ -291,13 +296,15 @@ absl::StatusOr<nlohmann::json> Multiply(const JsonLogic& eval,
 absl::StatusOr<nlohmann::json> Divide(const JsonLogic& eval,
                                       const nlohmann::json& values,
                                       const nlohmann::json& data) {
-  auto nums_res = GetNumbers(eval, values, data, "/");
+  absl::StatusOr<std::vector<Number>> nums_res =
+      GetNumbers(eval, values, data, "/");
   if (!nums_res.ok()) return nums_res.status();
   if (nums_res->size() != 2) {
     return absl::InvalidArgumentError("Division requires two arguments");
   }
 
-  auto result_res = Number::Div((*nums_res)[0], (*nums_res)[1]);
+  absl::StatusOr<Number> result_res =
+      Number::Div((*nums_res)[0], (*nums_res)[1]);
   if (!result_res.ok()) return result_res.status();
   return result_res->ToJson();
 }
@@ -305,13 +312,15 @@ absl::StatusOr<nlohmann::json> Divide(const JsonLogic& eval,
 absl::StatusOr<nlohmann::json> Modulo(const JsonLogic& eval,
                                       const nlohmann::json& values,
                                       const nlohmann::json& data) {
-  auto nums_res = GetNumbers(eval, values, data, "%");
+  absl::StatusOr<std::vector<Number>> nums_res =
+      GetNumbers(eval, values, data, "%");
   if (!nums_res.ok()) return nums_res.status();
   if (nums_res->size() != 2) {
     return absl::InvalidArgumentError("Modulo requires two arguments");
   }
 
-  auto result_res = Number::Mod((*nums_res)[0], (*nums_res)[1]);
+  absl::StatusOr<Number> result_res =
+      Number::Mod((*nums_res)[0], (*nums_res)[1]);
   if (!result_res.ok()) return result_res.status();
   return result_res->ToJson();
 }
@@ -319,7 +328,8 @@ absl::StatusOr<nlohmann::json> Modulo(const JsonLogic& eval,
 absl::StatusOr<nlohmann::json> LessThan(const JsonLogic& eval,
                                         const nlohmann::json& values,
                                         const nlohmann::json& data) {
-  auto nums_res = GetNumbers(eval, values, data, "<");
+  absl::StatusOr<std::vector<Number>> nums_res =
+      GetNumbers(eval, values, data, "<");
   if (!nums_res.ok()) return nums_res.status();
 
   if (nums_res->size() == 2) return (*nums_res)[0] < (*nums_res)[1];
@@ -332,7 +342,8 @@ absl::StatusOr<nlohmann::json> LessThan(const JsonLogic& eval,
 absl::StatusOr<nlohmann::json> LessThanOrEqual(const JsonLogic& eval,
                                                const nlohmann::json& values,
                                                const nlohmann::json& data) {
-  auto nums_res = GetNumbers(eval, values, data, "<=");
+  absl::StatusOr<std::vector<Number>> nums_res =
+      GetNumbers(eval, values, data, "<=");
   if (!nums_res.ok()) return nums_res.status();
 
   auto is_lte = [](const Number& first, const Number& second) {
@@ -349,7 +360,8 @@ absl::StatusOr<nlohmann::json> LessThanOrEqual(const JsonLogic& eval,
 absl::StatusOr<nlohmann::json> GreaterThan(const JsonLogic& eval,
                                            const nlohmann::json& values,
                                            const nlohmann::json& data) {
-  auto nums_res = GetNumbers(eval, values, data, ">");
+  absl::StatusOr<std::vector<Number>> nums_res =
+      GetNumbers(eval, values, data, ">");
   if (!nums_res.ok()) return nums_res.status();
 
   if (nums_res->size() == 2) return (*nums_res)[1] < (*nums_res)[0];
@@ -359,7 +371,8 @@ absl::StatusOr<nlohmann::json> GreaterThan(const JsonLogic& eval,
 absl::StatusOr<nlohmann::json> GreaterThanOrEqual(const JsonLogic& eval,
                                                   const nlohmann::json& values,
                                                   const nlohmann::json& data) {
-  auto nums_res = GetNumbers(eval, values, data, ">=");
+  absl::StatusOr<std::vector<Number>> nums_res =
+      GetNumbers(eval, values, data, ">=");
   if (!nums_res.ok()) return nums_res.status();
 
   if (nums_res->size() == 2) {

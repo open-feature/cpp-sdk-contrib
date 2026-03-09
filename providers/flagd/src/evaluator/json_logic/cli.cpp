@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
 
   try {
     json_logic::JsonLogic evaluator;
-    auto result = evaluator.Apply(logic, data);
+    absl::StatusOr<nlohmann::json> result = evaluator.Apply(logic, data);
 
     if (!result.ok()) {
       std::cerr << "Apply error: " << result.status().ToString() << "\n";

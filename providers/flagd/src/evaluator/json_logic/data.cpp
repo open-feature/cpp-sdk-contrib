@@ -5,6 +5,7 @@
 #include <string>
 
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "json_logic.h"
 
 namespace json_logic::ops {
@@ -26,7 +27,8 @@ absl::StatusOr<nlohmann::json> GetVariableValue(const nlohmann::json& data,
   } catch (...) {
     // invalid pointer or path not found
   }
-  return absl::InvalidArgumentError("Var key is missing from object.");
+  return absl::InvalidArgumentError(absl::StrCat(
+      "Var key '", key, "' is missing from object: ", data.dump()));
 }
 
 }  // namespace
