@@ -61,6 +61,8 @@ class FlagSync::Validator {
 FlagSync::FlagSync()
     : current_flags_(
           std::make_shared<nlohmann::json>(nlohmann::json::object())),
+      global_metadata_(
+          std::make_shared<nlohmann::json>(nlohmann::json::object())),
       validator_(std::make_unique<Validator>()) {}
 
 FlagSync::~FlagSync() = default;
@@ -74,16 +76,32 @@ void FlagSync::UpdateFlags(const nlohmann::json& new_json) {
     }
   }
 
-  auto new_snapshot = std::make_shared<const nlohmann::json>(new_json["flags"]);
+  auto new_flags_snapshot =
+      std::make_shared<const nlohmann::json>(new_json["flags"]);
+  std::shared_ptr<const nlohmann::json> new_metadata_snapshot;
+  if (new_json.contains("metadata")) {
+    new_metadata_snapshot =
+        std::make_shared<const nlohmann::json>(new_json["metadata"]);
+  } else {
+    new_metadata_snapshot =
+        std::make_shared<const nlohmann::json>(nlohmann::json::object());
+  }
+
   {
     std::scoped_lock lock(flags_mutex_);
-    current_flags_ = std::move(new_snapshot);
+    current_flags_ = std::move(new_flags_snapshot);
+    global_metadata_ = std::move(new_metadata_snapshot);
   }
 }
 
 std::shared_ptr<const nlohmann::json> FlagSync::GetFlags() const {
   std::scoped_lock lock(flags_mutex_);
   return current_flags_;
+}
+
+std::shared_ptr<const nlohmann::json> FlagSync::GetMetadata() const {
+  std::scoped_lock lock(flags_mutex_);
+  return global_metadata_;
 }
 
 GrpcSync::GrpcSync(FlagdProviderConfig config) : config_(std::move(config)) {}
