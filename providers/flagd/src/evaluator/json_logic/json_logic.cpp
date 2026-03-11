@@ -3,14 +3,48 @@
 #include <string>
 #include <utility>
 
+#include "absl/status/status.h"
+#include "array.h"
 #include "data.h"
 #include "logic.h"
+#include "numeric.h"
+#include "string_ops.h"
 
 namespace json_logic {
 
 JsonLogic::JsonLogic() {
   RegisterOperation("var", ops::Var);
+  RegisterOperation("missing", ops::Missing);
+  RegisterOperation("missing_some", ops::MissingSome);
+
   RegisterOperation("and", ops::And);
+  RegisterOperation("or", ops::Or);
+  RegisterOperation("!", ops::Not);
+  RegisterOperation("!!", ops::DoubleNegation);
+  RegisterOperation("if", ops::If);
+  RegisterOperation("?:", ops::If);
+  RegisterOperation("==", ops::StrictEquals);
+  RegisterOperation("===", ops::StrictEquals);
+  RegisterOperation("!=", ops::StrictNotEquals);
+  RegisterOperation("!==", ops::StrictNotEquals);
+
+  RegisterOperation("+", ops::Add);
+  RegisterOperation("-", ops::Subtract);
+  RegisterOperation("*", ops::Multiply);
+  RegisterOperation("/", ops::Divide);
+  RegisterOperation("%", ops::Modulo);
+  RegisterOperation("min", ops::Min);
+  RegisterOperation("max", ops::Max);
+  RegisterOperation("<", ops::LessThan);
+  RegisterOperation("<=", ops::LessThanOrEqual);
+  RegisterOperation(">", ops::GreaterThan);
+  RegisterOperation(">=", ops::GreaterThanOrEqual);
+
+  RegisterOperation("cat", ops::Cat);
+  RegisterOperation("substr", ops::Substr);
+  RegisterOperation("in", ops::In);
+
+  RegisterOperation("merge", ops::Merge);
 }
 
 void JsonLogic::RegisterOperation(std::string_view operation,
@@ -47,7 +81,16 @@ absl::StatusOr<nlohmann::json> JsonLogic::Apply(
     // whole object. Here we went with the first option.
     auto iter = logic.begin();
     std::string const& operation = iter.key();
-    return ApplyOp(operation, iter.value(), data);
+
+    absl::StatusOr<nlohmann::json> operation_result =
+        ApplyOp(operation, iter.value(), data);
+
+    if (!operation_result.ok() &&
+        operation_result.status().code() == absl::StatusCode::kNotFound) {
+      return logic;
+    }
+
+    return operation_result;
   }
 
   return nlohmann::json();
@@ -58,15 +101,10 @@ absl::StatusOr<nlohmann::json> JsonLogic::ApplyOp(
     const nlohmann::json& data) const {
   auto iter = operations_.find(operation);
   if (iter != operations_.end()) {
-    // We are ensuring that every operation is receiving array as data, so that
-    // the functions won't have to check for that
-    if (values.is_array()) {
-      return iter->second(*this, values, data);
-    }
-    return iter->second(*this, nlohmann::json::array({values}), data);
+    return iter->second(*this, values, data);
   }
 
-  return nlohmann::json();
+  return absl::NotFoundError("Unknown operation: " + operation);
 }
 
 }  // namespace json_logic

@@ -1,4 +1,6 @@
-# Contributing
+# Contributing to OpenFeature C++ Contrib
+
+Thank you for your interest in contributing to the OpenFeature C++ SDK Contrib project. Here you can find info on the build system, review process, and other useful resources that might help you along the way.
 
 ## Development
 
@@ -6,48 +8,77 @@
 
 We are using [version C++17](https://en.cppreference.com/w/cpp/17.html).
 
-### Installation and Dependencies
+### Build system
 
-The code will be build, tested and managed using [Bazel build system](https://bazel.build/).
+We use **Bazel** as our primary build system. Ensure you have [Bazelisk](https://github.com/bazelbuild/bazelisk) installed to automatically manage the correct Bazel version (defined in `.bazelversion`).
 
-## Pull Request
+### Build and Test
 
-All contributions to the OpenFeature project are welcome via GitHub pull requests.
+To build all targets in the repository:
 
-To create a new PR, you will need to first fork the GitHub repository and clone upstream.
+```bash
+bazel build //...
+```
 
+To run all tests:
+
+```bash
+bazel test //...
+```
+
+For individual providers (e.g., flagd):
+
+```bash
+bazel test //providers/flagd/...
+```
+
+## Coding Standards
+
+### Code Style
+
+We strictly follow the project's `.clang-format` configuration. Before submitting a PR, please format your code.
+
+### Static Analysis
+
+We use `clang-tidy` for static analysis. Our configuration is in `.clang-tidy`. While CI will enforce this, running it locally is encouraged. You can generate a `compile_commands.json` using the `hedron_compile_commands` target included in the workspace:
+
+```bash
+bazel run @hedron_compile_commands//:refresh_all
+```
+
+## Pull Request Process
+
+1.  **Fork** the repository and create your branch from `main`.
 ```bash
 git clone https://github.com/open-feature/cpp-sdk-contrib.git openfeature-cpp-sdk-contrib
-```
-
-Navigate to the repository folder
-
-```bash
 cd openfeature-cpp-sdk-contrib
-```
-
-Add your fork as an origin
-
-```bash
 git remote add fork https://github.com/YOUR_GITHUB_USERNAME/cpp-sdk-contrib.git
-```
-
-Ensure your development environment is all set up by building and testing
-
-```bash
-make
-```
-
-To start working on a new feature or bugfix, create a new branch and start working on it.
-
-```bash
 git checkout -b feat/NAME_OF_FEATURE
-# Make your changes
-git commit
+```
+2.  **Implement** your changes. Ensure you include unit tests for any new logic.
+3.  **Format** your code using `clang-format`.
+```bash
+find . -name '*.h' -o -name '*.cpp' | xargs clang-format -i
+```
+4.  **Verify** that all tests pass locally.
+```bash
+bazel test //...
+```
+5.  **Commit** your changes. Use descriptive commit messages and remember to sign-off your commits with `commit -s` flag.
+```bash
+git commit -m "..." -s
+```
+6.  **Push** to your fork and submit a **Pull Request**. Remember that PR title must adhere to [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/#specification).
+```bash
 git push fork feat/NAME_OF_FEATURE
 ```
 
-Open a pull request against the main python-sdk-contrib repository.
+## Collaboration Standards
+
+Main points:
+- Adhere to the [OpenFeature Specification](https://openfeature.dev/specification/).
+- Minimize external dependencies. When adding a new dependency, prefer those already available in the Bazel workspace (see `MODULE.bazel`).
+- Favor readable, maintainable C++ over "clever" implementations.
 
 ### How to Receive Comments
 

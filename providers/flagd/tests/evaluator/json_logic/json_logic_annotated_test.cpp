@@ -21,11 +21,11 @@ TEST_P(JsonLogicTest, RunCase) {
   ASSERT_TRUE(test_case.is_array());
   ASSERT_GE(test_case.size(), 3);
 
-  json rule = test_case[0];
-  json data = test_case[1];
-  json expected = test_case[2];
+  const json& rule = test_case[0];
+  const json& data = test_case[1];
+  const json& expected = test_case[2];
 
-  std::cerr << "Running: " << rule << " on Data: " << data << std::endl;
+  std::cerr << "Running: " << rule << " on Data: " << data << "\n";
 
   absl::StatusOr<json> result = json_logic_.Apply(rule, data);
 
@@ -33,23 +33,24 @@ TEST_P(JsonLogicTest, RunCase) {
 
   EXPECT_EQ(result_json, expected)
       << "Rule: " << rule << "\nData: " << data << "\nExpected: " << expected
-      << "\nGot: " << result;
+      << "\nGot: "
+      << (result.ok() ? result->dump() : result.status().ToString());
 }
 
 std::vector<json> LoadTests() {
   // This file is generated from ./generate_tests_annotations.py
   std::string file_path =
       "providers/flagd/tests/evaluator/json_logic/tests_annotated.json";
-  std::ifstream f(file_path);
-  if (!f.is_open()) {
-    std::cerr << "Could not open " << file_path << std::endl;
+  std::ifstream test_file(file_path);
+  if (!test_file.is_open()) {
+    std::cerr << "Could not open " << file_path << "\n";
     return {};
   }
-  json j;
-  f >> j;
+  json tests_json;
+  test_file >> tests_json;
   std::vector<json> valid_cases;
-  if (j.is_object()) {
-    for (auto& [key, cases] : j.items()) {
+  if (tests_json.is_object()) {
+    for (const auto& [key, cases] : tests_json.items()) {
       if (cases.is_array()) {
         for (const auto& element : cases) {
           if (element.is_array() && element.size() >= 3) {
