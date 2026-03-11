@@ -439,4 +439,4 @@ INSTANTIATE_TEST_SUITE_P(
         nlohmann::json{{"my-bool-flag",
                         {{"state", "ENABLED"},
                          {"variants", {{"on", true}, {"off", false}}},
-                         {"targeting", {{"if", {{false}, "on", nullptr}}}}}}}));
+                         {"targeting", {{"if", {false, "on", nullptr}}}}}}}));
