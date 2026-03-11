@@ -2,13 +2,12 @@
 
 #include <openfeature/provider.h>
 
-#include <cstdlib>
 #include <optional>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "flagd/configuration.h"
-#include "flagd/sync.h"
+#include "flagd/sync/grpc/grpc_sync.h"
 
 namespace flagd {
 

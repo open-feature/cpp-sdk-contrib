@@ -8,8 +8,8 @@
 
 #include "absl/status/status.h"
 #include "flagd/configuration.h"
-#include "flagd/evaluator.h"
-#include "flagd/sync.h"
+#include "flagd/evaluator/evaluator.h"
+#include "flagd/sync/sync.h"
 
 namespace flagd {
 
