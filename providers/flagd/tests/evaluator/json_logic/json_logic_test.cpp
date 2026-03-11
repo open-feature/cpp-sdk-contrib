@@ -29,7 +29,7 @@ TEST_F(JsonLogicTest, ApplyArray) {
 
   auto result_or = json_logic_.Apply(logic, data);
   ASSERT_TRUE(result_or.ok());
-  json result = result_or.value();
+  const json& result = result_or.value();
 
   EXPECT_TRUE(result.is_array());
   EXPECT_EQ(result.size(), 3);
@@ -49,7 +49,7 @@ TEST_F(JsonLogicTest, ApplyUnknownOperator) {
   json data = json::object();
   json logic = json::parse(R"({"unknown_op": [1, 2]})");
 
-  EXPECT_EQ(json_logic_.Apply(logic, data).value(), nullptr);
+  EXPECT_EQ(json_logic_.Apply(logic, data).value(), logic);
 }
 
 TEST_F(JsonLogicTest, CustomOperation) {

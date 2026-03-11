@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
 
 cc_library(
     name = "json_logic",
@@ -26,6 +26,17 @@ cc_library(
     deps = [
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_binary(
+    name = "cli",
+    srcs = ["cli.cpp"],
+    deps = [
+        ":json_logic",
+        "@abseil-cpp//absl/status",
         "@nlohmann_json//:json",
     ],
 )
