@@ -107,9 +107,9 @@ FlagdProvider::GetDoubleEvaluation(const std::string_view flag,
 }
 
 std::unique_ptr<openfeature::ObjectResolutionDetails>
-FlagdProvider::GetObjectEvaluation(const std::string_view flag,
-                                   openfeature::Value default_value,
-                                   const openfeature::EvaluationContext& ctx) {
+FlagdProvider::GetObjectEvaluation(
+    const std::string_view flag, openfeature::Value default_value,
+    const openfeature::EvaluationContext& ctx) {  // NOLINT(performance-unnecessary-value-param)
   if (!is_ready_) {
     return std::make_unique<openfeature::ObjectResolutionDetails>(
         std::move(default_value), openfeature::Reason::kError, "",

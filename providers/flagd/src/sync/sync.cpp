@@ -86,12 +86,12 @@ void FlagSync::UpdateFlags(const nlohmann::json& new_json) {
 }
 
 std::shared_ptr<const nlohmann::json> FlagSync::GetFlags() const {
-  std::scoped_lock lock(flags_mutex_);
+  std::shared_lock lock(flags_mutex_);
   return current_flags_;
 }
 
 std::shared_ptr<const nlohmann::json> FlagSync::GetMetadata() const {
-  std::scoped_lock lock(flags_mutex_);
+  std::shared_lock lock(flags_mutex_);
   return global_metadata_;
 }
 
