@@ -33,7 +33,7 @@ class EvaluatorTest : public ::testing::Test {
 };
 
 TEST_F(EvaluatorTest, ResolveBooleanSuccess) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-bool-flag": {
         "state": "ENABLED",
@@ -60,7 +60,7 @@ TEST_F(EvaluatorTest, ResolveBooleanSuccess) {
 }
 
 TEST_F(EvaluatorTest, ResolveBooleanFlagNotFound) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {}
   })");
   sync_->TriggerUpdate(flags);
@@ -76,7 +76,7 @@ TEST_F(EvaluatorTest, ResolveBooleanFlagNotFound) {
 }
 
 TEST_F(EvaluatorTest, ResolveBooleanTypeMismatch) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-string-flag": {
         "state": "ENABLED",
@@ -102,7 +102,7 @@ TEST_F(EvaluatorTest, ResolveBooleanTypeMismatch) {
 }
 
 TEST_F(EvaluatorTest, ResolveBooleanMetadata) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "metadata": {
       "global-key": "global-value",
       "override-key": "global-override"
@@ -141,7 +141,7 @@ TEST_F(EvaluatorTest, ResolveBooleanMetadata) {
 }
 
 TEST_F(EvaluatorTest, ResolveBooleanVariantNotFound) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-broken-flag": {
         "state": "ENABLED",
@@ -170,7 +170,7 @@ TEST_F(EvaluatorTest, ResolveBooleanVariantNotFound) {
 }
 
 TEST_F(EvaluatorTest, ResolveStringSuccess) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-string-flag": {
         "state": "ENABLED",
@@ -196,7 +196,7 @@ TEST_F(EvaluatorTest, ResolveStringSuccess) {
 }
 
 TEST_F(EvaluatorTest, ResolveIntegerSuccess) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-int-flag": {
         "state": "ENABLED",
@@ -222,7 +222,7 @@ TEST_F(EvaluatorTest, ResolveIntegerSuccess) {
 }
 
 TEST_F(EvaluatorTest, ResolveDoubleSuccess) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-double-flag": {
         "state": "ENABLED",
@@ -248,7 +248,7 @@ TEST_F(EvaluatorTest, ResolveDoubleSuccess) {
 }
 
 TEST_F(EvaluatorTest, ResolveObjectSuccess) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-object-flag": {
         "state": "ENABLED",
@@ -290,7 +290,7 @@ TEST_F(EvaluatorTest, ResolveObjectSuccess) {
 }
 
 TEST_F(EvaluatorTest, ResolveStringTypeMismatch) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-int-flag": {
         "state": "ENABLED",
@@ -315,7 +315,7 @@ TEST_F(EvaluatorTest, ResolveStringTypeMismatch) {
 }
 
 TEST_F(EvaluatorTest, ResolveIntegerTypeMismatch) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-string-flag": {
         "state": "ENABLED",
@@ -340,7 +340,7 @@ TEST_F(EvaluatorTest, ResolveIntegerTypeMismatch) {
 }
 
 TEST_F(EvaluatorTest, ResolveDoubleTypeMismatch) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-string-flag": {
         "state": "ENABLED",
@@ -369,7 +369,8 @@ class EvaluatorDefaultVariantTest
       public ::testing::WithParamInterface<std::string> {};
 
 TEST_P(EvaluatorDefaultVariantTest, ResolveBooleanReturnsDefault) {
-  auto flags_json = nlohmann::json::parse(R"({"flags":)" + GetParam() + "}");
+  nlohmann::json flags_json =
+      nlohmann::json::parse(R"({"flags":)" + GetParam() + "}");
   sync_->TriggerUpdate(flags_json);
 
   openfeature::EvaluationContext ctx =
@@ -407,7 +408,7 @@ INSTANTIATE_TEST_SUITE_P(DefaultVariantHandling, EvaluatorDefaultVariantTest,
         })"));
 
 TEST_F(EvaluatorTest, ResolveBooleanDisabled) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "disabled-flag": {
         "state": "DISABLED",
@@ -424,14 +425,15 @@ TEST_F(EvaluatorTest, ResolveBooleanDisabled) {
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
-  auto result = evaluator_->ResolveBoolean("disabled-flag", false, ctx);
+  std::unique_ptr<openfeature::BoolResolutionDetails> result =
+      evaluator_->ResolveBoolean("disabled-flag", false, ctx);
 
   EXPECT_EQ(result->GetValue(), false);
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kDisabled);
 }
 
 TEST_F(EvaluatorTest, ResolveStringTargetingSuccess) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "targeting-flag": {
         "state": "ENABLED",
@@ -458,7 +460,7 @@ TEST_F(EvaluatorTest, ResolveStringTargetingSuccess) {
       openfeature::EvaluationContext::Builder()
           .WithAttribute("color", "blue")
           .build();
-  auto result_blue =
+  std::unique_ptr<openfeature::StringResolutionDetails> result_blue =
       evaluator_->ResolveString("targeting-flag", "default", ctx_blue);
   EXPECT_EQ(result_blue->GetValue(), "blue-value");
   EXPECT_EQ(result_blue->GetReason(), openfeature::Reason::kTargetingMatch);
@@ -469,7 +471,7 @@ TEST_F(EvaluatorTest, ResolveStringTargetingSuccess) {
       openfeature::EvaluationContext::Builder()
           .WithAttribute("color", "green")
           .build();
-  auto result_green =
+  std::unique_ptr<openfeature::StringResolutionDetails> result_green =
       evaluator_->ResolveString("targeting-flag", "default", ctx_green);
   EXPECT_EQ(result_green->GetValue(), "red-value");
   EXPECT_EQ(result_green->GetReason(), openfeature::Reason::kTargetingMatch);
@@ -477,7 +479,7 @@ TEST_F(EvaluatorTest, ResolveStringTargetingSuccess) {
 }
 
 TEST_F(EvaluatorTest, ResolveIntegerComplexTargeting) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "complex-flag": {
         "state": "ENABLED",
@@ -508,13 +510,14 @@ TEST_F(EvaluatorTest, ResolveIntegerComplexTargeting) {
                                            .WithAttribute("env", "prod")
                                            .WithAttribute("version", 2)
                                            .build();
-  auto result = evaluator_->ResolveInteger("complex-flag", 0, ctx);
+  std::unique_ptr<openfeature::IntResolutionDetails> result =
+      evaluator_->ResolveInteger("complex-flag", 0, ctx);
   EXPECT_EQ(result->GetValue(), 100);
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kTargetingMatch);
 }
 
 TEST_F(EvaluatorTest, ResolveObjectNestedStructure) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "nested-flag": {
         "state": "ENABLED",
@@ -539,29 +542,32 @@ TEST_F(EvaluatorTest, ResolveObjectNestedStructure) {
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
-  auto result =
+  std::unique_ptr<openfeature::ObjectResolutionDetails> result =
       evaluator_->ResolveObject("nested-flag", openfeature::Value(), ctx);
 
   openfeature::Value val = result->GetValue();
   ASSERT_TRUE(val.IsStructure());
-  const auto* structure = val.AsStructure();
+  const std::map<std::string, openfeature::Value>* structure =
+      val.AsStructure();
 
   ASSERT_TRUE(structure->at("user").IsStructure());
-  const auto* user = structure->at("user").AsStructure();
+  const std::map<std::string, openfeature::Value>* user =
+      structure->at("user").AsStructure();
   EXPECT_EQ(user->at("id").AsInt().value(), 123);
 
-  const auto* details = user->at("details").AsStructure();
+  const std::map<std::string, openfeature::Value>* details =
+      user->at("details").AsStructure();
   EXPECT_EQ(details->at("name").AsString().value(), "John");
   EXPECT_TRUE(details->at("active").AsBool().value());
 
   ASSERT_TRUE(structure->at("tags").IsList());
-  const auto* tags = structure->at("tags").AsList();
+  const std::vector<openfeature::Value>* tags = structure->at("tags").AsList();
   EXPECT_EQ(tags->size(), 3);
   EXPECT_EQ(tags->at(0).AsString().value(), "a");
 }
 
 TEST_F(EvaluatorTest, ResolveBooleanFlagdSpecialVars) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "special-var-flag": {
         "state": "ENABLED",
@@ -585,13 +591,14 @@ TEST_F(EvaluatorTest, ResolveBooleanFlagdSpecialVars) {
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
-  auto result = evaluator_->ResolveBoolean("special-var-flag", false, ctx);
+  std::unique_ptr<openfeature::BoolResolutionDetails> result =
+      evaluator_->ResolveBoolean("special-var-flag", false, ctx);
   EXPECT_TRUE(result->GetValue());
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kTargetingMatch);
 }
 
 TEST_F(EvaluatorTest, ResolveBooleanTypeMismatchInTargeting) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "bad-targeting-flag": {
         "state": "ENABLED",
@@ -610,7 +617,8 @@ TEST_F(EvaluatorTest, ResolveBooleanTypeMismatchInTargeting) {
   openfeature::EvaluationContext ctx = openfeature::EvaluationContext::Builder()
                                            .WithAttribute("color", "blue")
                                            .build();
-  auto result = evaluator_->ResolveBoolean("bad-targeting-flag", false, ctx);
+  std::unique_ptr<openfeature::BoolResolutionDetails> result =
+      evaluator_->ResolveBoolean("bad-targeting-flag", false, ctx);
 
   // Should fallback to default variant if targeting doesn't return a valid
   // variant name and return Error
@@ -619,7 +627,7 @@ TEST_F(EvaluatorTest, ResolveBooleanTypeMismatchInTargeting) {
 }
 
 TEST_F(EvaluatorTest, ResolveBooleanDefaultVariantNull) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "null-default-flag": {
         "state": "ENABLED",
@@ -635,14 +643,15 @@ TEST_F(EvaluatorTest, ResolveBooleanDefaultVariantNull) {
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
-  auto result = evaluator_->ResolveBoolean("null-default-flag", false, ctx);
+  std::unique_ptr<openfeature::BoolResolutionDetails> result =
+      evaluator_->ResolveBoolean("null-default-flag", false, ctx);
 
   EXPECT_FALSE(result->GetValue());  // Should return default_value
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kDefault);
 }
 
 TEST_F(EvaluatorTest, ResolveBooleanDefaultVariantMissing) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "missing-default-flag": {
         "state": "ENABLED",
@@ -657,7 +666,8 @@ TEST_F(EvaluatorTest, ResolveBooleanDefaultVariantMissing) {
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
-  auto result = evaluator_->ResolveBoolean("missing-default-flag", false, ctx);
+  std::unique_ptr<openfeature::BoolResolutionDetails> result =
+      evaluator_->ResolveBoolean("missing-default-flag", false, ctx);
 
   EXPECT_FALSE(result->GetValue());  // Should return default_value
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kDefault);
