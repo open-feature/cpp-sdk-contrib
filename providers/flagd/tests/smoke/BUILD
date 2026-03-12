@@ -8,6 +8,7 @@ cc_test(
         "//providers/flagd/src:flagd_provider",
         "@googletest//:gtest_main",
         "@openfeature_cpp_sdk//openfeature",
+        "@openfeature_cpp_sdk//openfeature:openfeature_api",
     ],
 )
 
