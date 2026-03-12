@@ -10,3 +10,12 @@ cc_test(
         "@nlohmann_json//:json",
     ],
 )
+
+cc_test(
+    name = "provider_test",
+    srcs = ["provider_test.cpp"],
+    deps = [
+        "//providers/flagd/src:flagd_provider",
+        "@googletest//:gtest_main",
+    ],
+)

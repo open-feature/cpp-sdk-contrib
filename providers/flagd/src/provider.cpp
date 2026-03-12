@@ -2,7 +2,6 @@
 
 #include <openfeature/provider.h>
 
-#include <cstdlib>
 #include <optional>
 
 #include "absl/log/log.h"
@@ -27,6 +26,21 @@ FlagdProvider::FlagdProvider(FlagdProviderConfig config)
 
   evaluator_ = std::make_unique<JsonLogicEvaluator>(sync_);
 }
+
+FlagdProvider::FlagdProvider(std::shared_ptr<FlagSync> sync,
+                             FlagdProviderConfig config)
+    : configuration_(std::move(config)),
+      sync_(std::move(sync)),
+      evaluator_(std::make_unique<JsonLogicEvaluator>(sync_)),
+      is_ready_(false) {}
+
+FlagdProvider::FlagdProvider(std::shared_ptr<FlagSync> sync,
+                             std::unique_ptr<Evaluator> evaluator,
+                             FlagdProviderConfig config)
+    : configuration_(std::move(config)),
+      sync_(std::move(sync)),
+      evaluator_(std::move(evaluator)),
+      is_ready_(false) {}
 
 FlagdProvider::~FlagdProvider() {
   if (is_ready_) {
