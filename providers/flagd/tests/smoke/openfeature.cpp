@@ -130,7 +130,7 @@ TEST_F(FlagdOpenFeatureTest, ObjectEvaluation) {
 
   openfeature::Value val =
       client_->GetObjectValue("obj-flag", openfeature::Value());
-  EXPECT_TRUE(val.IsStructure());
+  ASSERT_TRUE(val.IsStructure());
   const auto* structure = val.AsStructure();
   EXPECT_EQ(structure->at("key").AsString().value(), "value");
 }
