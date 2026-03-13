@@ -3,7 +3,7 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 
-#include "flagd/provider/provider.h"
+#include "flagd/provider.h"
 #include "flagd/sync/sync.h"
 #include "openfeature/openfeature_api.h"
 
