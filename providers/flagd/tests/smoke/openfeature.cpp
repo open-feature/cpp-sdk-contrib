@@ -40,7 +40,7 @@ class FlagdOpenFeatureTest : public ::testing::Test {
 };
 
 TEST_F(FlagdOpenFeatureTest, BooleanEvaluation) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "bool-flag": {
         "state": "ENABLED",
@@ -59,7 +59,7 @@ TEST_F(FlagdOpenFeatureTest, BooleanEvaluation) {
 }
 
 TEST_F(FlagdOpenFeatureTest, StringEvaluation) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "string-flag": {
         "state": "ENABLED",
@@ -77,7 +77,7 @@ TEST_F(FlagdOpenFeatureTest, StringEvaluation) {
 }
 
 TEST_F(FlagdOpenFeatureTest, IntegerEvaluation) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "int-flag": {
         "state": "ENABLED",
@@ -95,7 +95,7 @@ TEST_F(FlagdOpenFeatureTest, IntegerEvaluation) {
 }
 
 TEST_F(FlagdOpenFeatureTest, DoubleEvaluation) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "double-flag": {
         "state": "ENABLED",
@@ -113,7 +113,7 @@ TEST_F(FlagdOpenFeatureTest, DoubleEvaluation) {
 }
 
 TEST_F(FlagdOpenFeatureTest, ObjectEvaluation) {
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "obj-flag": {
         "state": "ENABLED",
@@ -131,13 +131,14 @@ TEST_F(FlagdOpenFeatureTest, ObjectEvaluation) {
   openfeature::Value val =
       client_->GetObjectValue("obj-flag", openfeature::Value());
   ASSERT_TRUE(val.IsStructure());
-  const auto* structure = val.AsStructure();
+  const std::map<std::string, openfeature::Value>* structure =
+      val.AsStructure();
   EXPECT_EQ(structure->at("key").AsString().value(), "value");
 }
 
 TEST_F(FlagdOpenFeatureTest, EvaluationContextTargeting) {
   // Example of targeting using EvaluationContext
-  auto flags = nlohmann::json::parse(R"({
+  nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "targeting-flag": {
         "state": "ENABLED",
