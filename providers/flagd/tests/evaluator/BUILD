@@ -4,8 +4,8 @@ cc_test(
     name = "evaluator_test",
     srcs = ["evaluator_test.cpp"],
     deps = [
-        "//providers/flagd/src:evaluator",
-        "//providers/flagd/src:sync",
+        "//providers/flagd/src/evaluator",
+        "//providers/flagd/src/sync:sync",
         "@googletest//:gtest_main",
         "@nlohmann_json//:json",
     ],

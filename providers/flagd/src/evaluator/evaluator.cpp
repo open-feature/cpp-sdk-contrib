@@ -7,7 +7,7 @@
 
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
-#include "sync.h"
+#include "flagd/sync/sync.h"
 
 namespace flagd {
 
