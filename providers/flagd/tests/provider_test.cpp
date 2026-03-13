@@ -5,8 +5,8 @@
 
 #include <memory>
 
-#include "flagd/evaluator.h"
-#include "flagd/sync.h"
+#include "flagd/evaluator/evaluator.h"
+#include "flagd/sync/sync.h"
 
 namespace flagd {
 
