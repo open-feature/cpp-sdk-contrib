@@ -48,7 +48,7 @@ class MockEvaluator : public Evaluator {
 
 TEST(ProviderTest, MetadataReturnsExpectedValues) {
   FlagdProvider provider;
-  auto metadata = provider.GetMetadata();
+  openfeature::Metadata metadata = provider.GetMetadata();
   EXPECT_EQ(metadata.name, "flagd");
 }
 
@@ -61,8 +61,10 @@ TEST(ProviderTest, ReturnsNotReadyBeforeInit) {
 
   FlagdProvider provider(mock_sync, std::move(mock_evaluator));
 
-  auto result = provider.GetBooleanEvaluation(
-      "some-flag", false, openfeature::EvaluationContext::Builder().build());
+  std::unique_ptr<openfeature::BoolResolutionDetails> result =
+      provider.GetBooleanEvaluation(
+          "some-flag", false,
+          openfeature::EvaluationContext::Builder().build());
 
   EXPECT_EQ(result->GetErrorCode(), openfeature::ErrorCode::kProviderNotReady);
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kError);
@@ -85,8 +87,10 @@ TEST(ProviderTest, ReturnsReadyAfterInit) {
   FlagdProvider provider(mock_sync, std::move(mock_evaluator));
   (void)provider.Init(openfeature::EvaluationContext::Builder().build());
 
-  auto result = provider.GetBooleanEvaluation(
-      "some-flag", false, openfeature::EvaluationContext::Builder().build());
+  std::unique_ptr<openfeature::BoolResolutionDetails> result =
+      provider.GetBooleanEvaluation(
+          "some-flag", false,
+          openfeature::EvaluationContext::Builder().build());
 
   EXPECT_EQ(result->GetValue(), true);
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kStatic);
@@ -114,9 +118,13 @@ TEST(ProviderTest, DelegationWorks) {
   FlagdProvider provider(mock_sync, std::move(mock_evaluator));
   (void)provider.Init(openfeature::EvaluationContext::Builder().build());
 
-  provider.GetBooleanEvaluation(
-      expected_flag, expected_default,
-      openfeature::EvaluationContext::Builder().build());
+  std::unique_ptr<openfeature::BoolResolutionDetails> result =
+      provider.GetBooleanEvaluation(
+          expected_flag, expected_default,
+          openfeature::EvaluationContext::Builder().build());
+
+  EXPECT_EQ(result->GetValue(), expected_default);
+  EXPECT_EQ(result->GetReason(), openfeature::Reason::kDefault);
 }
 
 TEST(ProviderTest, ShutdownMakesProviderNotReady) {
@@ -130,10 +138,13 @@ TEST(ProviderTest, ShutdownMakesProviderNotReady) {
   (void)provider.Init(openfeature::EvaluationContext::Builder().build());
   (void)provider.Shutdown();
 
-  auto result = provider.GetBooleanEvaluation(
-      "some-flag", false, openfeature::EvaluationContext::Builder().build());
+  std::unique_ptr<openfeature::BoolResolutionDetails> result =
+      provider.GetBooleanEvaluation(
+          "some-flag", false,
+          openfeature::EvaluationContext::Builder().build());
 
   EXPECT_EQ(result->GetErrorCode(), openfeature::ErrorCode::kProviderNotReady);
+  EXPECT_EQ(result->GetReason(), openfeature::Reason::kError);
 }
 
 }  // namespace flagd
