@@ -33,23 +33,6 @@ class EvaluatorTest : public ::testing::Test {
 };
 
 TEST_F(EvaluatorTest, ResolveBooleanSuccess) {
-<<<<<<< HEAD:providers/flagd/tests/evaluator/evaluator_test.cpp
-  nlohmann::json flags = {
-      {
-          "flags",
-          {
-              {
-                  "my-bool-flag",
-                  {
-                      {"state", "ENABLED"},
-                      {"variants", {{"on", true}, {"off", false}}},
-                      {"defaultVariant", "on"},
-                  },
-              },
-          },
-      },
-  };
-=======
   nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-bool-flag": {
@@ -62,7 +45,6 @@ TEST_F(EvaluatorTest, ResolveBooleanSuccess) {
       }
     }
   })");
->>>>>>> main:providers/flagd/tests/evaluator_test.cpp
 
   sync_->TriggerUpdate(flags);
 
@@ -94,26 +76,6 @@ TEST_F(EvaluatorTest, ResolveBooleanFlagNotFound) {
 }
 
 TEST_F(EvaluatorTest, ResolveBooleanTypeMismatch) {
-<<<<<<< HEAD:providers/flagd/tests/evaluator/evaluator_test.cpp
-  nlohmann::json flags = {
-      {
-          "flags",
-          {
-              {
-                  "my-string-flag",
-                  {
-                      {"state", "ENABLED"},
-                      {
-                          "variants",
-                          {{"on", "string-value"}, {"off", "other-value"}},
-                      },
-                      {"defaultVariant", "on"},
-                  },
-              },
-          },
-      },
-  };
-=======
   nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-string-flag": {
@@ -126,7 +88,6 @@ TEST_F(EvaluatorTest, ResolveBooleanTypeMismatch) {
       }
     }
   })");
->>>>>>> main:providers/flagd/tests/evaluator_test.cpp
 
   sync_->TriggerUpdate(flags);
 
@@ -141,34 +102,6 @@ TEST_F(EvaluatorTest, ResolveBooleanTypeMismatch) {
 }
 
 TEST_F(EvaluatorTest, ResolveBooleanMetadata) {
-<<<<<<< HEAD:providers/flagd/tests/evaluator/evaluator_test.cpp
-  nlohmann::json flags = {
-      {
-          "metadata",
-          {{"global-key", "global-value"}, {"override-key", "global-override"}},
-      },
-      {
-          "flags",
-          {
-              {
-                  "my-flag",
-                  {
-                      {"state", "ENABLED"},
-                      {"variants", {{"on", true}, {"off", false}}},
-                      {"defaultVariant", "on"},
-                      {
-                          "metadata",
-                          {
-                              {"flag-key", "flag-value"},
-                              {"override-key", "flag-override"},
-                          },
-                      },
-                  },
-              },
-          },
-      },
-  };
-=======
   nlohmann::json flags = nlohmann::json::parse(R"({
     "metadata": {
       "global-key": "global-value",
@@ -189,7 +122,6 @@ TEST_F(EvaluatorTest, ResolveBooleanMetadata) {
       }
     }
   })");
->>>>>>> main:providers/flagd/tests/evaluator_test.cpp
 
   sync_->TriggerUpdate(flags);
 
@@ -209,23 +141,6 @@ TEST_F(EvaluatorTest, ResolveBooleanMetadata) {
 }
 
 TEST_F(EvaluatorTest, ResolveBooleanVariantNotFound) {
-<<<<<<< HEAD:providers/flagd/tests/evaluator/evaluator_test.cpp
-  nlohmann::json flags = {
-      {
-          "flags",
-          {
-              {
-                  "my-broken-flag",
-                  {
-                      {"state", "ENABLED"},
-                      {"variants", {{"on", true}, {"off", false}}},
-                      {"defaultVariant", "missing-variant"},
-                  },
-              },
-          },
-      },
-  };
-=======
   nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-broken-flag": {
@@ -238,7 +153,6 @@ TEST_F(EvaluatorTest, ResolveBooleanVariantNotFound) {
       }
     }
   })");
->>>>>>> main:providers/flagd/tests/evaluator_test.cpp
 
   sync_->TriggerUpdate(flags);
 
@@ -256,23 +170,6 @@ TEST_F(EvaluatorTest, ResolveBooleanVariantNotFound) {
 }
 
 TEST_F(EvaluatorTest, ResolveStringSuccess) {
-<<<<<<< HEAD:providers/flagd/tests/evaluator/evaluator_test.cpp
-  nlohmann::json flags = {
-      {
-          "flags",
-          {
-              {
-                  "my-string-flag",
-                  {
-                      {"state", "ENABLED"},
-                      {"variants", {{"v1", "value1"}, {"v2", "value2"}}},
-                      {"defaultVariant", "v1"},
-                  },
-              },
-          },
-      },
-  };
-=======
   nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-string-flag": {
@@ -285,7 +182,6 @@ TEST_F(EvaluatorTest, ResolveStringSuccess) {
       }
     }
   })");
->>>>>>> main:providers/flagd/tests/evaluator_test.cpp
 
   sync_->TriggerUpdate(flags);
 
@@ -300,23 +196,6 @@ TEST_F(EvaluatorTest, ResolveStringSuccess) {
 }
 
 TEST_F(EvaluatorTest, ResolveIntegerSuccess) {
-<<<<<<< HEAD:providers/flagd/tests/evaluator/evaluator_test.cpp
-  nlohmann::json flags = {
-      {
-          "flags",
-          {
-              {
-                  "my-int-flag",
-                  {
-                      {"state", "ENABLED"},
-                      {"variants", {{"one", 1}, {"two", 2}}},
-                      {"defaultVariant", "two"},
-                  },
-              },
-          },
-      },
-  };
-=======
   nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-int-flag": {
@@ -329,7 +208,6 @@ TEST_F(EvaluatorTest, ResolveIntegerSuccess) {
       }
     }
   })");
->>>>>>> main:providers/flagd/tests/evaluator_test.cpp
 
   sync_->TriggerUpdate(flags);
 
@@ -344,23 +222,6 @@ TEST_F(EvaluatorTest, ResolveIntegerSuccess) {
 }
 
 TEST_F(EvaluatorTest, ResolveDoubleSuccess) {
-<<<<<<< HEAD:providers/flagd/tests/evaluator/evaluator_test.cpp
-  nlohmann::json flags = {
-      {
-          "flags",
-          {
-              {
-                  "my-double-flag",
-                  {
-                      {"state", "ENABLED"},
-                      {"variants", {{"d1", 1.1}, {"d2", 2.2}}},
-                      {"defaultVariant", "d1"},
-                  },
-              },
-          },
-      },
-  };
-=======
   nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-double-flag": {
@@ -373,7 +234,6 @@ TEST_F(EvaluatorTest, ResolveDoubleSuccess) {
       }
     }
   })");
->>>>>>> main:providers/flagd/tests/evaluator_test.cpp
 
   sync_->TriggerUpdate(flags);
 
@@ -388,29 +248,6 @@ TEST_F(EvaluatorTest, ResolveDoubleSuccess) {
 }
 
 TEST_F(EvaluatorTest, ResolveObjectSuccess) {
-<<<<<<< HEAD:providers/flagd/tests/evaluator/evaluator_test.cpp
-  nlohmann::json flags = {
-      {
-          "flags",
-          {
-              {
-                  "my-object-flag",
-                  {
-                      {"state", "ENABLED"},
-                      {
-                          "variants",
-                          {
-                              {"obj1", {{"foo", "bar"}, {"baz", 123}}},
-                              {"obj2", {{"key", true}}},
-                          },
-                      },
-                      {"defaultVariant", "obj1"},
-                  },
-              },
-          },
-      },
-  };
-=======
   nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-object-flag": {
@@ -428,7 +265,6 @@ TEST_F(EvaluatorTest, ResolveObjectSuccess) {
       }
     }
   })");
->>>>>>> main:providers/flagd/tests/evaluator_test.cpp
 
   sync_->TriggerUpdate(flags);
 
@@ -454,23 +290,6 @@ TEST_F(EvaluatorTest, ResolveObjectSuccess) {
 }
 
 TEST_F(EvaluatorTest, ResolveStringTypeMismatch) {
-<<<<<<< HEAD:providers/flagd/tests/evaluator/evaluator_test.cpp
-  nlohmann::json flags = {
-      {
-          "flags",
-          {
-              {
-                  "my-int-flag",
-                  {
-                      {"state", "ENABLED"},
-                      {"variants", {{"one", 1}}},
-                      {"defaultVariant", "one"},
-                  },
-              },
-          },
-      },
-  };
-=======
   nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-int-flag": {
@@ -482,7 +301,6 @@ TEST_F(EvaluatorTest, ResolveStringTypeMismatch) {
       }
     }
   })");
->>>>>>> main:providers/flagd/tests/evaluator_test.cpp
 
   sync_->TriggerUpdate(flags);
 
@@ -497,23 +315,6 @@ TEST_F(EvaluatorTest, ResolveStringTypeMismatch) {
 }
 
 TEST_F(EvaluatorTest, ResolveIntegerTypeMismatch) {
-<<<<<<< HEAD:providers/flagd/tests/evaluator/evaluator_test.cpp
-  nlohmann::json flags = {
-      {
-          "flags",
-          {
-              {
-                  "my-string-flag",
-                  {
-                      {"state", "ENABLED"},
-                      {"variants", {{"v1", "val1"}}},
-                      {"defaultVariant", "v1"},
-                  },
-              },
-          },
-      },
-  };
-=======
   nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-string-flag": {
@@ -525,7 +326,6 @@ TEST_F(EvaluatorTest, ResolveIntegerTypeMismatch) {
       }
     }
   })");
->>>>>>> main:providers/flagd/tests/evaluator_test.cpp
 
   sync_->TriggerUpdate(flags);
 
@@ -540,23 +340,6 @@ TEST_F(EvaluatorTest, ResolveIntegerTypeMismatch) {
 }
 
 TEST_F(EvaluatorTest, ResolveDoubleTypeMismatch) {
-<<<<<<< HEAD:providers/flagd/tests/evaluator/evaluator_test.cpp
-  nlohmann::json flags = {
-      {
-          "flags",
-          {
-              {
-                  "my-string-flag",
-                  {
-                      {"state", "ENABLED"},
-                      {"variants", {{"v1", "val1"}}},
-                      {"defaultVariant", "v1"},
-                  },
-              },
-          },
-      },
-  };
-=======
   nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {
       "my-string-flag": {
@@ -568,7 +351,6 @@ TEST_F(EvaluatorTest, ResolveDoubleTypeMismatch) {
       }
     }
   })");
->>>>>>> main:providers/flagd/tests/evaluator_test.cpp
 
   sync_->TriggerUpdate(flags);
 
@@ -601,25 +383,6 @@ TEST_P(EvaluatorDefaultVariantTest, ResolveBooleanReturnsDefault) {
   EXPECT_FALSE(result->GetErrorCode().has_value());
 }
 
-<<<<<<< HEAD:providers/flagd/tests/evaluator/evaluator_test.cpp
-INSTANTIATE_TEST_SUITE_P(
-    DefaultVariantHandling, EvaluatorDefaultVariantTest,
-    ::testing::Values(
-        // Missing default variant
-        nlohmann::json{{"my-bool-flag",
-                        {{"state", "ENABLED"},
-                         {"variants", {{"on", true}, {"off", false}}}}}},
-        // Null default variant
-        nlohmann::json{{"my-bool-flag",
-                        {{"state", "ENABLED"},
-                         {"variants", {{"on", true}, {"off", false}}},
-                         {"defaultVariant", nullptr}}}},
-        // Targeting returns null, missing default variant
-        nlohmann::json{{"my-bool-flag",
-                        {{"state", "ENABLED"},
-                         {"variants", {{"on", true}, {"off", false}}},
-                         {"targeting", {{"if", {false, "on", nullptr}}}}}}}));
-=======
 INSTANTIATE_TEST_SUITE_P(DefaultVariantHandling, EvaluatorDefaultVariantTest,
                          ::testing::Values(
                              // Missing default variant
@@ -862,4 +625,3 @@ TEST_F(EvaluatorTest, ResolveBooleanTypeMismatchInTargeting) {
   EXPECT_FALSE(result->GetValue());
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kError);
 }
->>>>>>> main:providers/flagd/tests/evaluator_test.cpp
