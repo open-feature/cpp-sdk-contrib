@@ -20,8 +20,12 @@ class TestableSync : public FlagSync {
   }
 };
 
-TEST(SyncTest, ValidatorAcceptsValidJson) {
-  TestableSync sync;
+class SyncTest : public ::testing::Test {
+ protected:
+  TestableSync sync_;
+};
+
+TEST_F(SyncTest, ValidatorAcceptsValidJson) {
   nlohmann::json valid_json = R"({
     "flags": {
       "my-flag": {
@@ -35,27 +39,25 @@ TEST(SyncTest, ValidatorAcceptsValidJson) {
     }
   })"_json;
 
-  sync.TriggerUpdate(valid_json);
+  sync_.TriggerUpdate(valid_json);
 
-  auto flags = sync.GetFlags();
+  auto flags = sync_.GetFlags();
   EXPECT_TRUE(flags->contains("my-flag"));
 }
 
-TEST(SyncTest, ValidatorRejectsInvalidJson) {
-  TestableSync sync;
+TEST_F(SyncTest, ValidatorRejectsInvalidJson) {
   // Missing 'flags' field
   nlohmann::json invalid_json = R"({
     "something": "else"
   })"_json;
 
-  sync.TriggerUpdate(invalid_json);
+  sync_.TriggerUpdate(invalid_json);
 
-  auto flags = sync.GetFlags();
+  auto flags = sync_.GetFlags();
   EXPECT_TRUE(flags->empty());
 }
 
-TEST(SyncTest, ValidatorRejectsInvalidType) {
-  TestableSync sync;
+TEST_F(SyncTest, ValidatorRejectsInvalidType) {
   // 'state' should be a string, not an integer
   nlohmann::json invalid_json = R"({
     "flags": {
@@ -70,14 +72,13 @@ TEST(SyncTest, ValidatorRejectsInvalidType) {
     }
   })"_json;
 
-  sync.TriggerUpdate(invalid_json);
+  sync_.TriggerUpdate(invalid_json);
 
-  auto flags = sync.GetFlags();
+  auto flags = sync_.GetFlags();
   EXPECT_TRUE(flags->empty());
 }
 
-TEST(SyncTest, ValidatorRejectsMissingVariants) {
-  TestableSync sync;
+TEST_F(SyncTest, ValidatorRejectsMissingVariants) {
   // Missing 'variants' field
   nlohmann::json invalid_json = R"({
     "flags": {
@@ -88,14 +89,13 @@ TEST(SyncTest, ValidatorRejectsMissingVariants) {
     }
   })"_json;
 
-  sync.TriggerUpdate(invalid_json);
+  sync_.TriggerUpdate(invalid_json);
 
-  auto flags = sync.GetFlags();
+  auto flags = sync_.GetFlags();
   EXPECT_TRUE(flags->empty());
 }
 
-TEST(SyncTest, ValidatorRejectsMalformedFlag) {
-  TestableSync sync;
+TEST_F(SyncTest, ValidatorRejectsMalformedFlag) {
   // 'state' has invalid value
   nlohmann::json invalid_json = R"({
     "flags": {
@@ -109,14 +109,13 @@ TEST(SyncTest, ValidatorRejectsMalformedFlag) {
     }
   })"_json;
 
-  sync.TriggerUpdate(invalid_json);
+  sync_.TriggerUpdate(invalid_json);
 
-  auto flags = sync.GetFlags();
+  auto flags = sync_.GetFlags();
   EXPECT_TRUE(flags->empty());
 }
 
-TEST(SyncTest, MetadataIsExtracted) {
-  TestableSync sync;
+TEST_F(SyncTest, MetadataIsExtracted) {
   nlohmann::json json_with_metadata = R"({
     "flags": {},
     "metadata": {
@@ -124,9 +123,9 @@ TEST(SyncTest, MetadataIsExtracted) {
     }
   })"_json;
 
-  sync.TriggerUpdate(json_with_metadata);
+  sync_.TriggerUpdate(json_with_metadata);
 
-  auto metadata = sync.GetMetadata();
+  auto metadata = sync_.GetMetadata();
   EXPECT_EQ((*metadata)["foo"], "bar");
 }
 
