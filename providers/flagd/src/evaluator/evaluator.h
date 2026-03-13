@@ -9,10 +9,9 @@
 #include <string_view>
 
 #include "flagd/evaluator/json_logic/json_logic.h"
+#include "flagd/sync/sync.h"
 
 namespace flagd {
-
-class FlagSync;
 
 class Evaluator {
  public:

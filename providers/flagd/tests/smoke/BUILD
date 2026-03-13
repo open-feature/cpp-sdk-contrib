@@ -16,7 +16,8 @@ cc_test(
     name = "sync",
     srcs = ["sync.cpp"],
     deps = [
-        "//providers/flagd/src:sync",
+        "//providers/flagd/src/sync",
+        "//providers/flagd/src/sync/grpc:grpc_sync",
         "@abseil-cpp//absl/status",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
@@ -29,6 +30,6 @@ cc_binary(
     srcs = ["grpc_sync.cpp"],
     deps = [
         "//providers/flagd/src:flagd_configuration",
-        "//providers/flagd/src:sync",
+        "//providers/flagd/src/sync/grpc:grpc_sync",
     ],
 )
