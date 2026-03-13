@@ -11,7 +11,7 @@ class TestableSync : public flagd::FlagSync {
  public:
   using flagd::FlagSync::FlagSync;
 
-  absl::Status Init(const openfeature::EvaluationContext& /*ctx*/) override {
+  absl::Status Init(const openfeature::EvaluationContext& ctx) override {
     return absl::OkStatus();
   }
   absl::Status Shutdown() override { return absl::OkStatus(); }
