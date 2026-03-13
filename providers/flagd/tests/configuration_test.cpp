@@ -6,20 +6,12 @@ namespace flagd {
 
 class ConfigurationTest : public ::testing::Test {
  protected:
-  void SetUp() override {
-    // Clear relevant environment variables to ensure a clean state
-    unsetenv("FLAGD_HOST");
-    unsetenv("FLAGD_PORT");
-    unsetenv("FLAGD_TARGET_URI");
-    unsetenv("FLAGD_TLS");
-    unsetenv("FLAGD_SOCKET_PATH");
-    unsetenv("FLAGD_SERVER_CERT_PATH");
-    unsetenv("FLAGD_SOURCE_SELECTOR");
-    unsetenv("FLAGD_PROVIDER_ID");
-  }
+  void SetUp() override { ClearFlagdEnvVars(); }
 
-  void TearDown() override {
-    // Clean up
+  void TearDown() override { ClearFlagdEnvVars(); }
+
+ private:
+  void ClearFlagdEnvVars() {
     unsetenv("FLAGD_HOST");
     unsetenv("FLAGD_PORT");
     unsetenv("FLAGD_TARGET_URI");
