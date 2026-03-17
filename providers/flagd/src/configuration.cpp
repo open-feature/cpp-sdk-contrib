@@ -108,7 +108,9 @@ static uint64_t GetEnvLong(const std::string_view name,
   if (val != nullptr) {
     try {
       return std::stoul(val);
-    } catch (...) {
+    } catch (const std::invalid_argument&) {
+      return default_value;
+    } catch (const std::out_of_range&) {
       return default_value;
     }
   }
@@ -140,7 +142,10 @@ static std::vector<int> ParseFatalStatusCodes(const std::string& str) {
       int code = std::stoi(item);
       result.push_back(code);
       continue;
-    } catch (...) {
+    } catch (const std::invalid_argument&) {
+      // Not an integer, try parsing as a status code string.
+    } catch (const std::out_of_range&) {
+      // Not a valid integer, try parsing as a status code string.
     }
 
     auto iter = kStatusCodeMap.find(item);
@@ -265,35 +270,30 @@ const std::vector<int>& FlagdProviderConfig::GetFatalStatusCodes() const {
 }
 
 std::string FlagdProviderConfig::GetServiceConfigJson() const {
-  nlohmann::json config = nlohmann::json::object();
-  nlohmann::json method_config = nlohmann::json::array();
-  nlohmann::json rule = nlohmann::json::object();
+  const auto names = nlohmann::json::array({
+      nlohmann::json::object({{"service", "flagd.evaluation.v1.Service"}}),
+      nlohmann::json::object({{"service", "flagd.sync.v1.FlagSyncService"}}),
+  });
 
-  nlohmann::json name = nlohmann::json::array();
-  name.push_back(
-      nlohmann::json::object({{"service", "flagd.evaluation.v1.Service"}}));
-  name.push_back(
-      nlohmann::json::object({{"service", "flagd.sync.v1.FlagSyncService"}}));
-  rule["name"] = name;
+  const auto retry_policy = nlohmann::json::object({
+      {"maxAttempts", 4},
+      {"initialBackoff", absl::StrCat(retry_backoff_ms_ / kMsInSecond, "s")},
+      {"maxBackoff", absl::StrCat(retry_backoff_max_ms_ / kMsInSecond, "s")},
+      {"backoffMultiplier", 2},
+      {
+          "retryableStatusCodes",
+          nlohmann::json::array({"UNAVAILABLE", "UNKNOWN"}),
+      },
+  });
 
-  nlohmann::json retry_policy = nlohmann::json::object();
-  retry_policy["maxAttempts"] = 4;
-  retry_policy["initialBackoff"] =
-      absl::StrCat(retry_backoff_ms_ / kMsInSecond, "s");
-  retry_policy["maxBackoff"] =
-      absl::StrCat(retry_backoff_max_ms_ / kMsInSecond, "s");
-  retry_policy["backoffMultiplier"] = 2;
+  const auto method_config = nlohmann::json::object({
+      {"name", names},
+      {"retryPolicy", retry_policy},
+  });
 
-  nlohmann::json retryable_status_codes = nlohmann::json::array();
-  retryable_status_codes.push_back("UNAVAILABLE");
-  retryable_status_codes.push_back("UNKNOWN");
-  retry_policy["retryableStatusCodes"] = retryable_status_codes;
-
-  rule["retryPolicy"] = retry_policy;
-  method_config.push_back(rule);
-  config["methodConfig"] = method_config;
-
-  return config.dump();
+  return nlohmann::json::object(
+             {{"methodConfig", nlohmann::json::array({method_config})}})
+      .dump();
 }
 
 std::optional<std::string> FlagdProviderConfig::GetSelector() const {

@@ -229,13 +229,9 @@ void GrpcSync::WaitForUpdates() {
                  << " (code: " << status.error_code() << ")";
 
     // Check fatal status codes
-    bool is_fatal = false;
-    for (int fatal_code : config_.GetFatalStatusCodes()) {
-      if (status.error_code() == fatal_code) {
-        is_fatal = true;
-        break;
-      }
-    }
+    const auto& fatal_codes = config_.GetFatalStatusCodes();
+    bool is_fatal = std::find(fatal_codes.cbegin(), fatal_codes.cend(),
+                              status.error_code()) != fatal_codes.cend();
 
     if (is_fatal) {
       ClearFlags();
@@ -264,7 +260,7 @@ void GrpcSync::WaitForUpdates() {
       }
     }
 
-    int64_t backoff = config_.GetRetryBackoffMs() * (1 << retry_count);
+    int64_t backoff = config_.GetRetryBackoffMs() * (1LL << retry_count);
     backoff = std::min<int64_t>(backoff, config_.GetRetryBackoffMaxMs());
     retry_count++;
 
