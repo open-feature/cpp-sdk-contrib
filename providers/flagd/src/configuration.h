@@ -27,6 +27,14 @@ class FlagdProviderConfig {
   std::optional<std::string> GetCertPath() const;
 
   int GetDeadlineMs() const;
+  int GetStreamDeadlineMs() const;
+  int GetRetryBackoffMs() const;
+  int GetRetryBackoffMaxMs() const;
+  int GetRetryGracePeriod() const;
+  uint64_t GetKeepAliveTimeMs() const;
+  const std::vector<int>& GetFatalStatusCodes() const;
+
+  std::string GetServiceConfigJson() const;
 
   std::optional<std::string> GetSelector() const;
   std::optional<std::string> GetProviderId() const;
@@ -54,6 +62,16 @@ class FlagdProviderConfig {
   FlagdProviderConfig& SetSocketPath(std::string_view path);
   FlagdProviderConfig& SetCertPath(std::string_view path);
   FlagdProviderConfig& SetDeadlineMs(int deadline_ms);
+  FlagdProviderConfig& SetStreamDeadlineMs(int stream_deadline_ms);
+  FlagdProviderConfig& SetRetryBackoffMs(int retry_backoff_ms);
+  FlagdProviderConfig& SetRetryBackoffMaxMs(int retry_backoff_max_ms);
+  FlagdProviderConfig& SetRetryGracePeriod(int retry_grace_period);
+  FlagdProviderConfig& SetKeepAliveTimeMs(uint64_t keep_alive_time_ms);
+  FlagdProviderConfig& SetFatalStatusCodes(
+      const std::vector<int>& fatal_status_codes);
+  FlagdProviderConfig& SetFatalStatusCodes(
+      const std::string& fatal_status_codes_str);
+
   FlagdProviderConfig& SetSelector(std::string_view selector);
   FlagdProviderConfig& SetProviderId(std::string_view provider_id);
   FlagdProviderConfig& SetOfflineFlagSourcePath(std::string_view path);
@@ -69,6 +87,12 @@ class FlagdProviderConfig {
   std::optional<std::string> cert_path_;
 
   int deadline_ms_;
+  int stream_deadline_ms_;
+  int retry_backoff_ms_;
+  int retry_backoff_max_ms_;
+  int retry_grace_period_;
+  uint64_t keep_alive_time_ms_;
+  std::vector<int> fatal_status_codes_;
 
   std::optional<std::string> selector_;
   std::optional<std::string> provider_id_;

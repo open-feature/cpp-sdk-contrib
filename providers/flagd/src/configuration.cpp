@@ -1,20 +1,28 @@
 #include "configuration.h"
 
+#include <grpcpp/grpcpp.h>
 #include <grpcpp/security/credentials.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <map>
 #include <sstream>
 #include <string>
 #include <utility>
+#include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "nlohmann/json.hpp"
 
 namespace flagd {
 
 namespace {
+constexpr double kMsInSecond = 1000.0;
+
 struct EnvVars {
   static constexpr std::string_view kHost = "FLAGD_HOST";
   static constexpr std::string_view kPort = "FLAGD_PORT";
@@ -23,6 +31,17 @@ struct EnvVars {
   static constexpr std::string_view kSocketPath = "FLAGD_SOCKET_PATH";
   static constexpr std::string_view kServerCertPath = "FLAGD_SERVER_CERT_PATH";
   static constexpr std::string_view kDeadlineMs = "FLAGD_DEADLINE_MS";
+  static constexpr std::string_view kStreamDeadlineMs =
+      "FLAGD_STREAM_DEADLINE_MS";
+  static constexpr std::string_view kRetryBackoffMs = "FLAGD_RETRY_BACKOFF_MS";
+  static constexpr std::string_view kRetryBackoffMaxMs =
+      "FLAGD_RETRY_BACKOFF_MAX_MS";
+  static constexpr std::string_view kRetryGracePeriod =
+      "FLAGD_RETRY_GRACE_PERIOD";
+  static constexpr std::string_view kKeepAliveTimeMs =
+      "FLAGD_KEEP_ALIVE_TIME_MS";
+  static constexpr std::string_view kFatalStatusCodes =
+      "FLAGD_FATAL_STATUS_CODES";
   static constexpr std::string_view kSourceSelector = "FLAGD_SOURCE_SELECTOR";
   static constexpr std::string_view kProviderId = "FLAGD_PROVIDER_ID";
   static constexpr std::string_view kOfflineFlagSourcePath =
@@ -35,7 +54,32 @@ struct Defaults {
   static constexpr int kPortInProcess = 8015;
   static constexpr bool kTls = false;
   static constexpr int kDeadlineMs = 500;
+  static constexpr int kStreamDeadlineMs = 600000;
+  static constexpr int kRetryBackoffMs = 1000;
+  static constexpr int kRetryBackoffMaxMs = 12000;
+  static constexpr int kRetryGracePeriod = 5;
+  static constexpr uint64_t kKeepAliveTimeMs = 0;
   static constexpr int kOfflinePollMs = 5000;
+};
+
+const std::map<std::string, int> kStatusCodeMap = {
+    {"OK", 0},
+    {"CANCELLED", 1},
+    {"UNKNOWN", 2},
+    {"INVALID_ARGUMENT", 3},
+    {"DEADLINE_EXCEEDED", 4},
+    {"NOT_FOUND", 5},
+    {"ALREADY_EXISTS", 6},
+    {"PERMISSION_DENIED", 7},
+    {"UNAUTHENTICATED", 16},
+    {"RESOURCE_EXHAUSTED", 8},
+    {"FAILED_PRECONDITION", 9},
+    {"ABORTED", 10},
+    {"OUT_OF_RANGE", 11},
+    {"UNIMPLEMENTED", 12},
+    {"INTERNAL", 13},
+    {"UNAVAILABLE", 14},
+    {"DATA_LOSS", 15},
 };
 }  // namespace
 
@@ -58,6 +102,19 @@ static int GetEnvInt(const std::string_view name, int default_value) {
   return default_value;
 }
 
+static uint64_t GetEnvLong(const std::string_view name,
+                           uint64_t default_value) {
+  const char* val = std::getenv(std::string(name).c_str());
+  if (val != nullptr) {
+    try {
+      return std::stoul(val);
+    } catch (...) {
+      return default_value;
+    }
+  }
+  return default_value;
+}
+
 static bool GetEnvBool(const std::string_view name, bool default_value) {
   const char* val = std::getenv(std::string(name).c_str());
   if (val == nullptr) {
@@ -69,11 +126,48 @@ static bool GetEnvBool(const std::string_view name, bool default_value) {
   return str == "true" || str == "1";
 }
 
+static std::vector<int> ParseFatalStatusCodes(const std::string& str) {
+  std::vector<int> result;
+  std::stringstream sstream(str);
+  std::string item;
+  while (std::getline(sstream, item, ',')) {
+    item.erase(0, item.find_first_not_of(" \t\n\r"));
+    item.erase(item.find_last_not_of(" \t\n\r") + 1);
+
+    if (item.empty()) continue;
+
+    try {
+      int code = std::stoi(item);
+      result.push_back(code);
+      continue;
+    } catch (...) {
+    }
+
+    auto iter = kStatusCodeMap.find(item);
+    if (iter != kStatusCodeMap.end()) {
+      result.push_back(iter->second);
+    } else {
+      LOG(WARNING) << "Unknown gRPC status code: " << item;
+    }
+  }
+  return result;
+}
+
 FlagdProviderConfig::FlagdProviderConfig()
     : host_(GetEnvStr(EnvVars::kHost, Defaults::kHost)),
       port_(GetEnvInt(EnvVars::kPort, Defaults::kPortInProcess)),
       tls_(GetEnvBool(EnvVars::kTls, Defaults::kTls)),
       deadline_ms_(GetEnvInt(EnvVars::kDeadlineMs, Defaults::kDeadlineMs)),
+      stream_deadline_ms_(
+          GetEnvInt(EnvVars::kStreamDeadlineMs, Defaults::kStreamDeadlineMs)),
+      retry_backoff_ms_(
+          GetEnvInt(EnvVars::kRetryBackoffMs, Defaults::kRetryBackoffMs)),
+      retry_backoff_max_ms_(
+          GetEnvInt(EnvVars::kRetryBackoffMaxMs, Defaults::kRetryBackoffMaxMs)),
+      retry_grace_period_(
+          GetEnvInt(EnvVars::kRetryGracePeriod, Defaults::kRetryGracePeriod)),
+      keep_alive_time_ms_(
+          GetEnvLong(EnvVars::kKeepAliveTimeMs, Defaults::kKeepAliveTimeMs)),
       offline_poll_interval_ms_(
           GetEnvInt(EnvVars::kOfflinePollMs, Defaults::kOfflinePollMs)) {
   if (std::string val = GetEnvStr(EnvVars::kTargetUri); !val.empty()) {
@@ -94,6 +188,9 @@ FlagdProviderConfig::FlagdProviderConfig()
   if (std::string val = GetEnvStr(EnvVars::kOfflineFlagSourcePath);
       !val.empty()) {
     offline_flag_source_path_ = val;
+  }
+  if (std::string val = GetEnvStr(EnvVars::kFatalStatusCodes); !val.empty()) {
+    fatal_status_codes_ = ParseFatalStatusCodes(val);
   }
 }
 
@@ -150,6 +247,55 @@ std::optional<std::string> FlagdProviderConfig::GetCertPath() const {
   return cert_path_;
 }
 int FlagdProviderConfig::GetDeadlineMs() const { return deadline_ms_; }
+int FlagdProviderConfig::GetStreamDeadlineMs() const {
+  return stream_deadline_ms_;
+}
+int FlagdProviderConfig::GetRetryBackoffMs() const { return retry_backoff_ms_; }
+int FlagdProviderConfig::GetRetryBackoffMaxMs() const {
+  return retry_backoff_max_ms_;
+}
+int FlagdProviderConfig::GetRetryGracePeriod() const {
+  return retry_grace_period_;
+}
+uint64_t FlagdProviderConfig::GetKeepAliveTimeMs() const {
+  return keep_alive_time_ms_;
+}
+const std::vector<int>& FlagdProviderConfig::GetFatalStatusCodes() const {
+  return fatal_status_codes_;
+}
+
+std::string FlagdProviderConfig::GetServiceConfigJson() const {
+  nlohmann::json config = nlohmann::json::object();
+  nlohmann::json method_config = nlohmann::json::array();
+  nlohmann::json rule = nlohmann::json::object();
+
+  nlohmann::json name = nlohmann::json::array();
+  name.push_back(
+      nlohmann::json::object({{"service", "flagd.evaluation.v1.Service"}}));
+  name.push_back(
+      nlohmann::json::object({{"service", "flagd.sync.v1.FlagSyncService"}}));
+  rule["name"] = name;
+
+  nlohmann::json retry_policy = nlohmann::json::object();
+  retry_policy["maxAttempts"] = 4;
+  retry_policy["initialBackoff"] =
+      absl::StrCat(retry_backoff_ms_ / kMsInSecond, "s");
+  retry_policy["maxBackoff"] =
+      absl::StrCat(retry_backoff_max_ms_ / kMsInSecond, "s");
+  retry_policy["backoffMultiplier"] = 2;
+
+  nlohmann::json retryable_status_codes = nlohmann::json::array();
+  retryable_status_codes.push_back("UNAVAILABLE");
+  retryable_status_codes.push_back("UNKNOWN");
+  retry_policy["retryableStatusCodes"] = retryable_status_codes;
+
+  rule["retryPolicy"] = retry_policy;
+  method_config.push_back(rule);
+  config["methodConfig"] = method_config;
+
+  return config.dump();
+}
+
 std::optional<std::string> FlagdProviderConfig::GetSelector() const {
   return selector_;
 }
@@ -196,6 +342,41 @@ FlagdProviderConfig& FlagdProviderConfig::SetCertPath(std::string_view path) {
 }
 FlagdProviderConfig& FlagdProviderConfig::SetDeadlineMs(int deadline_ms) {
   deadline_ms_ = deadline_ms;
+  return *this;
+}
+FlagdProviderConfig& FlagdProviderConfig::SetStreamDeadlineMs(
+    int stream_deadline_ms) {
+  stream_deadline_ms_ = stream_deadline_ms;
+  return *this;
+}
+FlagdProviderConfig& FlagdProviderConfig::SetRetryBackoffMs(
+    int retry_backoff_ms) {
+  retry_backoff_ms_ = retry_backoff_ms;
+  return *this;
+}
+FlagdProviderConfig& FlagdProviderConfig::SetRetryBackoffMaxMs(
+    int retry_backoff_max_ms) {
+  retry_backoff_max_ms_ = retry_backoff_max_ms;
+  return *this;
+}
+FlagdProviderConfig& FlagdProviderConfig::SetRetryGracePeriod(
+    int retry_grace_period) {
+  retry_grace_period_ = retry_grace_period;
+  return *this;
+}
+FlagdProviderConfig& FlagdProviderConfig::SetKeepAliveTimeMs(
+    uint64_t keep_alive_time_ms) {
+  keep_alive_time_ms_ = keep_alive_time_ms;
+  return *this;
+}
+FlagdProviderConfig& FlagdProviderConfig::SetFatalStatusCodes(
+    const std::vector<int>& fatal_status_codes) {
+  fatal_status_codes_ = fatal_status_codes;
+  return *this;
+}
+FlagdProviderConfig& FlagdProviderConfig::SetFatalStatusCodes(
+    const std::string& fatal_status_codes_str) {
+  fatal_status_codes_ = ParseFatalStatusCodes(fatal_status_codes_str);
   return *this;
 }
 FlagdProviderConfig& FlagdProviderConfig::SetSelector(

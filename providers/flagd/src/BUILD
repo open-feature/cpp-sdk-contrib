@@ -26,6 +26,7 @@ cc_library(
     deps = [
         "@abseil-cpp//absl/strings",
         "@com_github_grpc_grpc//:grpc++",
+        "@nlohmann_json//:json",
         "@openfeature_cpp_sdk//openfeature",
     ],
 )

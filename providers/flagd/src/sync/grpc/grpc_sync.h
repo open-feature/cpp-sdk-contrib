@@ -33,7 +33,9 @@ class GrpcSync final : public FlagSync {
     kUninitialized,
     kInitializing,  // Thread started, waiting for first connection
     kReady,         // First sync complete, running normally
+    kReconnecting,  // Connection lost or failed, trying to reconnect
     kShuttingDown,  // Shutdown requested, cleaning up
+    kFatal,         // Fatal error, gives up
   };
 
   std::thread background_thread_;
@@ -42,6 +44,7 @@ class GrpcSync final : public FlagSync {
   std::condition_variable lifecycle_cv_;
   State state_ = State::kUninitialized;
   absl::Status init_result_;
+  bool init_timed_out_ = false;
 
   FlagdProviderConfig config_;
 };
