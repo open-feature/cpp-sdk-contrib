@@ -1,9 +1,12 @@
-#include "flagd/sync.h"
+#include "flagd/sync/sync.h"
 
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <thread>
 
 #include "absl/status/status.h"
+#include "flagd/configuration.h"
+#include "flagd/sync/grpc/grpc_sync.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -74,15 +77,15 @@ TEST_F(FlagSyncTest, InitAndShutdownReturnOk) {
   EXPECT_TRUE(sync_.Shutdown().ok());
 }
 
-TEST_F(FlagSyncTest, ThreadSafety_ReadersAndWriters) {
-  const int kReaderCount = 10;
-  const int kIterations = 5000;
+TEST_F(FlagSyncTest, ThreadSafetyReadersAndWriters) {
+  const int k_reader_count = 10;
+  const int k_iterations = 5000;
   std::atomic<bool> start_flag{false};
 
   auto writer_func = [&]() {
     while (!start_flag.load());
 
-    for (int i = 0; i < kIterations; ++i) {
+    for (int i = 0; i < k_iterations; ++i) {
       nlohmann::json update = R"({
         "flags": {
           "myFlag": {
@@ -103,7 +106,7 @@ TEST_F(FlagSyncTest, ThreadSafety_ReadersAndWriters) {
   auto reader_func = [&]() {
     while (!start_flag.load());
 
-    for (int i = 0; i < kIterations; ++i) {
+    for (int i = 0; i < k_iterations; ++i) {
       auto flags = sync_.GetFlags();
 
       ASSERT_NE(flags, nullptr) << "Race condition detected: GetFlags returned "
@@ -115,29 +118,30 @@ TEST_F(FlagSyncTest, ThreadSafety_ReadersAndWriters) {
         volatile int val =
             (*flags)["myFlag"]["variants"]["iteration"].get<int>();
         EXPECT_GE(val, 0) << "Non atomic store detected: Got incorrect value";
-        EXPECT_LE(val, kIterations)
+        EXPECT_LE(val, k_iterations)
             << "Non atomic store detected: Got incorrect value";
       }
     }
   };
 
   std::vector<std::thread> threads;
-  for (int i = 0; i < kReaderCount; ++i) {
+  threads.reserve(k_reader_count);
+  for (int i = 0; i < k_reader_count; ++i) {
     threads.emplace_back(reader_func);
   }
   threads.emplace_back(writer_func);
 
   start_flag.store(true);
 
-  for (auto& t : threads) {
-    if (t.joinable()) t.join();
+  for (auto& thread : threads) {
+    if (thread.joinable()) thread.join();
   }
 
   auto final_flags = sync_.GetFlags();
   EXPECT_TRUE(final_flags->contains("myFlag"));
   EXPECT_TRUE((*final_flags)["myFlag"].contains("variants"));
   EXPECT_TRUE((*final_flags)["myFlag"]["variants"].contains("iteration"));
-  EXPECT_EQ((*final_flags)["myFlag"]["variants"]["iteration"], kIterations - 1)
+  EXPECT_EQ((*final_flags)["myFlag"]["variants"]["iteration"], k_iterations - 1)
       << "";
 }
 

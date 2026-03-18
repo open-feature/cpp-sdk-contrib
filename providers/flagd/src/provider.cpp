@@ -2,13 +2,12 @@
 
 #include <openfeature/provider.h>
 
-#include <cstdlib>
 #include <optional>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "flagd/configuration.h"
-#include "flagd/sync.h"
+#include "flagd/sync/grpc/grpc_sync.h"
 
 namespace flagd {
 
@@ -27,6 +26,21 @@ FlagdProvider::FlagdProvider(FlagdProviderConfig config)
 
   evaluator_ = std::make_unique<JsonLogicEvaluator>(sync_);
 }
+
+FlagdProvider::FlagdProvider(std::shared_ptr<FlagSync> sync,
+                             FlagdProviderConfig config)
+    : configuration_(std::move(config)),
+      sync_(std::move(sync)),
+      evaluator_(std::make_unique<JsonLogicEvaluator>(sync_)),
+      is_ready_(false) {}
+
+FlagdProvider::FlagdProvider(std::shared_ptr<FlagSync> sync,
+                             std::unique_ptr<Evaluator> evaluator,
+                             FlagdProviderConfig config)
+    : configuration_(std::move(config)),
+      sync_(std::move(sync)),
+      evaluator_(std::move(evaluator)),
+      is_ready_(false) {}
 
 FlagdProvider::~FlagdProvider() {
   if (is_ready_) {
@@ -108,9 +122,11 @@ FlagdProvider::GetDoubleEvaluation(const std::string_view flag,
 }
 
 std::unique_ptr<openfeature::ObjectResolutionDetails>
-FlagdProvider::GetObjectEvaluation(const std::string_view flag,
-                                   openfeature::Value default_value,
-                                   const openfeature::EvaluationContext& ctx) {
+FlagdProvider::GetObjectEvaluation(
+    const std::string_view flag,
+    openfeature::Value
+        default_value,  // NOLINT(performance-unnecessary-value-param)
+    const openfeature::EvaluationContext& ctx) {
   if (!is_ready_) {
     return std::make_unique<openfeature::ObjectResolutionDetails>(
         std::move(default_value), openfeature::Reason::kError, "",

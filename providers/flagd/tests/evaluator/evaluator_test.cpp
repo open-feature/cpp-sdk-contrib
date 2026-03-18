@@ -1,11 +1,11 @@
-#include "flagd/evaluator.h"
+#include "flagd/evaluator/evaluator.h"
 
 #include <gtest/gtest.h>
 
 #include <memory>
 #include <nlohmann/json.hpp>
 
-#include "flagd/sync.h"
+#include "flagd/sync/sync.h"
 
 class TestableSync : public flagd::FlagSync {
  public:
