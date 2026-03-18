@@ -48,19 +48,6 @@ struct EnvVars {
   static constexpr std::string_view kOfflinePollMs = "FLAGD_OFFLINE_POLL_MS";
 };
 
-struct Defaults {
-  static constexpr std::string_view kHost = "localhost";
-  static constexpr int kPortInProcess = 8015;
-  static constexpr bool kTls = false;
-  static constexpr int kDeadlineMs = 500;
-  static constexpr int kStreamDeadlineMs = 600000;
-  static constexpr int kRetryBackoffMs = 1000;
-  static constexpr int kRetryBackoffMaxMs = 12000;
-  static constexpr int kRetryGracePeriod = 5;
-  static constexpr int kKeepAliveTimeMs = 0;
-  static constexpr int kOfflinePollMs = 5000;
-};
-
 struct Validation {
   static constexpr int kMinPort = 1;
   static constexpr int kMaxPort = 65535;
@@ -167,17 +154,7 @@ static std::vector<int> ParseFatalStatusCodes(const std::string& str) {
   return result;
 }
 
-FlagdProviderConfig::FlagdProviderConfig()
-    : host_(std::string(Defaults::kHost)),
-      port_(Defaults::kPortInProcess),
-      tls_(Defaults::kTls),
-      deadline_ms_(Defaults::kDeadlineMs),
-      stream_deadline_ms_(Defaults::kStreamDeadlineMs),
-      retry_backoff_ms_(Defaults::kRetryBackoffMs),
-      retry_backoff_max_ms_(Defaults::kRetryBackoffMaxMs),
-      retry_grace_period_(Defaults::kRetryGracePeriod),
-      keep_alive_time_ms_(Defaults::kKeepAliveTimeMs),
-      offline_poll_interval_ms_(Defaults::kOfflinePollMs) {
+FlagdProviderConfig::FlagdProviderConfig() {
   SetHost(GetEnvStr(EnvVars::kHost, Defaults::kHost));
   SetPort(GetEnvInt(EnvVars::kPort, Defaults::kPortInProcess));
   SetTls(GetEnvBool(EnvVars::kTls, Defaults::kTls));
@@ -195,25 +172,26 @@ FlagdProviderConfig::FlagdProviderConfig()
   SetOfflinePollIntervalMs(
       GetEnvInt(EnvVars::kOfflinePollMs, Defaults::kOfflinePollMs));
 
-  if (auto val = GetEnvStr(EnvVars::kTargetUri); !val.empty()) {
+  if (std::string val = GetEnvStr(EnvVars::kTargetUri); !val.empty()) {
     SetTargetUri(val);
   }
-  if (auto val = GetEnvStr(EnvVars::kSocketPath); !val.empty()) {
+  if (std::string val = GetEnvStr(EnvVars::kSocketPath); !val.empty()) {
     SetSocketPath(val);
   }
-  if (auto val = GetEnvStr(EnvVars::kServerCertPath); !val.empty()) {
+  if (std::string val = GetEnvStr(EnvVars::kServerCertPath); !val.empty()) {
     SetCertPath(val);
   }
-  if (auto val = GetEnvStr(EnvVars::kSourceSelector); !val.empty()) {
+  if (std::string val = GetEnvStr(EnvVars::kSourceSelector); !val.empty()) {
     SetSelector(val);
   }
-  if (auto val = GetEnvStr(EnvVars::kProviderId); !val.empty()) {
+  if (std::string val = GetEnvStr(EnvVars::kProviderId); !val.empty()) {
     SetProviderId(val);
   }
-  if (auto val = GetEnvStr(EnvVars::kOfflineFlagSourcePath); !val.empty()) {
+  if (std::string val = GetEnvStr(EnvVars::kOfflineFlagSourcePath);
+      !val.empty()) {
     SetOfflineFlagSourcePath(val);
   }
-  if (auto val = GetEnvStr(EnvVars::kFatalStatusCodes); !val.empty()) {
+  if (std::string val = GetEnvStr(EnvVars::kFatalStatusCodes); !val.empty()) {
     SetFatalStatusCodes(val);
   }
 }
