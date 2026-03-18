@@ -1,8 +1,9 @@
+#include "flagd/sync/grpc/grpc_sync.h"
+
 #include <iostream>
 #include <thread>
 
 #include "flagd/configuration.h"
-#include "flagd/sync.h"
 
 int main() {
   flagd::GrpcSync test = flagd::GrpcSync(flagd::FlagdProviderConfig());
@@ -16,9 +17,9 @@ int main() {
     auto config = test.GetFlags();
 
     if (config->contains("myBoolFlag")) {
-      std::cout << "Flag found!" << std::endl;
+      std::cout << "Flag found!\n";
     } else {
-      std::cout << "Flag not found (yet)." << std::endl;
+      std::cout << "Flag not found (yet).\n";
     }
 
     std::this_thread::sleep_for(std::chrono::seconds(2));

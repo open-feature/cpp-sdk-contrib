@@ -1,43 +1,20 @@
-#ifndef CPP_SDK_FLAGD_SYNC_H_
-#define CPP_SDK_FLAGD_SYNC_H_
+#ifndef CPP_SDK_FLAGD_SYNC_GRPC_SYNC_H_
+#define CPP_SDK_FLAGD_SYNC_GRPC_SYNC_H_
 
 #include <grpcpp/grpcpp.h>
 
 #include <condition_variable>
 #include <memory>
 #include <mutex>
-#include <nlohmann/json.hpp>
 #include <thread>
 
 #include "absl/status/status.h"
 #include "flagd/configuration.h"
+#include "flagd/sync/sync.h"
 #include "flagd/sync/v1/sync.grpc.pb.h"
 #include "openfeature/evaluation_context.h"
 
 namespace flagd {
-
-class FlagSync {
- public:
-  FlagSync();
-  virtual ~FlagSync();
-
-  virtual absl::Status Init(const openfeature::EvaluationContext& ctx) = 0;
-  virtual absl::Status Shutdown() = 0;
-
-  std::shared_ptr<const nlohmann::json> GetFlags() const;
-  std::shared_ptr<const nlohmann::json> GetMetadata() const;
-
- protected:
-  void UpdateFlags(const nlohmann::json& new_json);
-
- private:
-  mutable std::mutex flags_mutex_;
-  std::shared_ptr<const nlohmann::json> current_flags_;
-  std::shared_ptr<const nlohmann::json> global_metadata_;
-
-  class Validator;
-  std::unique_ptr<Validator> validator_;
-};
 
 class GrpcSync final : public FlagSync {
  public:
@@ -71,4 +48,4 @@ class GrpcSync final : public FlagSync {
 
 }  // namespace flagd
 
-#endif  // CPP_SDK_FLAGD_SYNC_H_
+#endif  // CPP_SDK_FLAGD_SYNC_GRPC_SYNC_H_
