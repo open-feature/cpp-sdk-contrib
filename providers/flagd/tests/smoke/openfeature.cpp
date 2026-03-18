@@ -24,13 +24,15 @@ class FlagdOpenFeatureTest : public ::testing::Test {
   void SetUp() override {
     sync_ = std::make_shared<MockSync>();
     provider_ = std::make_shared<flagd::FlagdProvider>(sync_);
-    auto& api = openfeature::OpenFeatureAPI::GetInstance();
+    openfeature::OpenFeatureAPI& api =
+        openfeature::OpenFeatureAPI::GetInstance();
     api.SetProviderAndWait(provider_);
     client_ = api.GetClient();
   }
 
   void TearDown() override {
-    auto& api = openfeature::OpenFeatureAPI::GetInstance();
+    openfeature::OpenFeatureAPI& api =
+        openfeature::OpenFeatureAPI::GetInstance();
     api.Shutdown();
   }
 
