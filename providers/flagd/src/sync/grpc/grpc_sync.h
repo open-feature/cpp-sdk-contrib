@@ -25,10 +25,6 @@ class GrpcSync final : public FlagSync {
   absl::Status Shutdown() override;
 
  private:
-  void WaitForUpdates();
-
-  std::unique_ptr<flagd::sync::v1::FlagSyncService::Stub> stub_;
-  std::shared_ptr<grpc::ClientContext> context_;
   enum class State : uint8_t {
     kUninitialized,
     kInitializing,  // Thread started, waiting for first connection
@@ -37,6 +33,12 @@ class GrpcSync final : public FlagSync {
     kShuttingDown,  // Shutdown requested, cleaning up
     kFatal,         // Fatal error, gives up
   };
+
+  void WaitForUpdates();
+  absl::Status ShutdownInternal(State target_state);
+
+  std::unique_ptr<flagd::sync::v1::FlagSyncService::Stub> stub_;
+  std::shared_ptr<grpc::ClientContext> context_;
 
   std::thread background_thread_;
 

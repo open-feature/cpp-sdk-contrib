@@ -112,13 +112,14 @@ TEST_F(ConfigurationTest, InvalidValues) {
 
   // Invalid Fatal Status Codes
   config.SetFatalStatusCodes(std::vector<int>{1, 100, 5});  // 100 is invalid
-  EXPECT_EQ(config.GetFatalStatusCodes().size(),
-            0);  // Should be empty as it was ignored
-
-  config.SetFatalStatusCodes("1,INVALID,5");  // INVALID is invalid
   EXPECT_EQ(config.GetFatalStatusCodes().size(), 2);
   EXPECT_EQ(config.GetFatalStatusCodes()[0], 1);
   EXPECT_EQ(config.GetFatalStatusCodes()[1], 5);
+
+  config.SetFatalStatusCodes("2,INVALID,6");  // INVALID is invalid
+  EXPECT_EQ(config.GetFatalStatusCodes().size(), 2);
+  EXPECT_EQ(config.GetFatalStatusCodes()[0], 2);
+  EXPECT_EQ(config.GetFatalStatusCodes()[1], 6);
 }
 
 TEST_F(ConfigurationTest, GetEffectiveCredentialsInsecure) {

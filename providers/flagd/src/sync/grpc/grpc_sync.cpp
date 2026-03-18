@@ -43,6 +43,8 @@ absl::Status GrpcSync::Init(const openfeature::EvaluationContext& ctx) {
               [this] { return state_ != State::kInitializing; })) {
         init_timed_out_ = true;
         init_result_ = absl::DeadlineExceededError("Initialization timed out");
+        lock.unlock();
+        static_cast<void>(ShutdownInternal(State::kUninitialized));
         return init_result_;
       }
       return (state_ == State::kReady) ? absl::OkStatus() : init_result_;
@@ -97,10 +99,15 @@ absl::Status GrpcSync::Init(const openfeature::EvaluationContext& ctx) {
           [this] { return state_ != State::kInitializing; })) {
     init_timed_out_ = true;
     init_result_ = absl::DeadlineExceededError("Initialization timed out");
+    lock.unlock();
+    static_cast<void>(ShutdownInternal(State::kUninitialized));
     return init_result_;
   }
 
   if (state_ != State::kReady) {
+    State final_state = state_;
+    lock.unlock();
+    static_cast<void>(ShutdownInternal(final_state));
     return init_result_;
   }
 
@@ -108,6 +115,10 @@ absl::Status GrpcSync::Init(const openfeature::EvaluationContext& ctx) {
 }
 
 absl::Status GrpcSync::Shutdown() {
+  return ShutdownInternal(State::kUninitialized);
+}
+
+absl::Status GrpcSync::ShutdownInternal(State target_state) {
   std::unique_lock lock(lifecycle_mutex_);
 
   if (state_ == State::kUninitialized) {
@@ -121,11 +132,13 @@ absl::Status GrpcSync::Shutdown() {
   }
 
   State previous_state = state_;
-  state_ = State::kShuttingDown;
-  LOG(INFO) << "GrpcSync state changed to kShuttingDown";
+  if (state_ != State::kFatal) {
+    state_ = State::kShuttingDown;
+    LOG(INFO) << "GrpcSync state changed to kShuttingDown";
 
-  if (context_) {
-    context_->TryCancel();
+    if (context_) {
+      context_->TryCancel();
+    }
   }
 
   lock.unlock();
@@ -136,10 +149,11 @@ absl::Status GrpcSync::Shutdown() {
 
   context_.reset();
   stub_.reset();
-  state_ = State::kUninitialized;
-  LOG(INFO) << "GrpcSync state changed to kUninitialized";
+  state_ = target_state;
+  LOG(INFO) << "GrpcSync state changed (ShutdownInternal)";
 
-  if (previous_state == State::kInitializing) {
+  if (previous_state == State::kInitializing &&
+      target_state == State::kUninitialized) {
     init_result_ =
         absl::CancelledError("Shutdown called during initialization");
   }
