@@ -16,6 +16,7 @@ cc_test(
     srcs = ["configuration_test.cpp"],
     deps = [
         "//providers/flagd/src:flagd_configuration",
+        "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
     ],
 )

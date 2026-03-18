@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include "absl/strings/str_cat.h"
+
 namespace flagd {
 
 class ConfigurationTest : public ::testing::Test {
@@ -25,39 +27,48 @@ class ConfigurationTest : public ::testing::Test {
 
 TEST_F(ConfigurationTest, DefaultValues) {
   FlagdProviderConfig config;
-  EXPECT_EQ(config.GetHost(), "localhost");
-  EXPECT_EQ(config.GetPort(), 8015);
+  const std::string default_host = "localhost";
+  const int default_port = 8015;
+  EXPECT_EQ(config.GetHost(), default_host);
+  EXPECT_EQ(config.GetPort(), default_port);
   EXPECT_FALSE(config.GetTls());
-  EXPECT_EQ(config.GetEffectiveTargetUri(), "localhost:8015");
+  EXPECT_EQ(config.GetEffectiveTargetUri(),
+            absl::StrCat(default_host, ":", default_port));
 }
 
 TEST_F(ConfigurationTest, EnvironmentVariables) {
-  setenv("FLAGD_HOST", "myhost", 1);
-  setenv("FLAGD_PORT", "9000", 1);
+  const std::string host = "myhost";
+  const int port = 9000;
+  setenv("FLAGD_HOST", host.c_str(), 1);
+  setenv("FLAGD_PORT", std::to_string(port).c_str(), 1);
   setenv("FLAGD_TLS", "true", 1);
   setenv("FLAGD_SOURCE_SELECTOR", "my-selector", 1);
 
   FlagdProviderConfig config;
-  EXPECT_EQ(config.GetHost(), "myhost");
-  EXPECT_EQ(config.GetPort(), 9000);
+  EXPECT_EQ(config.GetHost(), host);
+  EXPECT_EQ(config.GetPort(), port);
   EXPECT_TRUE(config.GetTls());
   EXPECT_TRUE(config.GetSelector().has_value());
   EXPECT_EQ(config.GetSelector().value(), "my-selector");
-  EXPECT_EQ(config.GetEffectiveTargetUri(), "myhost:9000");
+  EXPECT_EQ(config.GetEffectiveTargetUri(), absl::StrCat(host, ":", port));
 }
 
 TEST_F(ConfigurationTest, EffectiveTargetUriPrecedence) {
   FlagdProviderConfig config;
+  const std::string host = "host";
   const int port = 1234;
 
-  config.SetHost("host").SetPort(port);
-  EXPECT_EQ(config.GetEffectiveTargetUri(), "host:1234");
+  config.SetHost(host).SetPort(port);
+  EXPECT_EQ(config.GetEffectiveTargetUri(), absl::StrCat(host, ":", port));
 
-  config.SetSocketPath("/tmp/flagd.sock");
-  EXPECT_EQ(config.GetEffectiveTargetUri(), "unix:///tmp/flagd.sock");
+  const std::string socket_path = "/tmp/flagd.sock";
+  config.SetSocketPath(socket_path);
+  EXPECT_EQ(config.GetEffectiveTargetUri(),
+            absl::StrCat("unix://", socket_path));
 
-  config.SetTargetUri("grpc://custom:5000");
-  EXPECT_EQ(config.GetEffectiveTargetUri(), "grpc://custom:5000");
+  const std::string target_uri = "grpc://custom:5000";
+  config.SetTargetUri(target_uri);
+  EXPECT_EQ(config.GetEffectiveTargetUri(), target_uri);
 }
 
 TEST_F(ConfigurationTest, GetEffectiveCredentialsInsecure) {
