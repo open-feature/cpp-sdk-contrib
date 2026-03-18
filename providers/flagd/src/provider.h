@@ -16,9 +16,11 @@ namespace flagd {
 class FlagdProvider : public openfeature::FeatureProvider {
  public:
   explicit FlagdProvider(FlagdProviderConfig config = FlagdProviderConfig());
-
   explicit FlagdProvider(std::shared_ptr<FlagSync> sync,
                          FlagdProviderConfig config = FlagdProviderConfig());
+  FlagdProvider(std::shared_ptr<FlagSync> sync,
+                std::unique_ptr<Evaluator> evaluator,
+                FlagdProviderConfig config = FlagdProviderConfig());
 
   ~FlagdProvider() override;
 

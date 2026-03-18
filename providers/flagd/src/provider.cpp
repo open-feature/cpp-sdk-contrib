@@ -34,6 +34,14 @@ FlagdProvider::FlagdProvider(std::shared_ptr<FlagSync> sync,
       evaluator_(std::make_unique<JsonLogicEvaluator>(sync_)),
       is_ready_(false) {}
 
+FlagdProvider::FlagdProvider(std::shared_ptr<FlagSync> sync,
+                             std::unique_ptr<Evaluator> evaluator,
+                             FlagdProviderConfig config)
+    : configuration_(std::move(config)),
+      sync_(std::move(sync)),
+      evaluator_(std::move(evaluator)),
+      is_ready_(false) {}
+
 FlagdProvider::~FlagdProvider() {
   if (is_ready_) {
     absl::Status status = FlagdProvider::Shutdown();
