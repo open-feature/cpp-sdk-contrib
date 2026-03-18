@@ -265,8 +265,11 @@ void GrpcSync::WaitForUpdates() {
     }
 
     int64_t backoff = config_.GetRetryBackoffMs() * (1LL << retry_count);
-    backoff = std::min<int64_t>(backoff, config_.GetRetryBackoffMaxMs());
-    retry_count++;
+    if (backoff >= config_.GetRetryBackoffMaxMs()) {
+      backoff = config_.GetRetryBackoffMaxMs();
+    } else {
+      retry_count++;
+    }
 
     auto now = std::chrono::steady_clock::now();
     auto disconnected_duration =

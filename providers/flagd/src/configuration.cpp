@@ -4,7 +4,6 @@
 #include <grpcpp/security/credentials.h>
 
 #include <algorithm>
-#include <cstdint>
 #include <cstdlib>
 #include <fstream>
 #include <map>
@@ -62,6 +61,14 @@ struct Defaults {
   static constexpr int kOfflinePollMs = 5000;
 };
 
+struct Validation {
+  static constexpr int kMinPort = 1;
+  static constexpr int kMaxPort = 65535;
+  static constexpr int kMinTimingMs = 0;
+  static constexpr int kMinStatusCode = 0;
+  static constexpr int kMaxStatusCode = 16;
+};
+
 const std::map<std::string, int> kStatusCodeMap = {
     {"OK", 0},
     {"CANCELLED", 1},
@@ -113,6 +120,19 @@ static bool GetEnvBool(const std::string_view name, bool default_value) {
   return str == "true" || str == "1";
 }
 
+static bool IsValidPort(int port) {
+  return port >= Validation::kMinPort && port <= Validation::kMaxPort;
+}
+
+static bool IsValidTiming(int timing_ms) {
+  return timing_ms >= Validation::kMinTimingMs;
+}
+
+static bool IsValidStatusCode(int code) {
+  return code >= Validation::kMinStatusCode &&
+         code <= Validation::kMaxStatusCode;
+}
+
 static std::vector<int> ParseFatalStatusCodes(const std::string& str) {
   std::vector<int> result;
   std::stringstream sstream(str);
@@ -125,7 +145,11 @@ static std::vector<int> ParseFatalStatusCodes(const std::string& str) {
 
     try {
       int code = std::stoi(item);
-      result.push_back(code);
+      if (IsValidStatusCode(code)) {
+        result.push_back(code);
+      } else {
+        LOG(WARNING) << "Invalid gRPC status code: " << code;
+      }
       continue;
     } catch (const std::invalid_argument&) {
       // Not an integer, try parsing as a status code string.
@@ -144,43 +168,53 @@ static std::vector<int> ParseFatalStatusCodes(const std::string& str) {
 }
 
 FlagdProviderConfig::FlagdProviderConfig()
-    : host_(GetEnvStr(EnvVars::kHost, Defaults::kHost)),
-      port_(GetEnvInt(EnvVars::kPort, Defaults::kPortInProcess)),
-      tls_(GetEnvBool(EnvVars::kTls, Defaults::kTls)),
-      deadline_ms_(GetEnvInt(EnvVars::kDeadlineMs, Defaults::kDeadlineMs)),
-      stream_deadline_ms_(
-          GetEnvInt(EnvVars::kStreamDeadlineMs, Defaults::kStreamDeadlineMs)),
-      retry_backoff_ms_(
-          GetEnvInt(EnvVars::kRetryBackoffMs, Defaults::kRetryBackoffMs)),
-      retry_backoff_max_ms_(
-          GetEnvInt(EnvVars::kRetryBackoffMaxMs, Defaults::kRetryBackoffMaxMs)),
-      retry_grace_period_(
-          GetEnvInt(EnvVars::kRetryGracePeriod, Defaults::kRetryGracePeriod)),
-      keep_alive_time_ms_(
-          GetEnvInt(EnvVars::kKeepAliveTimeMs, Defaults::kKeepAliveTimeMs)),
-      offline_poll_interval_ms_(
-          GetEnvInt(EnvVars::kOfflinePollMs, Defaults::kOfflinePollMs)) {
-  if (std::string val = GetEnvStr(EnvVars::kTargetUri); !val.empty()) {
-    target_uri_ = val;
+    : host_(std::string(Defaults::kHost)),
+      port_(Defaults::kPortInProcess),
+      tls_(Defaults::kTls),
+      deadline_ms_(Defaults::kDeadlineMs),
+      stream_deadline_ms_(Defaults::kStreamDeadlineMs),
+      retry_backoff_ms_(Defaults::kRetryBackoffMs),
+      retry_backoff_max_ms_(Defaults::kRetryBackoffMaxMs),
+      retry_grace_period_(Defaults::kRetryGracePeriod),
+      keep_alive_time_ms_(Defaults::kKeepAliveTimeMs),
+      offline_poll_interval_ms_(Defaults::kOfflinePollMs) {
+  SetHost(GetEnvStr(EnvVars::kHost, Defaults::kHost));
+  SetPort(GetEnvInt(EnvVars::kPort, Defaults::kPortInProcess));
+  SetTls(GetEnvBool(EnvVars::kTls, Defaults::kTls));
+  SetDeadlineMs(GetEnvInt(EnvVars::kDeadlineMs, Defaults::kDeadlineMs));
+  SetStreamDeadlineMs(
+      GetEnvInt(EnvVars::kStreamDeadlineMs, Defaults::kStreamDeadlineMs));
+  SetRetryBackoffMs(
+      GetEnvInt(EnvVars::kRetryBackoffMs, Defaults::kRetryBackoffMs));
+  SetRetryBackoffMaxMs(
+      GetEnvInt(EnvVars::kRetryBackoffMaxMs, Defaults::kRetryBackoffMaxMs));
+  SetRetryGracePeriod(
+      GetEnvInt(EnvVars::kRetryGracePeriod, Defaults::kRetryGracePeriod));
+  SetKeepAliveTimeMs(
+      GetEnvInt(EnvVars::kKeepAliveTimeMs, Defaults::kKeepAliveTimeMs));
+  SetOfflinePollIntervalMs(
+      GetEnvInt(EnvVars::kOfflinePollMs, Defaults::kOfflinePollMs));
+
+  if (auto val = GetEnvStr(EnvVars::kTargetUri); !val.empty()) {
+    SetTargetUri(val);
   }
-  if (std::string val = GetEnvStr(EnvVars::kSocketPath); !val.empty()) {
-    socket_path_ = val;
+  if (auto val = GetEnvStr(EnvVars::kSocketPath); !val.empty()) {
+    SetSocketPath(val);
   }
-  if (std::string val = GetEnvStr(EnvVars::kServerCertPath); !val.empty()) {
-    cert_path_ = val;
+  if (auto val = GetEnvStr(EnvVars::kServerCertPath); !val.empty()) {
+    SetCertPath(val);
   }
-  if (std::string val = GetEnvStr(EnvVars::kSourceSelector); !val.empty()) {
-    selector_ = val;
+  if (auto val = GetEnvStr(EnvVars::kSourceSelector); !val.empty()) {
+    SetSelector(val);
   }
-  if (std::string val = GetEnvStr(EnvVars::kProviderId); !val.empty()) {
-    provider_id_ = val;
+  if (auto val = GetEnvStr(EnvVars::kProviderId); !val.empty()) {
+    SetProviderId(val);
   }
-  if (std::string val = GetEnvStr(EnvVars::kOfflineFlagSourcePath);
-      !val.empty()) {
-    offline_flag_source_path_ = val;
+  if (auto val = GetEnvStr(EnvVars::kOfflineFlagSourcePath); !val.empty()) {
+    SetOfflineFlagSourcePath(val);
   }
-  if (std::string val = GetEnvStr(EnvVars::kFatalStatusCodes); !val.empty()) {
-    fatal_status_codes_ = ParseFatalStatusCodes(val);
+  if (auto val = GetEnvStr(EnvVars::kFatalStatusCodes); !val.empty()) {
+    SetFatalStatusCodes(val);
   }
 }
 
@@ -301,6 +335,10 @@ FlagdProviderConfig& FlagdProviderConfig::SetHost(std::string_view host) {
   return *this;
 }
 FlagdProviderConfig& FlagdProviderConfig::SetPort(int port) {
+  if (!IsValidPort(port)) {
+    LOG(WARNING) << "Invalid port: " << port << ". Ignoring.";
+    return *this;
+  }
   port_ = port;
   return *this;
 }
@@ -326,36 +364,71 @@ FlagdProviderConfig& FlagdProviderConfig::SetCertPath(std::string_view path) {
   return *this;
 }
 FlagdProviderConfig& FlagdProviderConfig::SetDeadlineMs(int deadline_ms) {
+  if (!IsValidTiming(deadline_ms)) {
+    LOG(WARNING) << "Invalid deadline_ms: " << deadline_ms << ". Ignoring.";
+    return *this;
+  }
   deadline_ms_ = deadline_ms;
   return *this;
 }
 FlagdProviderConfig& FlagdProviderConfig::SetStreamDeadlineMs(
     int stream_deadline_ms) {
+  if (!IsValidTiming(stream_deadline_ms)) {
+    LOG(WARNING) << "Invalid stream_deadline_ms: " << stream_deadline_ms
+                 << ". Ignoring.";
+    return *this;
+  }
   stream_deadline_ms_ = stream_deadline_ms;
   return *this;
 }
 FlagdProviderConfig& FlagdProviderConfig::SetRetryBackoffMs(
     int retry_backoff_ms) {
+  if (!IsValidTiming(retry_backoff_ms)) {
+    LOG(WARNING) << "Invalid retry_backoff_ms: " << retry_backoff_ms
+                 << ". Ignoring.";
+    return *this;
+  }
   retry_backoff_ms_ = retry_backoff_ms;
   return *this;
 }
 FlagdProviderConfig& FlagdProviderConfig::SetRetryBackoffMaxMs(
     int retry_backoff_max_ms) {
+  if (!IsValidTiming(retry_backoff_max_ms)) {
+    LOG(WARNING) << "Invalid retry_backoff_max_ms: " << retry_backoff_max_ms
+                 << ". Ignoring.";
+    return *this;
+  }
   retry_backoff_max_ms_ = retry_backoff_max_ms;
   return *this;
 }
 FlagdProviderConfig& FlagdProviderConfig::SetRetryGracePeriod(
     int retry_grace_period) {
+  if (!IsValidTiming(retry_grace_period)) {
+    LOG(WARNING) << "Invalid retry_grace_period: " << retry_grace_period
+                 << ". Ignoring.";
+    return *this;
+  }
   retry_grace_period_ = retry_grace_period;
   return *this;
 }
 FlagdProviderConfig& FlagdProviderConfig::SetKeepAliveTimeMs(
     int keep_alive_time_ms) {
+  if (!IsValidTiming(keep_alive_time_ms)) {
+    LOG(WARNING) << "Invalid keep_alive_time_ms: " << keep_alive_time_ms
+                 << ". Ignoring.";
+    return *this;
+  }
   keep_alive_time_ms_ = keep_alive_time_ms;
   return *this;
 }
 FlagdProviderConfig& FlagdProviderConfig::SetFatalStatusCodes(
     const std::vector<int>& fatal_status_codes) {
+  for (int code : fatal_status_codes) {
+    if (!IsValidStatusCode(code)) {
+      LOG(WARNING) << "Invalid gRPC status code: " << code << ". Ignoring.";
+      return *this;
+    }
+  }
   fatal_status_codes_ = fatal_status_codes;
   return *this;
 }
@@ -381,6 +454,11 @@ FlagdProviderConfig& FlagdProviderConfig::SetOfflineFlagSourcePath(
 }
 FlagdProviderConfig& FlagdProviderConfig::SetOfflinePollIntervalMs(
     int interval_ms) {
+  if (!IsValidTiming(interval_ms)) {
+    LOG(WARNING) << "Invalid offline_poll_interval_ms: " << interval_ms
+                 << ". Ignoring.";
+    return *this;
+  }
   offline_poll_interval_ms_ = interval_ms;
   return *this;
 }
