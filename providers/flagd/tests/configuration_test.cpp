@@ -74,7 +74,8 @@ TEST_F(ConfigurationTest, EffectiveTargetUriPrecedence) {
 TEST_F(ConfigurationTest, GetEffectiveCredentialsInsecure) {
   FlagdProviderConfig config;
   config.SetTls(false);
-  auto creds = config.GetEffectiveCredentials();
+  absl::StatusOr<std::shared_ptr<grpc::ChannelCredentials>> creds =
+      config.GetEffectiveCredentials();
   ASSERT_TRUE(creds.ok());
   EXPECT_NE(*creds, nullptr);
 }
@@ -82,16 +83,19 @@ TEST_F(ConfigurationTest, GetEffectiveCredentialsInsecure) {
 TEST_F(ConfigurationTest, GetEffectiveCredentialsTlsNoCert) {
   FlagdProviderConfig config;
   config.SetTls(true);
-  auto creds = config.GetEffectiveCredentials();
+  absl::StatusOr<std::shared_ptr<grpc::ChannelCredentials>> creds =
+      config.GetEffectiveCredentials();
   ASSERT_TRUE(creds.ok());
   EXPECT_NE(*creds, nullptr);
 }
 
 TEST_F(ConfigurationTest, GetEffectiveCredentialsExplicit) {
   FlagdProviderConfig config;
-  auto my_creds = grpc::InsecureChannelCredentials();
+  std::shared_ptr<grpc::ChannelCredentials> my_creds =
+      grpc::InsecureChannelCredentials();
   config.SetChannelCredentials(my_creds);
-  auto creds = config.GetEffectiveCredentials();
+  absl::StatusOr<std::shared_ptr<grpc::ChannelCredentials>> creds =
+      config.GetEffectiveCredentials();
   ASSERT_TRUE(creds.ok());
   EXPECT_EQ(*creds, my_creds);
 }
