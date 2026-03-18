@@ -58,7 +58,7 @@ struct Defaults {
   static constexpr int kRetryBackoffMs = 1000;
   static constexpr int kRetryBackoffMaxMs = 12000;
   static constexpr int kRetryGracePeriod = 5;
-  static constexpr uint64_t kKeepAliveTimeMs = 0;
+  static constexpr int kKeepAliveTimeMs = 0;
   static constexpr int kOfflinePollMs = 5000;
 };
 
@@ -96,21 +96,6 @@ static int GetEnvInt(const std::string_view name, int default_value) {
     try {
       return std::stoi(val);
     } catch (...) {
-      return default_value;
-    }
-  }
-  return default_value;
-}
-
-static uint64_t GetEnvLong(const std::string_view name,
-                           uint64_t default_value) {
-  const char* val = std::getenv(std::string(name).c_str());
-  if (val != nullptr) {
-    try {
-      return std::stoul(val);
-    } catch (const std::invalid_argument&) {
-      return default_value;
-    } catch (const std::out_of_range&) {
       return default_value;
     }
   }
@@ -172,7 +157,7 @@ FlagdProviderConfig::FlagdProviderConfig()
       retry_grace_period_(
           GetEnvInt(EnvVars::kRetryGracePeriod, Defaults::kRetryGracePeriod)),
       keep_alive_time_ms_(
-          GetEnvLong(EnvVars::kKeepAliveTimeMs, Defaults::kKeepAliveTimeMs)),
+          GetEnvInt(EnvVars::kKeepAliveTimeMs, Defaults::kKeepAliveTimeMs)),
       offline_poll_interval_ms_(
           GetEnvInt(EnvVars::kOfflinePollMs, Defaults::kOfflinePollMs)) {
   if (std::string val = GetEnvStr(EnvVars::kTargetUri); !val.empty()) {
@@ -262,7 +247,7 @@ int FlagdProviderConfig::GetRetryBackoffMaxMs() const {
 int FlagdProviderConfig::GetRetryGracePeriod() const {
   return retry_grace_period_;
 }
-uint64_t FlagdProviderConfig::GetKeepAliveTimeMs() const {
+int FlagdProviderConfig::GetKeepAliveTimeMs() const {
   return keep_alive_time_ms_;
 }
 const std::vector<int>& FlagdProviderConfig::GetFatalStatusCodes() const {
@@ -365,7 +350,7 @@ FlagdProviderConfig& FlagdProviderConfig::SetRetryGracePeriod(
   return *this;
 }
 FlagdProviderConfig& FlagdProviderConfig::SetKeepAliveTimeMs(
-    uint64_t keep_alive_time_ms) {
+    int keep_alive_time_ms) {
   keep_alive_time_ms_ = keep_alive_time_ms;
   return *this;
 }

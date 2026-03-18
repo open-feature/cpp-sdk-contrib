@@ -150,7 +150,7 @@ absl::Status GrpcSync::Shutdown() {
 }
 
 void GrpcSync::WaitForUpdates() {
-  auto last_connect_attempt = std::chrono::steady_clock::now();
+  auto last_healthy_time = std::chrono::steady_clock::now();
   int retry_count = 0;
 
   while (true) {
@@ -228,6 +228,10 @@ void GrpcSync::WaitForUpdates() {
     LOG(WARNING) << "Sync stream closed: " << status.error_message()
                  << " (code: " << status.error_code() << ")";
 
+    if (connected) {
+      last_healthy_time = std::chrono::steady_clock::now();
+    }
+
     // Check fatal status codes
     const auto& fatal_codes = config_.GetFatalStatusCodes();
     bool is_fatal = std::find(fatal_codes.cbegin(), fatal_codes.cend(),
@@ -267,7 +271,7 @@ void GrpcSync::WaitForUpdates() {
     auto now = std::chrono::steady_clock::now();
     auto disconnected_duration =
         std::chrono::duration_cast<std::chrono::seconds>(now -
-                                                         last_connect_attempt);
+                                                         last_healthy_time);
     if (disconnected_duration.count() > config_.GetRetryGracePeriod()) {
       ClearFlags();
       // TODO: emit PROVIDER_ERROR
@@ -279,7 +283,6 @@ void GrpcSync::WaitForUpdates() {
         return state_ == State::kShuttingDown || state_ == State::kFatal;
       });
     }
-    last_connect_attempt = std::chrono::steady_clock::now();
   }
 }
 

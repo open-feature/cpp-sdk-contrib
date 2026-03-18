@@ -31,7 +31,7 @@ class FlagdProviderConfig {
   int GetRetryBackoffMs() const;
   int GetRetryBackoffMaxMs() const;
   int GetRetryGracePeriod() const;
-  uint64_t GetKeepAliveTimeMs() const;
+  int GetKeepAliveTimeMs() const;
   const std::vector<int>& GetFatalStatusCodes() const;
 
   std::string GetServiceConfigJson() const;
@@ -66,7 +66,7 @@ class FlagdProviderConfig {
   FlagdProviderConfig& SetRetryBackoffMs(int retry_backoff_ms);
   FlagdProviderConfig& SetRetryBackoffMaxMs(int retry_backoff_max_ms);
   FlagdProviderConfig& SetRetryGracePeriod(int retry_grace_period);
-  FlagdProviderConfig& SetKeepAliveTimeMs(uint64_t keep_alive_time_ms);
+  FlagdProviderConfig& SetKeepAliveTimeMs(int keep_alive_time_ms);
   FlagdProviderConfig& SetFatalStatusCodes(
       const std::vector<int>& fatal_status_codes);
   FlagdProviderConfig& SetFatalStatusCodes(
@@ -91,7 +91,7 @@ class FlagdProviderConfig {
   int retry_backoff_ms_;
   int retry_backoff_max_ms_;
   int retry_grace_period_;
-  uint64_t keep_alive_time_ms_;
+  int keep_alive_time_ms_;
   std::vector<int> fatal_status_codes_;
 
   std::optional<std::string> selector_;
