@@ -51,7 +51,6 @@ struct EnvVars {
 struct Validation {
   static constexpr int kMinPort = 1;
   static constexpr int kMaxPort = 65535;
-  static constexpr int kMinTimingMs = 0;
   static constexpr int kMinStatusCode = 0;
   static constexpr int kMaxStatusCode = 16;
 };
@@ -109,10 +108,6 @@ static bool GetEnvBool(const std::string_view name, bool default_value) {
 
 static bool IsValidPort(int port) {
   return port >= Validation::kMinPort && port <= Validation::kMaxPort;
-}
-
-static bool IsValidTiming(int timing_ms) {
-  return timing_ms >= Validation::kMinTimingMs;
 }
 
 static bool IsValidStatusCode(int code) {
@@ -342,7 +337,7 @@ FlagdProviderConfig& FlagdProviderConfig::SetCertPath(std::string_view path) {
   return *this;
 }
 FlagdProviderConfig& FlagdProviderConfig::SetDeadlineMs(int deadline_ms) {
-  if (!IsValidTiming(deadline_ms)) {
+  if (deadline_ms <= 0) {
     LOG(WARNING) << "Invalid deadline_ms: " << deadline_ms << ". Ignoring.";
     return *this;
   }
@@ -351,7 +346,7 @@ FlagdProviderConfig& FlagdProviderConfig::SetDeadlineMs(int deadline_ms) {
 }
 FlagdProviderConfig& FlagdProviderConfig::SetStreamDeadlineMs(
     int stream_deadline_ms) {
-  if (!IsValidTiming(stream_deadline_ms)) {
+  if (stream_deadline_ms <= 0) {
     LOG(WARNING) << "Invalid stream_deadline_ms: " << stream_deadline_ms
                  << ". Ignoring.";
     return *this;
@@ -361,7 +356,7 @@ FlagdProviderConfig& FlagdProviderConfig::SetStreamDeadlineMs(
 }
 FlagdProviderConfig& FlagdProviderConfig::SetRetryBackoffMs(
     int retry_backoff_ms) {
-  if (!IsValidTiming(retry_backoff_ms)) {
+  if (retry_backoff_ms <= 0) {
     LOG(WARNING) << "Invalid retry_backoff_ms: " << retry_backoff_ms
                  << ". Ignoring.";
     return *this;
@@ -371,7 +366,7 @@ FlagdProviderConfig& FlagdProviderConfig::SetRetryBackoffMs(
 }
 FlagdProviderConfig& FlagdProviderConfig::SetRetryBackoffMaxMs(
     int retry_backoff_max_ms) {
-  if (!IsValidTiming(retry_backoff_max_ms)) {
+  if (retry_backoff_max_ms <= 0) {
     LOG(WARNING) << "Invalid retry_backoff_max_ms: " << retry_backoff_max_ms
                  << ". Ignoring.";
     return *this;
@@ -381,7 +376,7 @@ FlagdProviderConfig& FlagdProviderConfig::SetRetryBackoffMaxMs(
 }
 FlagdProviderConfig& FlagdProviderConfig::SetRetryGracePeriod(
     int retry_grace_period) {
-  if (!IsValidTiming(retry_grace_period)) {
+  if (retry_grace_period < 0) {
     LOG(WARNING) << "Invalid retry_grace_period: " << retry_grace_period
                  << ". Ignoring.";
     return *this;
@@ -391,7 +386,7 @@ FlagdProviderConfig& FlagdProviderConfig::SetRetryGracePeriod(
 }
 FlagdProviderConfig& FlagdProviderConfig::SetKeepAliveTimeMs(
     int keep_alive_time_ms) {
-  if (!IsValidTiming(keep_alive_time_ms)) {
+  if (keep_alive_time_ms < 0) {
     LOG(WARNING) << "Invalid keep_alive_time_ms: " << keep_alive_time_ms
                  << ". Ignoring.";
     return *this;
@@ -401,13 +396,15 @@ FlagdProviderConfig& FlagdProviderConfig::SetKeepAliveTimeMs(
 }
 FlagdProviderConfig& FlagdProviderConfig::SetFatalStatusCodes(
     const std::vector<int>& fatal_status_codes) {
+  std::vector<int> valid_codes;
   for (int code : fatal_status_codes) {
-    if (!IsValidStatusCode(code)) {
+    if (IsValidStatusCode(code)) {
+      valid_codes.push_back(code);
+    } else {
       LOG(WARNING) << "Invalid gRPC status code: " << code << ". Ignoring.";
-      return *this;
     }
   }
-  fatal_status_codes_ = fatal_status_codes;
+  fatal_status_codes_ = std::move(valid_codes);
   return *this;
 }
 FlagdProviderConfig& FlagdProviderConfig::SetFatalStatusCodes(
@@ -432,7 +429,7 @@ FlagdProviderConfig& FlagdProviderConfig::SetOfflineFlagSourcePath(
 }
 FlagdProviderConfig& FlagdProviderConfig::SetOfflinePollIntervalMs(
     int interval_ms) {
-  if (!IsValidTiming(interval_ms)) {
+  if (interval_ms <= 0) {
     LOG(WARNING) << "Invalid offline_poll_interval_ms: " << interval_ms
                  << ". Ignoring.";
     return *this;
