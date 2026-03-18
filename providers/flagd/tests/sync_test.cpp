@@ -1,4 +1,4 @@
-#include "flagd/sync.h"
+#include "flagd/sync/sync.h"
 
 #include <gtest/gtest.h>
 

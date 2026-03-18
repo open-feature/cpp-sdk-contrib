@@ -13,7 +13,7 @@ cc_test(
     name = "sync_test",
     srcs = ["sync_test.cpp"],
     deps = [
-        "//providers/flagd/src:sync",
+        "//providers/flagd/src/sync",
         "@googletest//:gtest_main",
         "@nlohmann_json//:json",
     ],
