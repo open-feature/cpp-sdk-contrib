@@ -10,7 +10,7 @@ class TestableSync : public FlagSync {
  public:
   using FlagSync::FlagSync;
 
-  absl::Status Init(const openfeature::EvaluationContext& /*ctx*/) override {
+  absl::Status Init(const openfeature::EvaluationContext& ctx) override {
     return absl::OkStatus();
   }
   absl::Status Shutdown() override { return absl::OkStatus(); }
@@ -41,7 +41,7 @@ TEST_F(SyncTest, ValidatorAcceptsValidJson) {
 
   sync_.TriggerUpdate(valid_json);
 
-  auto flags = sync_.GetFlags();
+  std::shared_ptr<const nlohmann::json> flags = sync_.GetFlags();
   EXPECT_TRUE(flags->contains("my-flag"));
 }
 
@@ -53,7 +53,7 @@ TEST_F(SyncTest, ValidatorRejectsInvalidJson) {
 
   sync_.TriggerUpdate(invalid_json);
 
-  auto flags = sync_.GetFlags();
+  std::shared_ptr<const nlohmann::json> flags = sync_.GetFlags();
   EXPECT_TRUE(flags->empty());
 }
 
@@ -74,7 +74,7 @@ TEST_F(SyncTest, ValidatorRejectsInvalidType) {
 
   sync_.TriggerUpdate(invalid_json);
 
-  auto flags = sync_.GetFlags();
+  std::shared_ptr<const nlohmann::json> flags = sync_.GetFlags();
   EXPECT_TRUE(flags->empty());
 }
 
@@ -91,7 +91,7 @@ TEST_F(SyncTest, ValidatorRejectsMissingVariants) {
 
   sync_.TriggerUpdate(invalid_json);
 
-  auto flags = sync_.GetFlags();
+  std::shared_ptr<const nlohmann::json> flags = sync_.GetFlags();
   EXPECT_TRUE(flags->empty());
 }
 
@@ -111,7 +111,7 @@ TEST_F(SyncTest, ValidatorRejectsMalformedFlag) {
 
   sync_.TriggerUpdate(invalid_json);
 
-  auto flags = sync_.GetFlags();
+  std::shared_ptr<const nlohmann::json> flags = sync_.GetFlags();
   EXPECT_TRUE(flags->empty());
 }
 
@@ -125,7 +125,7 @@ TEST_F(SyncTest, MetadataIsExtracted) {
 
   sync_.TriggerUpdate(json_with_metadata);
 
-  auto metadata = sync_.GetMetadata();
+  std::shared_ptr<const nlohmann::json> metadata = sync_.GetMetadata();
   EXPECT_EQ((*metadata)["foo"], "bar");
 }
 
