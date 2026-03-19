@@ -109,17 +109,36 @@ TEST_F(ConfigurationTest, InvalidValues) {
   int original_offline_poll = config.GetOfflinePollIntervalMs();
   config.SetOfflinePollIntervalMs(-1);
   EXPECT_EQ(config.GetOfflinePollIntervalMs(), original_offline_poll);
+}
 
-  // Invalid Fatal Status Codes
+TEST_F(ConfigurationTest, FatalStatusCodes) {
+  FlagdProviderConfig config;
+
+  // Invalid Fatal Status Codes (Integers)
   config.SetFatalStatusCodes(std::vector<int>{1, 100, 5});  // 100 is invalid
   EXPECT_EQ(config.GetFatalStatusCodes().size(), 2);
   EXPECT_EQ(config.GetFatalStatusCodes()[0], 1);
   EXPECT_EQ(config.GetFatalStatusCodes()[1], 5);
 
+  // Invalid Fatal Status Codes (Strings)
   config.SetFatalStatusCodes("2,INVALID,6");  // INVALID is invalid
   EXPECT_EQ(config.GetFatalStatusCodes().size(), 2);
   EXPECT_EQ(config.GetFatalStatusCodes()[0], 2);
   EXPECT_EQ(config.GetFatalStatusCodes()[1], 6);
+
+  // String names for fatal status codes
+  config.SetFatalStatusCodes("DEADLINE_EXCEEDED,NOT_FOUND,INVALID_ARGUMENT");
+  EXPECT_EQ(config.GetFatalStatusCodes().size(), 3);
+  EXPECT_EQ(config.GetFatalStatusCodes()[0], 4);
+  EXPECT_EQ(config.GetFatalStatusCodes()[1], 5);
+  EXPECT_EQ(config.GetFatalStatusCodes()[2], 3);
+
+  // Mixed string names and integers
+  config.SetFatalStatusCodes("1,INTERNAL,3");
+  EXPECT_EQ(config.GetFatalStatusCodes().size(), 3);
+  EXPECT_EQ(config.GetFatalStatusCodes()[0], 1);
+  EXPECT_EQ(config.GetFatalStatusCodes()[1], 13);
+  EXPECT_EQ(config.GetFatalStatusCodes()[2], 3);
 }
 
 TEST_F(ConfigurationTest, GetEffectiveCredentialsInsecure) {

@@ -187,12 +187,14 @@ void GrpcSync::WaitForUpdates() {
       context_ = local_ctx;
     }
     if (config_.GetStreamDeadlineMs() > 0) {
-      auto deadline = std::chrono::system_clock::now() +
-                      std::chrono::milliseconds(config_.GetStreamDeadlineMs());
+      std::chrono::time_point deadline =
+          std::chrono::system_clock::now() +
+          std::chrono::milliseconds(config_.GetStreamDeadlineMs());
       local_ctx->set_deadline(deadline);
     }
 
-    auto reader = stub_->SyncFlags(local_ctx.get(), request);
+    std::unique_ptr<grpc::ClientReader<SyncFlagsResponse>> reader =
+        stub_->SyncFlags(local_ctx.get(), request);
 
     if (!reader) {
       LOG(ERROR) << "Failed to create sync stream";
@@ -228,11 +230,11 @@ void GrpcSync::WaitForUpdates() {
             LOG(INFO) << "GrpcSync state changed to kReady";
             init_result_ = absl::OkStatus();
             lifecycle_cv_.notify_all();
-            // TODO: emit PROVIDER_READY
-            // TODO: emit PROVIDER_CONFIGURATION_CHANGED
+            // TODO(#89): emit PROVIDER_READY
+            // TODO(#89): emit PROVIDER_CONFIGURATION_CHANGED
           }
         }
-        // TODO: emit PROVIDER_CONFIGURATION_CHANGED
+        // TODO(#89): emit PROVIDER_CONFIGURATION_CHANGED
       } catch (const std::exception& e) {
         LOG(ERROR) << "Failed to parse flag configuration: " << e.what();
       }
@@ -247,7 +249,7 @@ void GrpcSync::WaitForUpdates() {
     }
 
     // Check fatal status codes
-    const auto& fatal_codes = config_.GetFatalStatusCodes();
+    const std::vector<int>& fatal_codes = config_.GetFatalStatusCodes();
     bool is_fatal = std::find(fatal_codes.cbegin(), fatal_codes.cend(),
                               status.error_code()) != fatal_codes.cend();
 
@@ -259,7 +261,7 @@ void GrpcSync::WaitForUpdates() {
       init_result_ = absl::InternalError(
           absl::StrCat("Fatal gRPC error: ", status.error_message()));
       lifecycle_cv_.notify_all();
-      // TODO: emit PROVIDER_FATAL
+      // TODO(#89): emit PROVIDER_FATAL
       break;
     }
 
@@ -274,7 +276,7 @@ void GrpcSync::WaitForUpdates() {
       } else if (state_ == State::kReady) {
         state_ = State::kReconnecting;
         LOG(INFO) << "GrpcSync state changed to kReconnecting";
-        // TODO: emit PROVIDER_STALE
+        // TODO(#89): emit PROVIDER_STALE
       }
     }
 
@@ -285,13 +287,13 @@ void GrpcSync::WaitForUpdates() {
       retry_count++;
     }
 
-    auto now = std::chrono::steady_clock::now();
-    auto disconnected_duration =
+    std::chrono::time_point now = std::chrono::steady_clock::now();
+    std::chrono::duration<int64_t> disconnected_duration =
         std::chrono::duration_cast<std::chrono::seconds>(now -
                                                          last_healthy_time);
     if (disconnected_duration.count() > config_.GetRetryGracePeriod()) {
       ClearFlags();
-      // TODO: emit PROVIDER_ERROR
+      // TODO(#89): emit PROVIDER_ERROR
     }
 
     {
