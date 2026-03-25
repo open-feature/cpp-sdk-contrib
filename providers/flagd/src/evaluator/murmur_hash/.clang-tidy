@@ -1,0 +1,2 @@
+# Disable all checks for third-party code but keep a dummy check to avoid errors
+Checks: "-*,bugprone-argument-comment"
