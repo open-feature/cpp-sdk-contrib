@@ -23,6 +23,7 @@ bool HasLeadingZero(std::string_view str) {
   return str.size() > 1 && str[0] == '0';
 }
 
+// Parses number according to SemVer 2.0.0 specification.
 absl::Status ParseSemVerNum(std::string_view num_str, std::string_view name,
                             uint64_t* out) {
   if (HasLeadingZero(num_str)) {
@@ -210,6 +211,11 @@ class SemanticVersion {
   }
 };
 
+struct Distribution {
+  std::string variant;
+  int32_t weight;
+};
+
 }  // namespace
 
 absl::StatusOr<nlohmann::json> StartsWith(const json_logic::JsonLogic& eval,
@@ -292,6 +298,7 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
   absl::StatusOr<nlohmann::json> bucketing_property_eval =
       eval.Apply(values[0], data);
   if (!bucketing_property_eval.ok()) return bucketing_property_eval.status();
+
   std::string bucketing_property_value;
   bool first_value_used = false;
   if (bucketing_property_eval.value().is_string()) {
@@ -316,10 +323,6 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
   }
 
   // 2. Parse the fractional distribution
-  struct Distribution {
-    std::string variant;
-    int32_t weight;
-  };
   std::vector<Distribution> distributions;
   uint64_t sum_of_weights = 0;
 
