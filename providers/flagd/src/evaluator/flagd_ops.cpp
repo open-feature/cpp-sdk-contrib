@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
@@ -15,6 +16,11 @@
 namespace flagd {
 
 namespace {
+
+// Checks if a string has a leading zero (and is not just "0").
+bool HasLeadingZero(std::string_view str) {
+  return str.size() > 1 && str[0] == '0';
+}
 
 // Evaluates and retrieves a fixed number of string arguments from JsonLogic.
 absl::StatusOr<std::vector<std::string>> GetStrings(
@@ -92,12 +98,20 @@ class SemanticVersion {
     uint64_t major = 0;
     uint64_t minor = 0;
     uint64_t patch = 0;
+    if (HasLeadingZero(core_parts[0])) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("Major version MUST NOT contain leading zeros: ", core));
+    }
     if (!absl::SimpleAtoi(core_parts[0], &major)) {
       return absl::InvalidArgumentError(
           absl::StrCat("Invalid SemVer major digits: ", core));
     }
 
     if (core_parts.size() >= 2) {
+      if (HasLeadingZero(core_parts[1])) {
+        return absl::InvalidArgumentError(absl::StrCat(
+            "Minor version MUST NOT contain leading zeros: ", core));
+      }
       if (!absl::SimpleAtoi(core_parts[1], &minor)) {
         return absl::InvalidArgumentError(
             absl::StrCat("Invalid SemVer minor digits: ", core));
@@ -105,6 +119,10 @@ class SemanticVersion {
     }
 
     if (core_parts.size() == 3) {
+      if (HasLeadingZero(core_parts[2])) {
+        return absl::InvalidArgumentError(absl::StrCat(
+            "Patch version MUST NOT contain leading zeros: ", core));
+      }
       if (!absl::SimpleAtoi(core_parts[2], &patch)) {
         return absl::InvalidArgumentError(
             absl::StrCat("Invalid SemVer patch digits: ", core));
@@ -120,6 +138,13 @@ class SemanticVersion {
         if (ident.empty()) {
           return absl::InvalidArgumentError("Empty pre-release identifier");
         }
+
+        bool is_numeric = std::all_of(ident.begin(), ident.end(), ::isdigit);
+        if (is_numeric && HasLeadingZero(ident)) {
+          return absl::InvalidArgumentError(
+              "Numeric pre-release identifiers MUST NOT contain leading zeros");
+        }
+
         pre_release.emplace_back(ident);
       }
     }
@@ -195,8 +220,7 @@ absl::StatusOr<nlohmann::json> StartsWith(const json_logic::JsonLogic& eval,
   const std::string& source_str = strings_res.value()[0];
   const std::string& prefix = strings_res.value()[1];
 
-  if (prefix.length() > source_str.length()) return false;
-  return source_str.compare(0, prefix.length(), prefix) == 0;
+  return absl::StartsWith(source_str, prefix);
 }
 
 absl::StatusOr<nlohmann::json> EndsWith(const json_logic::JsonLogic& eval,
@@ -209,9 +233,7 @@ absl::StatusOr<nlohmann::json> EndsWith(const json_logic::JsonLogic& eval,
   const std::string& source_str = strings_res.value()[0];
   const std::string& suffix = strings_res.value()[1];
 
-  if (suffix.length() > source_str.length()) return false;
-  return source_str.compare(source_str.length() - suffix.length(),
-                            suffix.length(), suffix) == 0;
+  return absl::EndsWith(source_str, suffix);
 }
 
 absl::StatusOr<nlohmann::json> SemVer(const json_logic::JsonLogic& eval,
@@ -313,6 +335,9 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
     int weight = 1;
     if (item.value().size() >= 2 && item.value()[1].is_number()) {
       weight = item.value()[1].get<int>();
+      if (weight < 0) {
+        return absl::InvalidArgumentError("Weight must be non-negative.");
+      }
     }
 
     distributions.push_back({item.value()[0].get<std::string>(), weight});
@@ -352,7 +377,7 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
     }
   }
 
-  return "";
+  return absl::InternalError("Fractional bucketing failed to find a variant");
 }
 
 }  // namespace flagd
