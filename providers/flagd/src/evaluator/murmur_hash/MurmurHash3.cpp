@@ -1,6 +1,7 @@
 //-----------------------------------------------------------------------------
 // MurmurHash3 was written by Austin Appleby, and is placed in the public
 // domain. The author hereby disclaims copyright to this source code.
+// Source: https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp
 
 // Note - The x86 and x64 versions do _not_ produce the same results, as the
 // algorithms are optimized for their respective platforms. You can still

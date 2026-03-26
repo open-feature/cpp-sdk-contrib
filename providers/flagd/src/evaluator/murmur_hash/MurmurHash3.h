@@ -1,6 +1,7 @@
 //-----------------------------------------------------------------------------
 // MurmurHash3 was written by Austin Appleby, and is placed in the public
 // domain. The author hereby disclaims copyright to this source code.
+// Source: https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.h
 
 #ifndef _MURMURHASH3_H_
 #define _MURMURHASH3_H_
