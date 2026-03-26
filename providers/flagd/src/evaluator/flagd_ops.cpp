@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -21,6 +22,19 @@ namespace {
 bool HasLeadingZero(std::string_view str) {
   return str.size() > 1 && str[0] == '0';
 }
+
+absl::Status ParseSemVerNum(std::string_view num_str, std::string_view name,
+                            uint64_t* out) {
+  if (HasLeadingZero(num_str)) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        name, " version MUST NOT contain leading zeros: ", num_str));
+  }
+  if (!absl::SimpleAtoi(num_str, out)) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Invalid SemVer ", name, " digits: ", num_str));
+  }
+  return absl::OkStatus();
+};
 
 // Evaluates and retrieves a fixed number of string arguments from JsonLogic.
 absl::StatusOr<std::vector<std::string>> GetStrings(
@@ -98,34 +112,22 @@ class SemanticVersion {
     uint64_t major = 0;
     uint64_t minor = 0;
     uint64_t patch = 0;
-    if (HasLeadingZero(core_parts[0])) {
-      return absl::InvalidArgumentError(
-          absl::StrCat("Major version MUST NOT contain leading zeros: ", core));
-    }
-    if (!absl::SimpleAtoi(core_parts[0], &major)) {
-      return absl::InvalidArgumentError(
-          absl::StrCat("Invalid SemVer major digits: ", core));
+    if (absl::Status status = ParseSemVerNum(core_parts[0], "Major", &major);
+        !status.ok()) {
+      return status;
     }
 
     if (core_parts.size() >= 2) {
-      if (HasLeadingZero(core_parts[1])) {
-        return absl::InvalidArgumentError(absl::StrCat(
-            "Minor version MUST NOT contain leading zeros: ", core));
-      }
-      if (!absl::SimpleAtoi(core_parts[1], &minor)) {
-        return absl::InvalidArgumentError(
-            absl::StrCat("Invalid SemVer minor digits: ", core));
+      if (absl::Status status = ParseSemVerNum(core_parts[1], "Minor", &minor);
+          !status.ok()) {
+        return status;
       }
     }
 
     if (core_parts.size() == 3) {
-      if (HasLeadingZero(core_parts[2])) {
-        return absl::InvalidArgumentError(absl::StrCat(
-            "Patch version MUST NOT contain leading zeros: ", core));
-      }
-      if (!absl::SimpleAtoi(core_parts[2], &patch)) {
-        return absl::InvalidArgumentError(
-            absl::StrCat("Invalid SemVer patch digits: ", core));
+      if (absl::Status status = ParseSemVerNum(core_parts[2], "Patch", &patch);
+          !status.ok()) {
+        return status;
       }
     }
 
@@ -316,7 +318,7 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
   // 2. Parse the fractional distribution
   struct Distribution {
     std::string variant;
-    int weight;
+    int32_t weight;
   };
   std::vector<Distribution> distributions;
   uint64_t sum_of_weights = 0;
@@ -332,9 +334,9 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
       return absl::InvalidArgumentError("Variant name must be a string");
     }
 
-    int weight = 1;
+    int32_t weight = 1;
     if (item.value().size() >= 2 && item.value()[1].is_number()) {
-      weight = item.value()[1].get<int>();
+      weight = item.value()[1].get<int32_t>();
       if (weight < 0) {
         return absl::InvalidArgumentError("Weight must be non-negative.");
       }
