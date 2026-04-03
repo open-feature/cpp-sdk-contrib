@@ -47,6 +47,44 @@ openfeature::Value JsonToValue(const nlohmann::json& json_val) {
   return {};
 }
 
+nlohmann::json ValueToJson(const openfeature::Value& value) {
+  if (value.IsBool()) {
+    return value.AsBool().value();
+  }
+  if (value.IsString()) {
+    return value.AsString().value();
+  }
+  if (value.IsNumber()) {
+    std::optional<int64_t> val_i = value.AsInt();
+    std::optional<double> val_d = value.AsDouble();
+    if (val_i && val_d && static_cast<double>(*val_i) == *val_d) {
+      return *val_i;
+    }
+    return val_d.value_or(0.0);
+  }
+  if (value.IsStructure()) {
+    nlohmann::json obj = nlohmann::json::object();
+    const auto* structure = value.AsStructure();
+    if (structure != nullptr) {
+      for (const auto& [key, val] : *structure) {
+        obj[key] = ValueToJson(val);
+      }
+    }
+    return obj;
+  }
+  if (value.IsList()) {
+    nlohmann::json arr = nlohmann::json::array();
+    const auto* list = value.AsList();
+    if (list != nullptr) {
+      for (const auto& val : *list) {
+        arr.push_back(ValueToJson(val));
+      }
+    }
+    return arr;
+  }
+  return nullptr;
+}
+
 std::optional<openfeature::FlagMetadataValue> JsonToMetadataValue(
     const nlohmann::json& json) {
   if (json.is_boolean()) {
@@ -98,6 +136,8 @@ nlohmann::json ContextToJson(const openfeature::EvaluationContext& ctx) {
       json[key] = *dbl_val;
     } else if (const auto* bool_val = std::any_cast<bool>(&value)) {
       json[key] = *bool_val;
+    } else if (const auto* of_val = std::any_cast<openfeature::Value>(&value)) {
+      json[key] = ValueToJson(*of_val);
     } else {
       LOG(WARNING) << "Unsupported attribute type for key: " << key;
     }

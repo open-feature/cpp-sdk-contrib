@@ -2,7 +2,12 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
 #include <limits>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -13,6 +18,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "flagd/evaluator/murmur_hash/MurmurHash3.h"
+#include "qcbor/qcbor.h"
 
 namespace flagd {
 
@@ -216,6 +222,139 @@ struct Distribution {
   int32_t weight;
 };
 
+// Helper function to verify the CBOR encoding and hash for a test case.
+// Expects 'id' and 'path' to be present in the data (evaluation context)
+// to perform verification against files.
+bool VerifyTest(const nlohmann::json& data, uint32_t calculated_hash,
+                const std::vector<uint8_t>& calculated_cbor) {
+  if (!data.is_object() || !data.contains("id") || !data.contains("path")) {
+    return true;
+  }
+
+  std::string test_id;
+  if (data["id"].is_string()) {
+    test_id = data["id"].get<std::string>();
+  } else if (data["id"].is_number()) {
+    test_id = std::to_string(data["id"].get<int>());
+  } else {
+    return true;
+  }
+
+  if (!data["path"].is_string()) return true;
+  std::string test_path = data["path"].get<std::string>();
+
+  std::string hash_file = test_path + "/" + test_id + ".hash";
+  std::string cbor_file = test_path + "/" + test_id + ".cbor";
+
+  if (!std::filesystem::exists(hash_file) ||
+      !std::filesystem::exists(cbor_file)) {
+    return true;
+  }
+
+  try {
+    std::ifstream c_file(cbor_file, std::ios::binary);
+    std::vector<uint8_t> expected_cbor((std::istreambuf_iterator<char>(c_file)),
+                                       std::istreambuf_iterator<char>());
+
+    if (calculated_cbor != expected_cbor) {
+      std::stringstream ss_calc;
+      ss_calc << std::hex << std::setfill('0');
+      for (uint8_t byte : calculated_cbor) {
+        ss_calc << std::setw(2) << static_cast<int>(byte);
+      }
+
+      std::stringstream ss_exp;
+      ss_exp << std::hex << std::setfill('0');
+      for (uint8_t byte : expected_cbor) {
+        ss_exp << std::setw(2) << static_cast<int>(byte);
+      }
+
+      std::cout << "VERIFY_TEST FAIL: test " << test_id
+                << ", cbor mismatch: expected " << ss_exp.str() << ", got "
+                << ss_calc.str() << "\n";
+      return false;
+    }
+
+    std::ifstream h_file(hash_file);
+    std::string expected_hash;
+    h_file >> expected_hash;
+    // Remove quotes if present
+    if (!expected_hash.empty() && expected_hash.front() == '"') {
+      expected_hash.erase(0, 1);
+    }
+    if (!expected_hash.empty() && expected_hash.back() == '"') {
+      expected_hash.pop_back();
+    }
+
+    std::stringstream ss_hash;
+    ss_hash << std::hex << std::setw(sizeof(calculated_hash) * 2)
+            << std::setfill('0') << calculated_hash;
+    std::string actual_hash = ss_hash.str();
+
+    if (actual_hash != expected_hash) {
+      std::cout << "VERIFY_TEST FAIL: test " << test_id
+                << ", hash mismatch: expected " << expected_hash << ", got "
+                << actual_hash << "\n";
+      return false;
+    }
+
+    return true;
+  } catch (const std::exception& e) {
+    std::cout << "VERIFY_TEST ERROR: test " << test_id << ", " << e.what()
+              << "\n";
+    return false;
+  }
+}
+
+// CBOR Canonical sorting: length first, then lexicographical
+bool CompareCborKeys(const std::string& lhs, const std::string& rhs) {
+  if (lhs.length() != rhs.length()) {
+    return lhs.length() < rhs.length();
+  }
+  return lhs < rhs;
+}
+
+void EncodeJson(QCBOREncodeContext* enc_ctx, const nlohmann::json& data) {
+  if (data.is_object()) {
+    QCBOREncode_OpenMap(enc_ctx);
+    std::vector<std::string> keys;
+    for (auto it = data.begin(); it != data.end(); ++it) {
+      keys.push_back(it.key());
+    }
+    std::sort(keys.begin(), keys.end(), CompareCborKeys);
+    for (const auto& key : keys) {
+      QCBOREncode_AddText(enc_ctx, {key.data(), key.size()});
+      EncodeJson(enc_ctx, data[key]);
+    }
+    QCBOREncode_CloseMap(enc_ctx);
+  } else if (data.is_array()) {
+    QCBOREncode_OpenArray(enc_ctx);
+    for (const auto& element : data) {
+      EncodeJson(enc_ctx, element);
+    }
+    QCBOREncode_CloseArray(enc_ctx);
+  } else if (data.is_string()) {
+    const std::string& str = data.get<std::string>();
+    QCBOREncode_AddText(enc_ctx, {str.data(), str.size()});
+  } else if (data.is_boolean()) {
+    QCBOREncode_AddBool(enc_ctx, data.get<bool>());
+  } else if (data.is_number_integer()) {
+    QCBOREncode_AddInt64(enc_ctx, data.get<int64_t>());
+  } else if (data.is_number_unsigned()) {
+    QCBOREncode_AddUInt64(enc_ctx, data.get<uint64_t>());
+  } else if (data.is_number_float()) {
+    double val = data.get<double>();
+    if (std::trunc(val) == val && val <= static_cast<double>(INT64_MAX) &&
+        val >= static_cast<double>(INT64_MIN)) {
+      QCBOREncode_AddInt64(enc_ctx, static_cast<int64_t>(val));
+    } else {
+      QCBOREncode_AddDouble(enc_ctx, val);
+    }
+  } else if (data.is_null()) {
+    QCBOREncode_AddNULL(enc_ctx);
+  }
+}
+
 }  // namespace
 
 absl::StatusOr<nlohmann::json> StartsWith(const json_logic::JsonLogic& eval,
@@ -299,13 +438,9 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
       eval.Apply(values[0], data);
   if (!bucketing_property_eval.ok()) return bucketing_property_eval.status();
 
-  std::string bucketing_property_value;
+  nlohmann::json bucketing_property_value;
   bool first_value_used = false;
-  if (bucketing_property_eval.value().is_string()) {
-    bucketing_property_value =
-        bucketing_property_eval.value().get<std::string>();
-    first_value_used = true;
-  } else {
+  if (bucketing_property_eval.value().is_array()) {
     // Fallback logic from spec: Concatenate flagKey and targetingKey if
     // property is missing
     std::string flag_key;
@@ -320,6 +455,9 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
       targeting_key = data["targetingKey"].get<std::string>();
     }
     bucketing_property_value = absl::StrCat(flag_key, targeting_key);
+  } else {
+    bucketing_property_value = bucketing_property_eval.value();
+    first_value_used = true;
   }
 
   // 2. Parse the fractional distribution
@@ -362,11 +500,53 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
     return absl::InvalidArgumentError("Sum of weights exceeds maximum limit");
   }
 
+  // 3. Serialize hashing value to cbor representation using qcbor.
+  QCBOREncodeContext encode_ctx;
+  UsefulBufC size_info;
+  QCBORError err;
+
+  QCBOREncode_Init(&encode_ctx, SizeCalculateUsefulBuf);
+
+  EncodeJson(&encode_ctx, bucketing_property_value);
+
+  err = QCBOREncode_Finish(&encode_ctx, &size_info);
+  if (err != QCBOR_SUCCESS) {
+    std::cerr << "Size calculation failed: " << err << "\n";
+    return 1;
+  }
+
+  size_t required_size = size_info.len;
+  std::cout << "Calculated exact size: " << required_size << " bytes.\n";
+
+  // Create a vector perfectly sized to the required bytes
+  std::vector<uint8_t> buffer(required_size);
+
+  // Map the vector to a QCBOR UsefulBuf
+  UsefulBuf cbor_buffer = {buffer.data(), buffer.size()};
+
+  // Initialize the encoder again, this time with the real memory
+  QCBOREncode_Init(&encode_ctx, cbor_buffer);
+
+  EncodeJson(&encode_ctx, bucketing_property_value);
+
+  UsefulBufC encoded;
+  err = QCBOREncode_Finish(&encode_ctx, &encoded);
+  if (err != QCBOR_SUCCESS) {
+    return absl::InternalError(absl::StrCat("QCBOR encoding failed: ", err));
+  }
+
+  std::vector<std::uint8_t> hashing_object(
+      static_cast<const uint8_t*>(encoded.ptr),
+      static_cast<const uint8_t*>(encoded.ptr) + encoded.len);
+
   // 3. Calculate hash and determine bucket
   uint32_t hash_value;
-  MurmurHash3_x86_32(bucketing_property_value.data(),
-                     static_cast<int>(bucketing_property_value.length()), 0,
-                     &hash_value);
+  MurmurHash3_x86_32(hashing_object.data(),
+                     static_cast<int>(hashing_object.size()), 0, &hash_value);
+
+  if (!VerifyTest(data, hash_value, hashing_object)) {
+    return absl::InternalError("Fractional verification failed");
+  }
 
   // High-precision bucketing using 64-bit math to distribute hash over
   // sum_of_weights

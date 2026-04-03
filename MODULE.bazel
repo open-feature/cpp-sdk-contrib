@@ -30,6 +30,13 @@ bazel_dep(name = "nlohmann_json", version = "3.12.0.bcr.1")
 git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 git_repository(
+    name = "qcbor",
+    build_file = "//providers/flagd:qcbor.BUILD",
+    remote = "https://github.com/laurencelundblade/QCBOR.git",
+    tag = "v1.6.1",
+)
+
+git_repository(
     name = "flagd_schemas",
     build_file = "//providers/flagd:flagd_schemas.BUILD",
     commit = "9f823b5b36bf219f8ea342de006fdf5013c1bc79",
