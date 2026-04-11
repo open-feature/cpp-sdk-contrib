@@ -10,6 +10,7 @@ cc_library(
         ":flagd_configuration",
         "//providers/flagd/src/evaluator",
         "//providers/flagd/src/sync",
+        "//providers/flagd/src/sync/file:file_sync",
         "//providers/flagd/src/sync/grpc:grpc_sync",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
