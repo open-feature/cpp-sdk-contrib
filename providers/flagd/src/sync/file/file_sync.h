@@ -2,6 +2,7 @@
 #define CPP_SDK_FLAGD_SYNC_FILE_SYNC_H_
 
 #include <condition_variable>
+#include <filesystem>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -33,6 +34,7 @@ class FileSync final : public FlagSync {
 
   std::mutex lifecycle_mutex_;
   std::condition_variable shutdown_cv_;
+  std::filesystem::file_time_type last_write_time_{};
   bool shutdown_requested_ = false;
   bool initialized_ = false;
 };

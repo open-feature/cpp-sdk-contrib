@@ -1,10 +1,10 @@
 #include "file_sync.h"
 
 #include <chrono>
+#include <filesystem>
 #include <fstream>
 #include <mutex>
 #include <nlohmann/json.hpp>
-#include <sstream>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -27,23 +27,31 @@ FileSync::~FileSync() {
 }
 
 absl::Status FileSync::ReadAndUpdateFlags() {
+  std::error_code ec;
+  auto mtime = std::filesystem::last_write_time(source_path_, ec);
+  if (ec) {
+    return absl::NotFoundError(
+        absl::StrCat("Unable to stat flag source file: ", source_path_));
+  }
+  if (mtime == last_write_time_) {
+    return absl::OkStatus();
+  }
+
   std::ifstream file(source_path_);
   if (!file.is_open()) {
     return absl::NotFoundError(
         absl::StrCat("Unable to open flag source file: ", source_path_));
   }
 
-  std::stringstream buffer;
-  buffer << file.rdbuf();
-
   Json parsed;
   try {
-    parsed = Json::parse(buffer.str());
+    parsed = Json::parse(file);
   } catch (const std::exception& e) {
     return absl::InvalidArgumentError(
         absl::StrCat("Failed to parse flag source file: ", e.what()));
   }
 
+  last_write_time_ = mtime;
   UpdateFlags(parsed);
   return absl::OkStatus();
 }
@@ -79,6 +87,12 @@ absl::Status FileSync::Init(const openfeature::EvaluationContext& ctx) {
   }
   lock.lock();
 
+  // Re-check in case another thread initialized while the lock was released.
+  if (initialized_) {
+    return absl::OkStatus();
+  }
+
+  shutdown_requested_ = false;
   try {
     poll_thread_ = std::thread(&FileSync::PollForChanges, this);
   } catch (const std::exception& e) {
