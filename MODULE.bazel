@@ -23,7 +23,7 @@ git_override(
     remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
 )
 
-bazel_dep(name = "grpc", version = "1.76.0", repo_name = "com_github_grpc_grpc")
+bazel_dep(name = "grpc", version = "1.80.0", repo_name = "com_github_grpc_grpc")
 bazel_dep(name = "protobuf", version = "33.6", repo_name = "com_google_protobuf")
 bazel_dep(name = "nlohmann_json", version = "3.12.0.bcr.1")
 
