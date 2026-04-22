@@ -15,7 +15,6 @@ class FlagdOpsTest : public ::testing::Test {
     json_logic_.RegisterOperation("starts_with", flagd::StartsWith);
     json_logic_.RegisterOperation("ends_with", flagd::EndsWith);
     json_logic_.RegisterOperation("sem_ver", flagd::SemVer);
-    json_logic_.RegisterOperation("fractional", flagd::Fractional);
   }
 
   JsonLogic json_logic_;

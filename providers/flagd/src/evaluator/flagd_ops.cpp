@@ -142,7 +142,9 @@ class SemanticVersion {
           return absl::InvalidArgumentError("Empty pre-release identifier");
         }
 
-        bool is_numeric = std::all_of(ident.begin(), ident.end(), ::isdigit);
+        bool is_numeric =
+            std::all_of(ident.begin(), ident.end(),
+                        [](unsigned char chr) { return std::isdigit(chr); });
         if (is_numeric && HasLeadingZero(ident)) {
           return absl::InvalidArgumentError(
               "Numeric pre-release identifiers MUST NOT contain leading zeros");
@@ -174,22 +176,19 @@ class SemanticVersion {
 
       // Numeric identifiers have lower precedence than non-numeric identifiers.
       bool lhs_is_num =
-          std::all_of(lhs_part.begin(), lhs_part.end(), ::isdigit);
+          std::all_of(lhs_part.begin(), lhs_part.end(),
+                      [](unsigned char c) { return std::isdigit(c); });
       bool rhs_is_num =
-          std::all_of(rhs_part.begin(), rhs_part.end(), ::isdigit);
+          std::all_of(rhs_part.begin(), rhs_part.end(),
+                      [](unsigned char c) { return std::isdigit(c); });
 
       if (lhs_is_num && rhs_is_num) {
-        uint64_t lhs_num;
-        uint64_t rhs_num;
-        // Numeric identifiers are compared numerically.
-        if (absl::SimpleAtoi(lhs_part, &lhs_num) &&
-            absl::SimpleAtoi(rhs_part, &rhs_num)) {
-          if (lhs_num != rhs_num) return lhs_num < rhs_num ? -1 : 1;
-        } else {
-          // Fallback to lexicographical comparison if parsing fails (e.g.,
-          // overflow)
-          if (lhs_part != rhs_part) return lhs_part < rhs_part ? -1 : 1;
+        // Compare numerically by length first, then lexicographically.
+        // This supports arbitrary precision integers without overflow.
+        if (lhs_part.length() != rhs_part.length()) {
+          return lhs_part.length() < rhs_part.length() ? -1 : 1;
         }
+        if (lhs_part != rhs_part) return lhs_part < rhs_part ? -1 : 1;
       } else if (lhs_is_num && !rhs_is_num) {
         return -1;
       } else if (!lhs_is_num && rhs_is_num) {
@@ -215,6 +214,121 @@ struct Distribution {
   std::string variant;
   int32_t weight;
 };
+
+struct FractionalContext {
+  std::vector<Distribution> distributions;
+  uint64_t sum_of_weights;
+};
+
+// Resolves the bucketing value based on the rule and data.
+// If the first argument evaluates to a string, it's used as the bucketing
+// property. Otherwise, it falls back to flagKey + targetingKey.
+absl::StatusOr<std::string> ResolveBucketingValue(
+    const json_logic::JsonLogic& eval, const nlohmann::json& values,
+    const nlohmann::json& data, bool& first_value_used) {
+  absl::StatusOr<nlohmann::json> bucketing_property_eval =
+      eval.Apply(values[0], data);
+  if (!bucketing_property_eval.ok()) return bucketing_property_eval.status();
+
+  if (bucketing_property_eval.value().is_string()) {
+    first_value_used = true;
+    return bucketing_property_eval.value().get<std::string>();
+  }
+
+  first_value_used = false;
+  // Fallback logic from spec: Concatenate flagKey and targetingKey if property
+  // is missing
+  std::string flag_key;
+  if (data.contains("$flagd") && data["$flagd"].is_object() &&
+      data["$flagd"].contains("flagKey") &&
+      data["$flagd"]["flagKey"].is_string()) {
+    flag_key = data["$flagd"]["flagKey"].get<std::string>();
+  }
+
+  std::string targeting_key;
+  if (data.contains("targetingKey") && data["targetingKey"].is_string()) {
+    targeting_key = data["targetingKey"].get<std::string>();
+  }
+  return absl::StrCat(flag_key, targeting_key);
+}
+
+// Parses the distributions from the values array.
+absl::StatusOr<FractionalContext> ParseDistributions(
+    const json_logic::JsonLogic& eval, const nlohmann::json& values,
+    const nlohmann::json& data, bool first_value_used) {
+  std::vector<Distribution> distributions;
+  uint64_t sum_of_weights = 0;
+
+  for (size_t i = first_value_used ? 1 : 0; i < values.size(); i++) {
+    absl::StatusOr<nlohmann::json> item = eval.Apply(values[i], data);
+    if (!item.ok()) return item.status();
+    if (!item.value().is_array() || item.value().empty()) {
+      return absl::InvalidArgumentError("Invalid distribution element");
+    }
+
+    if (!item.value()[0].is_string()) {
+      return absl::InvalidArgumentError("Variant name must be a string");
+    }
+
+    int32_t weight = 1;
+    if (item.value().size() >= 2 && item.value()[1].is_number()) {
+      weight = item.value()[1].get<int32_t>();
+      if (weight < 0) {
+        return absl::InvalidArgumentError("Weight must be non-negative.");
+      }
+    }
+
+    distributions.push_back({item.value()[0].get<std::string>(), weight});
+    sum_of_weights += weight;
+  }
+
+  if (distributions.empty()) {
+    return absl::InvalidArgumentError("No distributions found");
+  }
+
+  if (sum_of_weights == 0) {
+    return absl::InvalidArgumentError("Sum of weights must be positive");
+  }
+
+  if (sum_of_weights >=
+      static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
+    return absl::InvalidArgumentError("Sum of weights exceeds maximum limit");
+  }
+
+  return FractionalContext{std::move(distributions), sum_of_weights};
+}
+
+// Calculates the hash value for the given input using MurmurHash3.
+absl::StatusOr<uint32_t> CalculateHash(const std::string& input) {
+  if (input.length() > static_cast<size_t>(std::numeric_limits<int>::max())) {
+    return absl::InvalidArgumentError(
+        "Input string is too long for MurmurHash3");
+  }
+  uint32_t hash_value;
+  MurmurHash3_x86_32(input.data(), static_cast<int>(input.length()), 0,
+                     &hash_value);
+  return hash_value;
+}
+
+// Calculates the bucket and selects the variant based on the hash value.
+absl::StatusOr<std::string> SelectVariant(
+    const std::vector<Distribution>& distributions, uint64_t sum_of_weights,
+    uint32_t hash_value) {
+  // High-precision bucketing using 64-bit math to distribute hash over
+  // sum_of_weights
+  uint64_t bucket = (static_cast<uint64_t>(hash_value) * sum_of_weights) >>
+                    std::numeric_limits<uint32_t>::digits;
+
+  uint64_t range_end = 0;
+  for (const Distribution& dist : distributions) {
+    range_end += dist.weight;
+    if (bucket < range_end) {
+      return dist.variant;
+    }
+  }
+
+  return absl::InternalError("Fractional bucketing failed to find a variant");
+}
 
 }  // namespace
 
@@ -271,8 +385,19 @@ absl::StatusOr<nlohmann::json> SemVer(const json_logic::JsonLogic& eval,
   if (operation == "<") return cmp < 0;
   if (operation == ">=") return cmp >= 0;
   if (operation == "<=") return cmp <= 0;
-  if (operation == "^") return ver1.GetMajor() == ver2.GetMajor();
+  if (operation == "^") {
+    if (ver1.Compare(ver2) < 0) return false;
+    if (ver2.GetMajor() > 0) {
+      return ver1.GetMajor() == ver2.GetMajor();
+    }
+    if (ver2.GetMinor() > 0) {
+      return ver1.GetMajor() == 0 && ver1.GetMinor() == ver2.GetMinor();
+    }
+    return ver1.GetMajor() == 0 && ver1.GetMinor() == 0 &&
+           ver1.GetPatch() == ver2.GetPatch();
+  }
   if (operation == "~") {
+    if (ver1.Compare(ver2) < 0) return false;
     return ver1.GetMajor() == ver2.GetMajor() &&
            ver1.GetMinor() == ver2.GetMinor();
   }
@@ -294,95 +419,24 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
         "fractional evaluation data has length under 2");
   }
 
-  // 1. Get the target property value used for bucketing the values
-  absl::StatusOr<nlohmann::json> bucketing_property_eval =
-      eval.Apply(values[0], data);
-  if (!bucketing_property_eval.ok()) return bucketing_property_eval.status();
-
-  std::string bucketing_property_value;
   bool first_value_used = false;
-  if (bucketing_property_eval.value().is_string()) {
-    bucketing_property_value =
-        bucketing_property_eval.value().get<std::string>();
-    first_value_used = true;
-  } else {
-    // Fallback logic from spec: Concatenate flagKey and targetingKey if
-    // property is missing
-    std::string flag_key;
-    if (data.contains("$flagd") && data["$flagd"].is_object() &&
-        data["$flagd"].contains("flagKey") &&
-        data["$flagd"]["flagKey"].is_string()) {
-      flag_key = data["$flagd"]["flagKey"].get<std::string>();
-    }
+  absl::StatusOr<std::string> bucketing_property_res =
+      ResolveBucketingValue(eval, values, data, first_value_used);
+  if (!bucketing_property_res.ok()) return bucketing_property_res.status();
 
-    std::string targeting_key;
-    if (data.contains("targetingKey") && data["targetingKey"].is_string()) {
-      targeting_key = data["targetingKey"].get<std::string>();
-    }
-    bucketing_property_value = absl::StrCat(flag_key, targeting_key);
-  }
+  absl::StatusOr<FractionalContext> context_res =
+      ParseDistributions(eval, values, data, first_value_used);
+  if (!context_res.ok()) return context_res.status();
 
-  // 2. Parse the fractional distribution
-  std::vector<Distribution> distributions;
-  uint64_t sum_of_weights = 0;
+  absl::StatusOr<uint32_t> hash_res =
+      CalculateHash(bucketing_property_res.value());
+  if (!hash_res.ok()) return hash_res.status();
 
-  for (size_t i = first_value_used ? 1 : 0; i < values.size(); i++) {
-    absl::StatusOr<nlohmann::json> item = eval.Apply(values[i], data);
-    if (!item.ok()) return item.status();
-    if (!item.value().is_array() || item.value().empty()) {
-      return absl::InvalidArgumentError("Invalid distribution element");
-    }
+  absl::StatusOr<std::string> variant_res = SelectVariant(
+      context_res->distributions, context_res->sum_of_weights, hash_res.value());
+  if (!variant_res.ok()) return variant_res.status();
 
-    if (!item.value()[0].is_string()) {
-      return absl::InvalidArgumentError("Variant name must be a string");
-    }
-
-    int32_t weight = 1;
-    if (item.value().size() >= 2 && item.value()[1].is_number()) {
-      weight = item.value()[1].get<int32_t>();
-      if (weight < 0) {
-        return absl::InvalidArgumentError("Weight must be non-negative.");
-      }
-    }
-
-    distributions.push_back({item.value()[0].get<std::string>(), weight});
-    sum_of_weights += weight;
-  }
-
-  if (distributions.empty()) {
-    return absl::InvalidArgumentError("No distributions found");
-  }
-
-  if (sum_of_weights == 0) {
-    return absl::InvalidArgumentError("Sum of weights must be positive");
-  }
-
-  if (sum_of_weights >=
-      static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
-    return absl::InvalidArgumentError("Sum of weights exceeds maximum limit");
-  }
-
-  // 3. Calculate hash and determine bucket
-  uint32_t hash_value;
-  MurmurHash3_x86_32(bucketing_property_value.data(),
-                     static_cast<int>(bucketing_property_value.length()), 0,
-                     &hash_value);
-
-  // High-precision bucketing using 64-bit math to distribute hash over
-  // sum_of_weights
-  uint64_t bucket = (static_cast<uint64_t>(hash_value) * sum_of_weights) >>
-                    std::numeric_limits<uint32_t>::digits;
-
-  // 4. Return the variant corresponding to the bucket
-  uint64_t range_end = 0;
-  for (const Distribution& dist : distributions) {
-    range_end += dist.weight;
-    if (bucket < range_end) {
-      return dist.variant;
-    }
-  }
-
-  return absl::InternalError("Fractional bucketing failed to find a variant");
+  return variant_res.value();
 }
 
 }  // namespace flagd

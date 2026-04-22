@@ -14,10 +14,6 @@ using nlohmann::json;
 class FlagdOpsTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    // Assuming these are registered
-    json_logic_.RegisterOperation("starts_with", flagd::StartsWith);
-    json_logic_.RegisterOperation("ends_with", flagd::EndsWith);
-    json_logic_.RegisterOperation("sem_ver", flagd::SemVer);
     json_logic_.RegisterOperation("fractional", flagd::Fractional);
   }
 
