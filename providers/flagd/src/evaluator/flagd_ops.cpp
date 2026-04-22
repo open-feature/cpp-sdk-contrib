@@ -177,10 +177,10 @@ class SemanticVersion {
       // Numeric identifiers have lower precedence than non-numeric identifiers.
       bool lhs_is_num =
           std::all_of(lhs_part.begin(), lhs_part.end(),
-                      [](unsigned char c) { return std::isdigit(c); });
+                      [](unsigned char chr) { return std::isdigit(chr); });
       bool rhs_is_num =
           std::all_of(rhs_part.begin(), rhs_part.end(),
-                      [](unsigned char c) { return std::isdigit(c); });
+                      [](unsigned char chr) { return std::isdigit(chr); });
 
       if (lhs_is_num && rhs_is_num) {
         // Compare numerically by length first, then lexicographically.
@@ -271,11 +271,12 @@ absl::StatusOr<FractionalContext> ParseDistributions(
     }
 
     int32_t weight = 1;
-    if (item.value().size() >= 2 && item.value()[1].is_number()) {
-      weight = item.value()[1].get<int32_t>();
-      if (weight < 0) {
-        return absl::InvalidArgumentError("Weight must be non-negative.");
+    if (item.value().size() >= 2) {
+      if (!item.value()[1].is_number()) {
+        return absl::InvalidArgumentError("Bucket weight must be a number");
       }
+      weight = item.value()[1].get<int32_t>();
+      weight = std::max(weight, 0);
     }
 
     distributions.push_back({item.value()[0].get<std::string>(), weight});
@@ -432,8 +433,9 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
       CalculateHash(bucketing_property_res.value());
   if (!hash_res.ok()) return hash_res.status();
 
-  absl::StatusOr<std::string> variant_res = SelectVariant(
-      context_res->distributions, context_res->sum_of_weights, hash_res.value());
+  absl::StatusOr<std::string> variant_res =
+      SelectVariant(context_res->distributions, context_res->sum_of_weights,
+                    hash_res.value());
   if (!variant_res.ok()) return variant_res.status();
 
   return variant_res.value();
