@@ -69,7 +69,8 @@ absl::Status GrpcSync::Init(const openfeature::EvaluationContext& ctx) {
   LOG(INFO) << "GrpcSync state changed to kInitializing";
   init_result_ = absl::UnknownError("Initialization incomplete");
 
-  auto stub_res = CreateStub();
+  absl::StatusOr<std::unique_ptr<FlagSyncService::Stub>> stub_res =
+      CreateStub();
   if (!stub_res.ok()) {
     state_ = State::kUninitialized;
     LOG(INFO) << "GrpcSync state changed to kUninitialized";
@@ -77,7 +78,7 @@ absl::Status GrpcSync::Init(const openfeature::EvaluationContext& ctx) {
   }
   stub_ = std::move(stub_res.value());
 
-  auto thread_status = StartBackgroundThread();
+  absl::Status thread_status = StartBackgroundThread();
   if (!thread_status.ok()) {
     state_ = State::kUninitialized;
     LOG(INFO) << "GrpcSync state changed to kUninitialized";
@@ -212,7 +213,8 @@ GrpcSync::InitStream(const SyncFlagsRequest& request) {
     context_ = local_ctx;
   }
 
-  auto reader = stub_->SyncFlags(local_ctx.get(), request);
+  std::unique_ptr<::grpc::ClientReader<SyncFlagsResponse>> reader =
+      stub_->SyncFlags(local_ctx.get(), request);
   if (!reader) {
     return absl::InternalError("Failed to create sync stream");
   }
