@@ -38,13 +38,15 @@ absl::Status GrpcSync::Init(const openfeature::EvaluationContext& ctx) {
     case State::kReady:
       return absl::OkStatus();
     case State::kInitializing:
+      if (init_timed_out_) {
+        return absl::DeadlineExceededError("Initialization timed out");
+      }
       if (!lifecycle_cv_.wait_for(
               lock, std::chrono::milliseconds(config_.GetDeadlineMs()),
               [this] { return state_ != State::kInitializing; })) {
         init_timed_out_ = true;
         init_result_ = absl::DeadlineExceededError("Initialization timed out");
         lock.unlock();
-        static_cast<void>(ShutdownInternal(State::kUninitialized));
         return init_result_;
       }
       return (state_ == State::kReady) ? absl::OkStatus() : init_result_;
@@ -79,9 +81,21 @@ absl::Status GrpcSync::Init(const openfeature::EvaluationContext& ctx) {
   std::shared_ptr<grpc::Channel> channel;
   grpc::ChannelArguments args;
   args.SetServiceConfigJSON(config_.GetServiceConfigJson());
+
   if (config_.GetKeepAliveTimeMs() > 0) {
-    args.SetInt("grpc.keepalive_time_ms", config_.GetKeepAliveTimeMs());
+    args.SetInt(GRPC_ARG_KEEPALIVE_TIME_MS, config_.GetKeepAliveTimeMs());
   }
+
+  // Let gRPC handle internal socket reconnection backoffs
+  if (config_.GetRetryBackoffMs() > 0) {
+    args.SetInt(GRPC_ARG_INITIAL_RECONNECT_BACKOFF_MS,
+                config_.GetRetryBackoffMs());
+  }
+  if (config_.GetRetryBackoffMaxMs() > 0) {
+    args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS,
+                config_.GetRetryBackoffMaxMs());
+  }
+
   channel = grpc::CreateCustomChannel(target, *creds, args);
   stub_ = FlagSyncService::NewStub(channel);
 
@@ -99,15 +113,10 @@ absl::Status GrpcSync::Init(const openfeature::EvaluationContext& ctx) {
           [this] { return state_ != State::kInitializing; })) {
     init_timed_out_ = true;
     init_result_ = absl::DeadlineExceededError("Initialization timed out");
-    lock.unlock();
-    static_cast<void>(ShutdownInternal(State::kUninitialized));
     return init_result_;
   }
 
   if (state_ != State::kReady) {
-    State final_state = state_;
-    lock.unlock();
-    static_cast<void>(ShutdownInternal(final_state));
     return init_result_;
   }
 
@@ -136,9 +145,16 @@ absl::Status GrpcSync::ShutdownInternal(State target_state) {
     state_ = State::kShuttingDown;
     LOG(INFO) << "GrpcSync state changed to kShuttingDown";
 
+    if (previous_state == State::kInitializing &&
+        target_state == State::kUninitialized) {
+      init_result_ =
+          absl::CancelledError("Shutdown called during initialization");
+    }
+
     if (context_) {
       context_->TryCancel();
     }
+    lifecycle_cv_.notify_all();
   }
 
   lock.unlock();
@@ -152,156 +168,169 @@ absl::Status GrpcSync::ShutdownInternal(State target_state) {
   state_ = target_state;
   LOG(INFO) << "GrpcSync state changed (ShutdownInternal)";
 
-  if (previous_state == State::kInitializing &&
-      target_state == State::kUninitialized) {
-    init_result_ =
-        absl::CancelledError("Shutdown called during initialization");
-  }
-
   lifecycle_cv_.notify_all();
 
   return absl::OkStatus();
 }
 
-void GrpcSync::WaitForUpdates() {
-  auto last_healthy_time = std::chrono::steady_clock::now();
-  int retry_count = 0;
+absl::StatusOr<std::unique_ptr<grpc::ClientReader<SyncFlagsResponse>>>
+GrpcSync::InitStream(const SyncFlagsRequest& request) {
+  std::shared_ptr<grpc::ClientContext> local_ctx =
+      std::make_shared<grpc::ClientContext>();
+  local_ctx->set_wait_for_ready(true);  // Let gRPC handle connection backoff
 
-  while (true) {
-    {
-      std::scoped_lock lock(lifecycle_mutex_);
-      if (state_ == State::kShuttingDown || state_ == State::kFatal) break;
+  if (config_.GetSelector().has_value() && !config_.GetSelector()->empty()) {
+    local_ctx->AddMetadata("flagd-selector", *config_.GetSelector());
+  }
+
+  {
+    std::scoped_lock lock(lifecycle_mutex_);
+    if (state_ == State::kShuttingDown) {
+      return absl::CancelledError("Shutdown requested");
     }
+    context_ = local_ctx;
+  }
 
-    SyncFlagsRequest request;
-    if (config_.GetProviderId().has_value() &&
-        !config_.GetProviderId()->empty()) {
-      request.set_provider_id(*config_.GetProviderId());
-    }
+  auto reader = stub_->SyncFlags(local_ctx.get(), request);
+  if (!reader) {
+    return absl::InternalError("Failed to create sync stream");
+  }
+  return reader;
+}
 
-    std::shared_ptr<grpc::ClientContext> local_ctx =
-        std::make_shared<grpc::ClientContext>();
-    {
-      std::scoped_lock lock(lifecycle_mutex_);
-      if (state_ == State::kShuttingDown) break;
-      context_ = local_ctx;
-    }
-    if (config_.GetStreamDeadlineMs() > 0) {
-      std::chrono::time_point deadline =
-          std::chrono::system_clock::now() +
-          std::chrono::milliseconds(config_.GetStreamDeadlineMs());
-      local_ctx->set_deadline(deadline);
-    }
+grpc::Status GrpcSync::ProcessStream(
+    grpc::ClientReader<SyncFlagsResponse>* reader, bool& stream_success) {
+  SyncFlagsResponse response;
+  bool connected = false;
 
-    std::unique_ptr<grpc::ClientReader<SyncFlagsResponse>> reader =
-        stub_->SyncFlags(local_ctx.get(), request);
+  while (reader->Read(&response)) {
+    stream_success = true;
 
-    if (!reader) {
-      LOG(ERROR) << "Failed to create sync stream";
-      std::unique_lock lock(lifecycle_mutex_);
-      if (state_ == State::kInitializing) {
-        state_ = State::kReconnecting;
-        LOG(INFO) << "GrpcSync state changed to kReconnecting";
-        init_result_ = absl::InternalError("Failed to create stream");
-        lifecycle_cv_.notify_all();
-      }
-      lifecycle_cv_.wait_for(
-          lock, std::chrono::milliseconds(config_.GetRetryBackoffMs()), [this] {
-            return state_ == State::kShuttingDown || state_ == State::kFatal;
-          });
+    Json raw = Json::parse(response.flag_configuration(), nullptr, false);
+    if (raw.is_discarded()) {
+      LOG(ERROR) << "Failed to parse flag configuration: Invalid JSON";
       continue;
     }
 
-    SyncFlagsResponse response;
-    bool connected = false;
+    UpdateFlags(raw);  // Overwrite local cache completely
 
-    while (reader->Read(&response)) {
-      try {
-        Json raw = Json::parse(response.flag_configuration());
-        UpdateFlags(raw);
-
-        if (!connected) {
-          connected = true;
-          retry_count = 0;
-          std::scoped_lock lock(lifecycle_mutex_);
-          if (state_ == State::kInitializing ||
-              state_ == State::kReconnecting) {
-            state_ = State::kReady;
-            LOG(INFO) << "GrpcSync state changed to kReady";
-            init_result_ = absl::OkStatus();
-            lifecycle_cv_.notify_all();
-            // TODO(#89): emit PROVIDER_READY
-            // TODO(#89): emit PROVIDER_CONFIGURATION_CHANGED
-          }
-        }
-        // TODO(#89): emit PROVIDER_CONFIGURATION_CHANGED
-      } catch (const std::exception& e) {
-        LOG(ERROR) << "Failed to parse flag configuration: " << e.what();
+    if (!connected) {
+      connected = true;
+      std::scoped_lock lock(lifecycle_mutex_);
+      if (state_ == State::kInitializing || state_ == State::kReconnecting) {
+        state_ = State::kReady;
+        init_timed_out_ = false;
+        LOG(INFO) << "GrpcSync state changed to kReady";
+        init_result_ = absl::OkStatus();
+        lifecycle_cv_.notify_all();
+        // TODO(#89): emit PROVIDER_READY
       }
     }
+    // TODO(#89): emit PROVIDER_CONFIGURATION_CHANGED
+  }
 
-    grpc::Status status = reader->Finish();
+  return reader->Finish();
+}
+
+bool GrpcSync::ShouldStop() const {
+  std::scoped_lock lock(lifecycle_mutex_);
+  return state_ == State::kShuttingDown || state_ == State::kFatal;
+}
+
+grpc::Status GrpcSync::ExecuteStream(bool& stream_success) {
+  SyncFlagsRequest request;
+  if (config_.GetProviderId().has_value() &&
+      !config_.GetProviderId()->empty()) {
+    request.set_provider_id(*config_.GetProviderId());
+  }
+
+  absl::StatusOr<std::unique_ptr<grpc::ClientReader<SyncFlagsResponse>>>
+      stream_res = InitStream(request);
+
+  grpc::Status status;
+  if (!stream_res.ok()) {
+    LOG(ERROR) << stream_res.status().message();
+    status = grpc::Status(grpc::StatusCode::INTERNAL,
+                          std::string(stream_res.status().message()));
+  } else {
+    status = ProcessStream(stream_res.value().get(), stream_success);
     LOG(WARNING) << "Sync stream closed: " << status.error_message()
                  << " (code: " << status.error_code() << ")";
+  }
+  return status;
+}
 
-    if (connected) {
+bool GrpcSync::IsFatalError(const grpc::Status& status) const {
+  const std::vector<int>& fatal_codes = config_.GetFatalStatusCodes();
+  return std::find(fatal_codes.cbegin(), fatal_codes.cend(),
+                   status.error_code()) != fatal_codes.cend();
+}
+
+void GrpcSync::HandleFatalError(const grpc::Status& status) {
+  ClearFlags();
+  std::scoped_lock lock(lifecycle_mutex_);
+  state_ = State::kFatal;
+  LOG(INFO) << "GrpcSync state changed to kFatal";
+  init_result_ = absl::InternalError(
+      absl::StrCat("Fatal gRPC error: ", status.error_message()));
+  lifecycle_cv_.notify_all();
+  // TODO(#89): emit PROVIDER_FATAL
+}
+
+void GrpcSync::HandleNonFatalError(const grpc::Status& status) {
+  std::scoped_lock lock(lifecycle_mutex_);
+  if (state_ == State::kInitializing || state_ == State::kReady) {
+    bool was_initializing = (state_ == State::kInitializing);
+    state_ = State::kReconnecting;
+    LOG(INFO) << "GrpcSync state changed to kReconnecting";
+    if (was_initializing) {
+      init_result_ = absl::InternalError(
+          absl::StrCat("Stream failed: ", status.error_message()));
+      lifecycle_cv_.notify_all();
+    }
+  }
+}
+
+void GrpcSync::CheckGracePeriod(
+    std::chrono::steady_clock::time_point last_healthy_time) {
+  std::chrono::time_point now = std::chrono::steady_clock::now();
+  std::chrono::duration<int64_t> disconnected_duration =
+      std::chrono::duration_cast<std::chrono::seconds>(now - last_healthy_time);
+  if (disconnected_duration.count() > config_.GetRetryGracePeriod()) {
+    ClearFlags();
+    // TODO(#89): emit PROVIDER_ERROR
+  }
+}
+
+bool GrpcSync::WaitForBackoff() {
+  int64_t backoff = config_.GetRetryBackoffMaxMs();
+  std::unique_lock lock(lifecycle_mutex_);
+  return lifecycle_cv_.wait_for(
+      lock, std::chrono::milliseconds(backoff), [this] {
+        return state_ == State::kShuttingDown || state_ == State::kFatal;
+      });
+}
+
+void GrpcSync::WaitForUpdates() {
+  std::chrono::time_point last_healthy_time = std::chrono::steady_clock::now();
+
+  while (!ShouldStop()) {
+    bool stream_success = false;
+    grpc::Status status = ExecuteStream(stream_success);
+
+    if (stream_success) {
       last_healthy_time = std::chrono::steady_clock::now();
     }
 
-    // Check fatal status codes
-    const std::vector<int>& fatal_codes = config_.GetFatalStatusCodes();
-    bool is_fatal = std::find(fatal_codes.cbegin(), fatal_codes.cend(),
-                              status.error_code()) != fatal_codes.cend();
-
-    if (is_fatal) {
-      ClearFlags();
-      std::scoped_lock lock(lifecycle_mutex_);
-      state_ = State::kFatal;
-      LOG(INFO) << "GrpcSync state changed to kFatal";
-      init_result_ = absl::InternalError(
-          absl::StrCat("Fatal gRPC error: ", status.error_message()));
-      lifecycle_cv_.notify_all();
-      // TODO(#89): emit PROVIDER_FATAL
+    if (IsFatalError(status)) {
+      HandleFatalError(status);
       break;
     }
 
-    {
-      std::scoped_lock lock(lifecycle_mutex_);
-      if (state_ == State::kInitializing) {
-        state_ = State::kReconnecting;
-        LOG(INFO) << "GrpcSync state changed to kReconnecting";
-        init_result_ = absl::InternalError(
-            absl::StrCat("Stream failed: ", status.error_message()));
-        lifecycle_cv_.notify_all();
-      } else if (state_ == State::kReady) {
-        state_ = State::kReconnecting;
-        LOG(INFO) << "GrpcSync state changed to kReconnecting";
-        // TODO(#89): emit PROVIDER_STALE
-      }
-    }
+    HandleNonFatalError(status);
+    CheckGracePeriod(last_healthy_time);
 
-    int64_t backoff = config_.GetRetryBackoffMs() * (1LL << retry_count);
-    if (backoff >= config_.GetRetryBackoffMaxMs()) {
-      backoff = config_.GetRetryBackoffMaxMs();
-    } else {
-      retry_count++;
-    }
-
-    std::chrono::time_point now = std::chrono::steady_clock::now();
-    std::chrono::duration<int64_t> disconnected_duration =
-        std::chrono::duration_cast<std::chrono::seconds>(now -
-                                                         last_healthy_time);
-    if (disconnected_duration.count() > config_.GetRetryGracePeriod()) {
-      ClearFlags();
-      // TODO(#89): emit PROVIDER_ERROR
-    }
-
-    {
-      std::unique_lock lock(lifecycle_mutex_);
-      lifecycle_cv_.wait_for(lock, std::chrono::milliseconds(backoff), [this] {
-        return state_ == State::kShuttingDown || state_ == State::kFatal;
-      });
-    }
+    if (WaitForBackoff()) break;
   }
 }
 
