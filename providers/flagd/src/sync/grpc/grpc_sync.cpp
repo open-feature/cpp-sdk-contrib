@@ -69,58 +69,22 @@ absl::Status GrpcSync::Init(const openfeature::EvaluationContext& ctx) {
   LOG(INFO) << "GrpcSync state changed to kInitializing";
   init_result_ = absl::UnknownError("Initialization incomplete");
 
-  std::string target = config_.GetEffectiveTargetUri();
-  absl::StatusOr<std::shared_ptr<grpc::ChannelCredentials>> creds =
-      config_.GetEffectiveCredentials();
-  if (!creds.ok()) {
+  auto stub_res = CreateStub();
+  if (!stub_res.ok()) {
     state_ = State::kUninitialized;
     LOG(INFO) << "GrpcSync state changed to kUninitialized";
-    return creds.status();
+    return stub_res.status();
   }
+  stub_ = std::move(stub_res.value());
 
-  std::shared_ptr<grpc::Channel> channel;
-  grpc::ChannelArguments args;
-  args.SetServiceConfigJSON(config_.GetServiceConfigJson());
-
-  if (config_.GetKeepAliveTimeMs() > 0) {
-    args.SetInt(GRPC_ARG_KEEPALIVE_TIME_MS, config_.GetKeepAliveTimeMs());
-  }
-
-  // Let gRPC handle internal socket reconnection backoffs
-  if (config_.GetRetryBackoffMs() > 0) {
-    args.SetInt(GRPC_ARG_INITIAL_RECONNECT_BACKOFF_MS,
-                config_.GetRetryBackoffMs());
-  }
-  if (config_.GetRetryBackoffMaxMs() > 0) {
-    args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS,
-                config_.GetRetryBackoffMaxMs());
-  }
-
-  channel = grpc::CreateCustomChannel(target, *creds, args);
-  stub_ = FlagSyncService::NewStub(channel);
-
-  try {
-    background_thread_ = std::thread(&GrpcSync::WaitForUpdates, this);
-  } catch (const std::exception& e) {
+  auto thread_status = StartBackgroundThread();
+  if (!thread_status.ok()) {
     state_ = State::kUninitialized;
     LOG(INFO) << "GrpcSync state changed to kUninitialized";
-    return absl::InternalError(
-        absl::StrCat("Failed to spawn thread: ", e.what()));
+    return thread_status;
   }
 
-  if (!lifecycle_cv_.wait_for(
-          lock, std::chrono::milliseconds(config_.GetDeadlineMs()),
-          [this] { return state_ != State::kInitializing; })) {
-    init_timed_out_ = true;
-    init_result_ = absl::DeadlineExceededError("Initialization timed out");
-    return init_result_;
-  }
-
-  if (state_ != State::kReady) {
-    return init_result_;
-  }
-
-  return absl::OkStatus();
+  return WaitForInitialization(lock);
 }
 
 absl::Status GrpcSync::Shutdown() {
@@ -173,11 +137,68 @@ absl::Status GrpcSync::ShutdownInternal(State target_state) {
   return absl::OkStatus();
 }
 
+absl::StatusOr<std::unique_ptr<::flagd::sync::v1::FlagSyncService::Stub>>
+GrpcSync::CreateStub() {
+  std::string target = config_.GetEffectiveTargetUri();
+  absl::StatusOr<std::shared_ptr<grpc::ChannelCredentials>> creds =
+      config_.GetEffectiveCredentials();
+  if (!creds.ok()) {
+    return creds.status();
+  }
+
+  std::shared_ptr<grpc::Channel> channel;
+  grpc::ChannelArguments args;
+  args.SetServiceConfigJSON(config_.GetServiceConfigJson());
+
+  if (config_.GetKeepAliveTimeMs() > 0) {
+    args.SetInt(GRPC_ARG_KEEPALIVE_TIME_MS, config_.GetKeepAliveTimeMs());
+  }
+
+  if (config_.GetRetryBackoffMs() > 0) {
+    args.SetInt(GRPC_ARG_INITIAL_RECONNECT_BACKOFF_MS,
+                config_.GetRetryBackoffMs());
+  }
+  if (config_.GetRetryBackoffMaxMs() > 0) {
+    args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS,
+                config_.GetRetryBackoffMaxMs());
+  }
+
+  channel = grpc::CreateCustomChannel(target, *creds, args);
+  return FlagSyncService::NewStub(channel);
+}
+
+absl::Status GrpcSync::StartBackgroundThread() {
+  try {
+    background_thread_ = std::thread(&GrpcSync::WaitForUpdates, this);
+  } catch (const std::exception& e) {
+    return absl::InternalError(
+        absl::StrCat("Failed to spawn thread: ", e.what()));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status GrpcSync::WaitForInitialization(
+    std::unique_lock<std::mutex>& lock) {
+  if (!lifecycle_cv_.wait_for(
+          lock, std::chrono::milliseconds(config_.GetDeadlineMs()),
+          [this] { return state_ != State::kInitializing; })) {
+    init_timed_out_ = true;
+    init_result_ = absl::DeadlineExceededError("Initialization timed out");
+    return init_result_;
+  }
+
+  if (state_ != State::kReady) {
+    return init_result_;
+  }
+
+  return absl::OkStatus();
+}
+
 absl::StatusOr<std::unique_ptr<grpc::ClientReader<SyncFlagsResponse>>>
 GrpcSync::InitStream(const SyncFlagsRequest& request) {
   std::shared_ptr<grpc::ClientContext> local_ctx =
       std::make_shared<grpc::ClientContext>();
-  local_ctx->set_wait_for_ready(true);  // Let gRPC handle connection backoff
+  local_ctx->set_wait_for_ready(true);
 
   if (config_.GetSelector().has_value() && !config_.GetSelector()->empty()) {
     local_ctx->AddMetadata("flagd-selector", *config_.GetSelector());
@@ -212,7 +233,7 @@ grpc::Status GrpcSync::ProcessStream(
       continue;
     }
 
-    UpdateFlags(raw);  // Overwrite local cache completely
+    UpdateFlags(raw);
 
     if (!connected) {
       connected = true;

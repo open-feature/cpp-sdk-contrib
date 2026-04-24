@@ -40,6 +40,10 @@ class GrpcSync final : public FlagSync {
   absl::StatusOr<
       std::unique_ptr<grpc::ClientReader<::flagd::sync::v1::SyncFlagsResponse>>>
   InitStream(const ::flagd::sync::v1::SyncFlagsRequest& request);
+  absl::StatusOr<std::unique_ptr<::flagd::sync::v1::FlagSyncService::Stub>>
+  CreateStub();
+  absl::Status StartBackgroundThread();
+  absl::Status WaitForInitialization(std::unique_lock<std::mutex>& lock);
   grpc::Status ProcessStream(
       grpc::ClientReader<::flagd::sync::v1::SyncFlagsResponse>* reader,
       bool& stream_success);
