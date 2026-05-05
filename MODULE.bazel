@@ -32,7 +32,7 @@ git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl", "g
 git_repository(
     name = "flagd_schemas",
     build_file = "//providers/flagd:flagd_schemas.BUILD",
-    commit = "1daf5ff56b48d582187d59e35d48c6e191c23839",
+    commit = "741a7f8e7dc309a6e3a9c4259edbe52c89488ea9",
     remote = "https://github.com/open-feature/flagd-schemas.git",
 )
 
