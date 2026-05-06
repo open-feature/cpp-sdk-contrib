@@ -20,6 +20,18 @@ cc_test(
 )
 
 cc_test(
+    name = "file_sync_test",
+    srcs = ["file_sync_test.cpp"],
+    deps = [
+        "//providers/flagd/src:flagd_configuration",
+        "//providers/flagd/src/sync/file:file_sync",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+        "@openfeature_cpp_sdk//openfeature:evaluation_context",
+    ],
+)
+
+cc_test(
     name = "configuration_test",
     srcs = ["configuration_test.cpp"],
     deps = [

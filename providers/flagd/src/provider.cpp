@@ -7,6 +7,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "flagd/configuration.h"
+#include "flagd/sync/file/file_sync.h"
 #include "flagd/sync/grpc/grpc_sync.h"
 
 namespace flagd {
@@ -18,11 +19,10 @@ openfeature::Metadata FlagdProvider::GetMetadata() const {
 FlagdProvider::FlagdProvider(FlagdProviderConfig config)
     : configuration_(std::move(config)), is_ready_(false) {
   if (configuration_.GetOfflineFlagSourcePath().has_value()) {
-    // TODO(#20) Implement File sync
-    LOG(FATAL) << "File sync is not implemented yet!";
+    sync_ = std::make_shared<FileSync>(configuration_);
+  } else {
+    sync_ = std::make_shared<GrpcSync>(configuration_);
   }
-
-  sync_ = std::make_shared<GrpcSync>(configuration_);
 
   evaluator_ = std::make_unique<JsonLogicEvaluator>(sync_);
 }
