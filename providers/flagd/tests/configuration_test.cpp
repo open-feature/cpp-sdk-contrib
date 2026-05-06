@@ -71,6 +71,76 @@ TEST_F(ConfigurationTest, EffectiveTargetUriPrecedence) {
   EXPECT_EQ(config.GetEffectiveTargetUri(), target_uri);
 }
 
+TEST_F(ConfigurationTest, InvalidValues) {
+  FlagdProviderConfig config;
+
+  // Invalid Port
+  int original_port = config.GetPort();
+  config.SetPort(-1);
+  EXPECT_EQ(config.GetPort(), original_port);
+  config.SetPort(65536);
+  EXPECT_EQ(config.GetPort(), original_port);
+
+  // Invalid Timings
+  int original_deadline = config.GetDeadlineMs();
+  config.SetDeadlineMs(-1);
+  EXPECT_EQ(config.GetDeadlineMs(), original_deadline);
+
+  int original_stream_deadline = config.GetStreamDeadlineMs();
+  config.SetStreamDeadlineMs(-1);
+  EXPECT_EQ(config.GetStreamDeadlineMs(), original_stream_deadline);
+
+  int original_retry_backoff = config.GetRetryBackoffMs();
+  config.SetRetryBackoffMs(-1);
+  EXPECT_EQ(config.GetRetryBackoffMs(), original_retry_backoff);
+
+  int original_retry_backoff_max = config.GetRetryBackoffMaxMs();
+  config.SetRetryBackoffMaxMs(-1);
+  EXPECT_EQ(config.GetRetryBackoffMaxMs(), original_retry_backoff_max);
+
+  int original_retry_grace = config.GetRetryGracePeriod();
+  config.SetRetryGracePeriod(-1);
+  EXPECT_EQ(config.GetRetryGracePeriod(), original_retry_grace);
+
+  int original_keep_alive = config.GetKeepAliveTimeMs();
+  config.SetKeepAliveTimeMs(-1);
+  EXPECT_EQ(config.GetKeepAliveTimeMs(), original_keep_alive);
+
+  int original_offline_poll = config.GetOfflinePollIntervalMs();
+  config.SetOfflinePollIntervalMs(-1);
+  EXPECT_EQ(config.GetOfflinePollIntervalMs(), original_offline_poll);
+}
+
+TEST_F(ConfigurationTest, FatalStatusCodes) {
+  FlagdProviderConfig config;
+
+  // Invalid Fatal Status Codes (Integers)
+  config.SetFatalStatusCodes(std::vector<int>{1, 100, 5});  // 100 is invalid
+  EXPECT_EQ(config.GetFatalStatusCodes().size(), 2);
+  EXPECT_EQ(config.GetFatalStatusCodes()[0], 1);
+  EXPECT_EQ(config.GetFatalStatusCodes()[1], 5);
+
+  // Invalid Fatal Status Codes (Strings)
+  config.SetFatalStatusCodes("2,INVALID,6");  // INVALID is invalid
+  EXPECT_EQ(config.GetFatalStatusCodes().size(), 2);
+  EXPECT_EQ(config.GetFatalStatusCodes()[0], 2);
+  EXPECT_EQ(config.GetFatalStatusCodes()[1], 6);
+
+  // String names for fatal status codes
+  config.SetFatalStatusCodes("DEADLINE_EXCEEDED,NOT_FOUND,INVALID_ARGUMENT");
+  EXPECT_EQ(config.GetFatalStatusCodes().size(), 3);
+  EXPECT_EQ(config.GetFatalStatusCodes()[0], 4);
+  EXPECT_EQ(config.GetFatalStatusCodes()[1], 5);
+  EXPECT_EQ(config.GetFatalStatusCodes()[2], 3);
+
+  // Mixed string names and integers
+  config.SetFatalStatusCodes("1,INTERNAL,3");
+  EXPECT_EQ(config.GetFatalStatusCodes().size(), 3);
+  EXPECT_EQ(config.GetFatalStatusCodes()[0], 1);
+  EXPECT_EQ(config.GetFatalStatusCodes()[1], 13);
+  EXPECT_EQ(config.GetFatalStatusCodes()[2], 3);
+}
+
 TEST_F(ConfigurationTest, GetEffectiveCredentialsInsecure) {
   FlagdProviderConfig config;
   config.SetTls(false);

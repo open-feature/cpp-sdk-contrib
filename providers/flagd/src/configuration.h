@@ -5,11 +5,25 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "grpcpp/security/credentials.h"
 
 namespace flagd {
+
+struct Defaults {
+  static constexpr std::string_view kHost = "localhost";
+  static constexpr int kPortInProcess = 8015;
+  static constexpr bool kTls = false;
+  static constexpr int kDeadlineMs = 500;
+  static constexpr int kStreamDeadlineMs = 600000;
+  static constexpr int kRetryBackoffMs = 1000;
+  static constexpr int kRetryBackoffMaxMs = 12000;
+  static constexpr int kRetryGracePeriod = 5;
+  static constexpr int kKeepAliveTimeMs = 0;
+  static constexpr int kOfflinePollMs = 5000;
+};
 
 class FlagdProviderConfig {
  public:
@@ -27,6 +41,14 @@ class FlagdProviderConfig {
   std::optional<std::string> GetCertPath() const;
 
   int GetDeadlineMs() const;
+  int GetStreamDeadlineMs() const;
+  int GetRetryBackoffMs() const;
+  int GetRetryBackoffMaxMs() const;
+  int GetRetryGracePeriod() const;
+  int GetKeepAliveTimeMs() const;
+  const std::vector<int>& GetFatalStatusCodes() const;
+
+  std::string GetServiceConfigJson() const;
 
   std::optional<std::string> GetSelector() const;
   std::optional<std::string> GetProviderId() const;
@@ -54,27 +76,43 @@ class FlagdProviderConfig {
   FlagdProviderConfig& SetSocketPath(std::string_view path);
   FlagdProviderConfig& SetCertPath(std::string_view path);
   FlagdProviderConfig& SetDeadlineMs(int deadline_ms);
+  FlagdProviderConfig& SetStreamDeadlineMs(int stream_deadline_ms);
+  FlagdProviderConfig& SetRetryBackoffMs(int retry_backoff_ms);
+  FlagdProviderConfig& SetRetryBackoffMaxMs(int retry_backoff_max_ms);
+  FlagdProviderConfig& SetRetryGracePeriod(int retry_grace_period);
+  FlagdProviderConfig& SetKeepAliveTimeMs(int keep_alive_time_ms);
+  FlagdProviderConfig& SetFatalStatusCodes(
+      const std::vector<int>& fatal_status_codes);
+  FlagdProviderConfig& SetFatalStatusCodes(
+      const std::string& fatal_status_codes_str);
+
   FlagdProviderConfig& SetSelector(std::string_view selector);
   FlagdProviderConfig& SetProviderId(std::string_view provider_id);
   FlagdProviderConfig& SetOfflineFlagSourcePath(std::string_view path);
   FlagdProviderConfig& SetOfflinePollIntervalMs(int interval_ms);
 
  private:
-  std::string host_;
-  int port_;
+  std::string host_ = std::string(Defaults::kHost);
+  int port_ = Defaults::kPortInProcess;
   std::optional<std::string> target_uri_;
-  bool tls_;
+  bool tls_ = Defaults::kTls;
   std::shared_ptr<grpc::ChannelCredentials> channel_credentials_;
   std::optional<std::string> socket_path_;
   std::optional<std::string> cert_path_;
 
-  int deadline_ms_;
+  int deadline_ms_ = Defaults::kDeadlineMs;
+  int stream_deadline_ms_ = Defaults::kStreamDeadlineMs;
+  int retry_backoff_ms_ = Defaults::kRetryBackoffMs;
+  int retry_backoff_max_ms_ = Defaults::kRetryBackoffMaxMs;
+  int retry_grace_period_ = Defaults::kRetryGracePeriod;
+  int keep_alive_time_ms_ = Defaults::kKeepAliveTimeMs;
+  std::vector<int> fatal_status_codes_;
 
   std::optional<std::string> selector_;
   std::optional<std::string> provider_id_;
 
   std::optional<std::string> offline_flag_source_path_;
-  int offline_poll_interval_ms_;
+  int offline_poll_interval_ms_ = Defaults::kOfflinePollMs;
 };
 
 }  // namespace flagd

@@ -3,6 +3,7 @@
 
 #include <grpcpp/grpcpp.h>
 
+#include <chrono>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -25,23 +26,46 @@ class GrpcSync final : public FlagSync {
   absl::Status Shutdown() override;
 
  private:
-  void WaitForUpdates();
-
-  std::unique_ptr<flagd::sync::v1::FlagSyncService::Stub> stub_;
-  std::shared_ptr<grpc::ClientContext> context_;
   enum class State : uint8_t {
     kUninitialized,
     kInitializing,  // Thread started, waiting for first connection
     kReady,         // First sync complete, running normally
+    kReconnecting,  // Connection lost or failed, trying to reconnect
     kShuttingDown,  // Shutdown requested, cleaning up
+    kFatal,         // Fatal error, gives up
   };
+
+  void WaitForUpdates();
+  absl::Status ShutdownInternal(State target_state);
+  absl::StatusOr<
+      std::unique_ptr<grpc::ClientReader<::flagd::sync::v1::SyncFlagsResponse>>>
+  InitStream(const ::flagd::sync::v1::SyncFlagsRequest& request);
+  absl::StatusOr<std::unique_ptr<::flagd::sync::v1::FlagSyncService::Stub>>
+  CreateStub();
+  absl::Status StartBackgroundThread();
+  absl::Status WaitForInitialization(std::unique_lock<std::mutex>& lock);
+  grpc::Status ProcessStream(
+      grpc::ClientReader<::flagd::sync::v1::SyncFlagsResponse>* reader,
+      bool& stream_success);
+  bool ShouldStop() const;
+  grpc::Status ExecuteStream(bool& stream_success);
+  bool IsFatalError(const grpc::Status& status) const;
+  void HandleFatalError(const grpc::Status& status);
+  void HandleNonFatalError(const grpc::Status& status);
+  void CheckGracePeriod(
+      std::chrono::steady_clock::time_point last_healthy_time);
+  bool WaitForBackoff();
+
+  std::unique_ptr<flagd::sync::v1::FlagSyncService::Stub> stub_;
+  std::shared_ptr<grpc::ClientContext> context_;
 
   std::thread background_thread_;
 
-  std::mutex lifecycle_mutex_;
+  mutable std::mutex lifecycle_mutex_;
   std::condition_variable lifecycle_cv_;
   State state_ = State::kUninitialized;
   absl::Status init_result_;
+  bool init_timed_out_ = false;
 
   FlagdProviderConfig config_;
 };
