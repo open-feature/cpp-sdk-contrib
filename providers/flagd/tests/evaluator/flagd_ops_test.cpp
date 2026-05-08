@@ -20,10 +20,9 @@ class FlagdOpsTest : public ::testing::Test {
   JsonLogic json_logic_;
 };
 
-TEST_F(FlagdOpsTest, StartsWith) {
+TEST_F(FlagdOpsTest, StartsWithBasic) {
   json data = json::object();
 
-  // Basic success
   EXPECT_TRUE(
       json_logic_
           .Apply(json::parse(R"({"starts_with": ["hello world", "hello"]})"),
@@ -34,8 +33,11 @@ TEST_F(FlagdOpsTest, StartsWith) {
           .Apply(json::parse(R"({"starts_with": ["hello world", "world"]})"),
                  data)
           .value());
+}
 
-  // Evaluation of arguments
+TEST_F(FlagdOpsTest, StartsWithArgEvaluation) {
+  json data = json::object();
+
   data["prefix"] = "hello";
   EXPECT_TRUE(
       json_logic_
@@ -43,8 +45,11 @@ TEST_F(FlagdOpsTest, StartsWith) {
                      R"({"starts_with": ["hello world", {"var": "prefix"}]})"),
                  data)
           .value());
+}
 
-  // Error cases
+TEST_F(FlagdOpsTest, StartsWithNegative) {
+  json data = json::object();
+
   EXPECT_FALSE(
       json_logic_.Apply(json::parse(R"({"starts_with": ["a", "abc"]})"), data)
           .value());
@@ -53,10 +58,9 @@ TEST_F(FlagdOpsTest, StartsWith) {
           .value());
 }
 
-TEST_F(FlagdOpsTest, EndsWith) {
+TEST_F(FlagdOpsTest, EndsWithBasic) {
   json data = json::object();
 
-  // Basic success
   EXPECT_TRUE(
       json_logic_
           .Apply(json::parse(R"({"ends_with": ["hello world", "world"]})"),
@@ -67,8 +71,11 @@ TEST_F(FlagdOpsTest, EndsWith) {
           .Apply(json::parse(R"({"ends_with": ["hello world", "hello"]})"),
                  data)
           .value());
+}
 
-  // Evaluation of arguments
+TEST_F(FlagdOpsTest, EndsWithArgEvaluation) {
+  json data = json::object();
+
   data["suffix"] = "world";
   EXPECT_TRUE(
       json_logic_
@@ -76,8 +83,11 @@ TEST_F(FlagdOpsTest, EndsWith) {
                      R"({"ends_with": ["hello world", {"var": "suffix"}]})"),
                  data)
           .value());
+}
 
-  // Error cases
+TEST_F(FlagdOpsTest, EndsWithNegative) {
+  json data = json::object();
+
   EXPECT_FALSE(
       json_logic_.Apply(json::parse(R"({"ends_with": ["a", "abc"]})"), data)
           .value());
@@ -86,10 +96,9 @@ TEST_F(FlagdOpsTest, EndsWith) {
           .value());
 }
 
-TEST_F(FlagdOpsTest, SemVer) {
+TEST_F(FlagdOpsTest, SemVerBasic) {
   json data = json::object();
 
-  // Basic comparison
   EXPECT_TRUE(
       json_logic_
           .Apply(json::parse(R"({"sem_ver": ["1.2.3", "=", "1.2.3"]})"), data)
@@ -114,8 +123,11 @@ TEST_F(FlagdOpsTest, SemVer) {
       json_logic_
           .Apply(json::parse(R"({"sem_ver": ["1.2.3", "<=", "1.2.3"]})"), data)
           .value());
+}
 
-  // Pre-release precedence
+TEST_F(FlagdOpsTest, SemVerPreRelease) {
+  json data = json::object();
+
   EXPECT_TRUE(
       json_logic_
           .Apply(json::parse(R"({"sem_ver": ["1.0.0-alpha", "<", "1.0.0"]})"),
@@ -127,16 +139,22 @@ TEST_F(FlagdOpsTest, SemVer) {
                      R"({"sem_ver": ["1.0.0-alpha", "<", "1.0.0-alpha.1"]})"),
                  data)
           .value());
+}
 
-  // Build metadata ignored
+TEST_F(FlagdOpsTest, SemVerBuildMetadata) {
+  json data = json::object();
+
   EXPECT_TRUE(
       json_logic_
           .Apply(json::parse(
                      R"({"sem_ver": ["1.0.0+build.1", "=", "1.0.0+build.2"]})"),
                  data)
           .value());
+}
 
-  // v/V prefix
+TEST_F(FlagdOpsTest, SemVerPrefix) {
+  json data = json::object();
+
   EXPECT_TRUE(
       json_logic_
           .Apply(json::parse(R"({"sem_ver": ["v1.2.3", "=", "1.2.3"]})"), data)
@@ -145,8 +163,11 @@ TEST_F(FlagdOpsTest, SemVer) {
       json_logic_
           .Apply(json::parse(R"({"sem_ver": ["1.2.3", "=", "V1.2.3"]})"), data)
           .value());
+}
 
-  // Compatible operators (^ and ~)
+TEST_F(FlagdOpsTest, SemVerCompatibleOperators) {
+  json data = json::object();
+
   EXPECT_TRUE(
       json_logic_
           .Apply(json::parse(R"({"sem_ver": ["1.2.3", "^", "1.0.0"]})"), data)
@@ -163,7 +184,11 @@ TEST_F(FlagdOpsTest, SemVer) {
       json_logic_
           .Apply(json::parse(R"({"sem_ver": ["1.3.0", "~", "1.2.0"]})"), data)
           .value());
-  // Partial version support (v1.2 -> 1.2.0, v1 -> 1.0.0)
+}
+
+TEST_F(FlagdOpsTest, SemVerPartialVersion) {
+  json data = json::object();
+
   EXPECT_TRUE(
       json_logic_
           .Apply(json::parse(R"({"sem_ver": ["v1.2", "=", "1.2.0"]})"), data)
