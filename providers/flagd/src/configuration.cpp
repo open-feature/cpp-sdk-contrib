@@ -14,7 +14,9 @@
 
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_split.h"
 #include "nlohmann/json.hpp"
 
 namespace flagd {
@@ -55,24 +57,24 @@ struct Validation {
   static constexpr int kMaxStatusCode = 16;
 };
 
-const std::map<std::string, int> kStatusCodeMap = {
-    {"OK", 0},
-    {"CANCELLED", 1},
-    {"UNKNOWN", 2},
-    {"INVALID_ARGUMENT", 3},
-    {"DEADLINE_EXCEEDED", 4},
-    {"NOT_FOUND", 5},
-    {"ALREADY_EXISTS", 6},
-    {"PERMISSION_DENIED", 7},
-    {"UNAUTHENTICATED", 16},
-    {"RESOURCE_EXHAUSTED", 8},
-    {"FAILED_PRECONDITION", 9},
-    {"ABORTED", 10},
-    {"OUT_OF_RANGE", 11},
-    {"UNIMPLEMENTED", 12},
-    {"INTERNAL", 13},
-    {"UNAVAILABLE", 14},
-    {"DATA_LOSS", 15},
+const std::map<std::string, grpc::StatusCode> kStatusCodeMap = {
+    {"OK", grpc::StatusCode::OK},
+    {"CANCELLED", grpc::StatusCode::CANCELLED},
+    {"UNKNOWN", grpc::StatusCode::UNKNOWN},
+    {"INVALID_ARGUMENT", grpc::StatusCode::INVALID_ARGUMENT},
+    {"DEADLINE_EXCEEDED", grpc::StatusCode::DEADLINE_EXCEEDED},
+    {"NOT_FOUND", grpc::StatusCode::NOT_FOUND},
+    {"ALREADY_EXISTS", grpc::StatusCode::ALREADY_EXISTS},
+    {"PERMISSION_DENIED", grpc::StatusCode::PERMISSION_DENIED},
+    {"UNAUTHENTICATED", grpc::StatusCode::UNAUTHENTICATED},
+    {"RESOURCE_EXHAUSTED", grpc::StatusCode::RESOURCE_EXHAUSTED},
+    {"FAILED_PRECONDITION", grpc::StatusCode::FAILED_PRECONDITION},
+    {"ABORTED", grpc::StatusCode::ABORTED},
+    {"OUT_OF_RANGE", grpc::StatusCode::OUT_OF_RANGE},
+    {"UNIMPLEMENTED", grpc::StatusCode::UNIMPLEMENTED},
+    {"INTERNAL", grpc::StatusCode::INTERNAL},
+    {"UNAVAILABLE", grpc::StatusCode::UNAVAILABLE},
+    {"DATA_LOSS", grpc::StatusCode::DATA_LOSS},
 };
 }  // namespace
 
@@ -115,20 +117,20 @@ static bool IsValidStatusCode(int code) {
          code <= Validation::kMaxStatusCode;
 }
 
-static std::vector<int> ParseFatalStatusCodes(const std::string& str) {
-  std::vector<int> result;
-  std::stringstream sstream(str);
-  std::string item;
-  while (std::getline(sstream, item, ',')) {
-    item.erase(0, item.find_first_not_of(" \t\n\r"));
-    item.erase(item.find_last_not_of(" \t\n\r") + 1);
+static std::vector<grpc::StatusCode> ParseFatalStatusCodes(
+    std::string_view str) {
+  std::vector<grpc::StatusCode> result;
+  for (std::string_view item :
+       absl::StrSplit(str, ',', absl::SkipWhitespace())) {
+    std::string_view trimmed = absl::StripAsciiWhitespace(item);
+    if (trimmed.empty()) continue;
 
-    if (item.empty()) continue;
+    std::string item_str(trimmed);
 
     try {
-      int code = std::stoi(item);
+      int code = std::stoi(item_str);
       if (IsValidStatusCode(code)) {
-        result.push_back(code);
+        result.push_back(static_cast<grpc::StatusCode>(code));
       } else {
         LOG(WARNING) << "Invalid gRPC status code: " << code;
       }
@@ -139,11 +141,11 @@ static std::vector<int> ParseFatalStatusCodes(const std::string& str) {
       // Not a valid integer, try parsing as a status code string.
     }
 
-    auto iter = kStatusCodeMap.find(item);
+    auto iter = kStatusCodeMap.find(item_str);
     if (iter != kStatusCodeMap.end()) {
       result.push_back(iter->second);
     } else {
-      LOG(WARNING) << "Unknown gRPC status code: " << item;
+      LOG(WARNING) << "Unknown gRPC status code: " << item_str;
     }
   }
   return result;
@@ -257,12 +259,13 @@ int FlagdProviderConfig::GetRetryGracePeriod() const {
 int FlagdProviderConfig::GetKeepAliveTimeMs() const {
   return keep_alive_time_ms_;
 }
-const std::vector<int>& FlagdProviderConfig::GetFatalStatusCodes() const {
+const std::vector<grpc::StatusCode>& FlagdProviderConfig::GetFatalStatusCodes()
+    const {
   return fatal_status_codes_;
 }
 
 std::string FlagdProviderConfig::GetServiceConfigJson() const {
-  const auto names = nlohmann::json::array({
+  static const auto kNames = nlohmann::json::array({
       nlohmann::json::object({{"service", "flagd.evaluation.v1.Service"}}),
       nlohmann::json::object({{"service", "flagd.sync.v1.FlagSyncService"}}),
   });
@@ -279,7 +282,7 @@ std::string FlagdProviderConfig::GetServiceConfigJson() const {
   });
 
   const auto method_config = nlohmann::json::object({
-      {"name", names},
+      {"name", kNames},
       {"retryPolicy", retry_policy},
   });
 
@@ -395,20 +398,31 @@ FlagdProviderConfig& FlagdProviderConfig::SetKeepAliveTimeMs(
   return *this;
 }
 FlagdProviderConfig& FlagdProviderConfig::SetFatalStatusCodes(
-    const std::vector<int>& fatal_status_codes) {
-  std::vector<int> valid_codes;
-  for (int code : fatal_status_codes) {
-    if (IsValidStatusCode(code)) {
+    const std::vector<grpc::StatusCode>& fatal_status_codes) {
+  std::vector<grpc::StatusCode> valid_codes;
+  for (grpc::StatusCode code : fatal_status_codes) {
+    if (IsValidStatusCode(static_cast<int>(code))) {
       valid_codes.push_back(code);
     } else {
-      LOG(WARNING) << "Invalid gRPC status code: " << code << ". Ignoring.";
+      LOG(WARNING) << "Invalid gRPC status code: " << static_cast<int>(code)
+                   << ". Ignoring.";
     }
   }
   fatal_status_codes_ = std::move(valid_codes);
   return *this;
 }
+
 FlagdProviderConfig& FlagdProviderConfig::SetFatalStatusCodes(
-    const std::string& fatal_status_codes_str) {
+    const std::vector<int>& fatal_status_codes) {
+  std::vector<grpc::StatusCode> codes;
+  codes.reserve(fatal_status_codes.size());
+  for (int code : fatal_status_codes) {
+    codes.push_back(static_cast<grpc::StatusCode>(code));
+  }
+  return SetFatalStatusCodes(codes);
+}
+FlagdProviderConfig& FlagdProviderConfig::SetFatalStatusCodes(
+    std::string_view fatal_status_codes_str) {
   fatal_status_codes_ = ParseFatalStatusCodes(fatal_status_codes_str);
   return *this;
 }

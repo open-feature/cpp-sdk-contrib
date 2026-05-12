@@ -1,6 +1,8 @@
 #ifndef CPP_SDK_FLAGD_CONFIGURATION_H
 #define CPP_SDK_FLAGD_CONFIGURATION_H
 
+#include <grpcpp/support/status.h>
+
 #include <memory>
 #include <optional>
 #include <string>
@@ -46,7 +48,7 @@ class FlagdProviderConfig {
   int GetRetryBackoffMaxMs() const;
   int GetRetryGracePeriod() const;
   int GetKeepAliveTimeMs() const;
-  const std::vector<int>& GetFatalStatusCodes() const;
+  const std::vector<grpc::StatusCode>& GetFatalStatusCodes() const;
 
   std::string GetServiceConfigJson() const;
 
@@ -82,9 +84,11 @@ class FlagdProviderConfig {
   FlagdProviderConfig& SetRetryGracePeriod(int retry_grace_period);
   FlagdProviderConfig& SetKeepAliveTimeMs(int keep_alive_time_ms);
   FlagdProviderConfig& SetFatalStatusCodes(
+      const std::vector<grpc::StatusCode>& fatal_status_codes);
+  FlagdProviderConfig& SetFatalStatusCodes(
       const std::vector<int>& fatal_status_codes);
   FlagdProviderConfig& SetFatalStatusCodes(
-      const std::string& fatal_status_codes_str);
+      std::string_view fatal_status_codes_str);
 
   FlagdProviderConfig& SetSelector(std::string_view selector);
   FlagdProviderConfig& SetProviderId(std::string_view provider_id);
@@ -106,7 +110,7 @@ class FlagdProviderConfig {
   int retry_backoff_max_ms_ = Defaults::kRetryBackoffMaxMs;
   int retry_grace_period_ = Defaults::kRetryGracePeriod;
   int keep_alive_time_ms_ = Defaults::kKeepAliveTimeMs;
-  std::vector<int> fatal_status_codes_;
+  std::vector<grpc::StatusCode> fatal_status_codes_;
 
   std::optional<std::string> selector_;
   std::optional<std::string> provider_id_;

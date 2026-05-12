@@ -221,13 +221,14 @@ GrpcSync::InitStream(const SyncFlagsRequest& request) {
   return reader;
 }
 
-grpc::Status GrpcSync::ProcessStream(
-    grpc::ClientReader<SyncFlagsResponse>* reader, bool& stream_success) {
+GrpcSync::StreamResult GrpcSync::ProcessStream(
+    grpc::ClientReader<SyncFlagsResponse>* reader) {
   SyncFlagsResponse response;
   bool connected = false;
+  StreamResult result;
 
   while (reader->Read(&response)) {
-    stream_success = true;
+    result.data_received = true;
 
     Json raw = Json::parse(response.flag_configuration(), nullptr, false);
     if (raw.is_discarded()) {
@@ -252,7 +253,8 @@ grpc::Status GrpcSync::ProcessStream(
     // TODO(#89): emit PROVIDER_CONFIGURATION_CHANGED
   }
 
-  return reader->Finish();
+  result.status = reader->Finish();
+  return result;
 }
 
 bool GrpcSync::ShouldStop() const {
@@ -260,7 +262,7 @@ bool GrpcSync::ShouldStop() const {
   return state_ == State::kShuttingDown || state_ == State::kFatal;
 }
 
-grpc::Status GrpcSync::ExecuteStream(bool& stream_success) {
+GrpcSync::StreamResult GrpcSync::ExecuteStream() {
   SyncFlagsRequest request;
   if (config_.GetProviderId().has_value() &&
       !config_.GetProviderId()->empty()) {
@@ -270,21 +272,22 @@ grpc::Status GrpcSync::ExecuteStream(bool& stream_success) {
   absl::StatusOr<std::unique_ptr<grpc::ClientReader<SyncFlagsResponse>>>
       stream_res = InitStream(request);
 
-  grpc::Status status;
+  StreamResult result;
   if (!stream_res.ok()) {
-    LOG(ERROR) << stream_res.status().message();
-    status = grpc::Status(grpc::StatusCode::INTERNAL,
-                          std::string(stream_res.status().message()));
+    LOG(ERROR) << "Failed to init stream: " << stream_res.status().message();
+    result.status = grpc::Status(grpc::StatusCode::INTERNAL,
+                                 std::string(stream_res.status().message()));
   } else {
-    status = ProcessStream(stream_res.value().get(), stream_success);
-    LOG(WARNING) << "Sync stream closed: " << status.error_message()
-                 << " (code: " << status.error_code() << ")";
+    result = ProcessStream(stream_res.value().get());
+    LOG(WARNING) << "Sync stream closed: " << result.status.error_message()
+                 << " (code: " << result.status.error_code() << ")";
   }
-  return status;
+  return result;
 }
 
 bool GrpcSync::IsFatalError(const grpc::Status& status) const {
-  const std::vector<int>& fatal_codes = config_.GetFatalStatusCodes();
+  const std::vector<grpc::StatusCode>& fatal_codes =
+      config_.GetFatalStatusCodes();
   return std::find(fatal_codes.cbegin(), fatal_codes.cend(),
                    status.error_code()) != fatal_codes.cend();
 }
@@ -338,19 +341,18 @@ void GrpcSync::WaitForUpdates() {
   std::chrono::time_point last_healthy_time = std::chrono::steady_clock::now();
 
   while (!ShouldStop()) {
-    bool stream_success = false;
-    grpc::Status status = ExecuteStream(stream_success);
+    StreamResult result = ExecuteStream();
 
-    if (stream_success) {
+    if (result.data_received) {
       last_healthy_time = std::chrono::steady_clock::now();
     }
 
-    if (IsFatalError(status)) {
-      HandleFatalError(status);
+    if (IsFatalError(result.status)) {
+      HandleFatalError(result.status);
       break;
     }
 
-    HandleNonFatalError(status);
+    HandleNonFatalError(result.status);
     CheckGracePeriod(last_healthy_time);
 
     if (WaitForBackoff()) break;
