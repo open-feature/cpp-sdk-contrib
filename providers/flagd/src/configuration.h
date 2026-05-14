@@ -1,8 +1,6 @@
 #ifndef CPP_SDK_FLAGD_CONFIGURATION_H
 #define CPP_SDK_FLAGD_CONFIGURATION_H
 
-#include <grpcpp/support/status.h>
-
 #include <memory>
 #include <optional>
 #include <string>
@@ -11,6 +9,7 @@
 
 #include "absl/status/statusor.h"
 #include "grpcpp/security/credentials.h"
+#include "grpcpp/support/status.h"
 
 namespace flagd {
 
