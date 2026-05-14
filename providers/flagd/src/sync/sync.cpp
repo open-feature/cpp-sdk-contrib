@@ -85,6 +85,15 @@ void FlagSync::UpdateFlags(const nlohmann::json& new_json) {
   }
 }
 
+void FlagSync::ClearFlags() {
+  {
+    std::scoped_lock lock(flags_mutex_);
+    current_flags_ = std::make_shared<nlohmann::json>(nlohmann::json::object());
+    global_metadata_ =
+        std::make_shared<nlohmann::json>(nlohmann::json::object());
+  }
+}
+
 std::shared_ptr<const nlohmann::json> FlagSync::GetFlags() const {
   std::shared_lock lock(flags_mutex_);
   return current_flags_;

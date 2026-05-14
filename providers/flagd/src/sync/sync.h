@@ -23,6 +23,7 @@ class FlagSync {
 
  protected:
   void UpdateFlags(const nlohmann::json& new_json);
+  void ClearFlags();
 
  private:
   mutable std::shared_mutex flags_mutex_;
