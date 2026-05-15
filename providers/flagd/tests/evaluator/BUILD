@@ -12,22 +12,11 @@ cc_test(
 )
 
 cc_test(
-    name = "flagd_ops_test",
-    srcs = ["flagd_ops_test.cpp"],
+    name = "datalogic_engine_test",
+    srcs = ["datalogic_engine_test.cpp"],
     deps = [
-        "//providers/flagd/src/evaluator:flagd_ops",
-        "//providers/flagd/src/evaluator/json_logic",
-        "@googletest//:gtest_main",
-        "@nlohmann_json//:json",
-    ],
-)
-
-cc_test(
-    name = "flagd_fractional_op_test",
-    srcs = ["flagd_fractional_op_test.cpp"],
-    deps = [
-        "//providers/flagd/src/evaluator:flagd_ops",
-        "//providers/flagd/src/evaluator/json_logic",
+        "//providers/flagd/src/evaluator:datalogic_engine",
+        "@abseil-cpp//absl/status",
         "@googletest//:gtest_main",
         "@nlohmann_json//:json",
     ],
