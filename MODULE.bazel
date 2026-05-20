@@ -1,5 +1,6 @@
 module(name = "cpp_sdk_contrib")
 
+bazel_dep(name = "platforms", version = "0.0.11")
 bazel_dep(name = "rules_cc", version = "0.2.18")
 bazel_dep(name = "rules_python", version = "2.0.1")
 bazel_dep(name = "rules_proto", version = "7.1.0")
@@ -28,6 +29,7 @@ bazel_dep(name = "protobuf", version = "33.6", repo_name = "com_google_protobuf"
 bazel_dep(name = "nlohmann_json", version = "3.12.0.bcr.1")
 
 git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 git_repository(
     name = "flagd_schemas",
@@ -41,4 +43,50 @@ git_repository(
     build_file = "//providers/flagd:json_schema_validator.BUILD",
     remote = "https://github.com/pboettch/json-schema-validator.git",
     tag = "2.4.0",
+)
+
+# datalogic-rs C ABI: per-platform tarballs from the official v5.0.0 GitHub
+# release. Each tarball bundles the cbindgen header alongside the staticlib.
+
+DATALOGIC_VERSION = "5.0.0"
+
+DATALOGIC_RELEASE_BASE = "https://github.com/GoPlasmatic/datalogic-rs/releases/download/v" + DATALOGIC_VERSION
+
+_DATALOGIC_BUILD_FILE_CONTENT = """\
+exports_files(
+    ["datalogic.h", "libdatalogic_c.a"],
+    visibility = ["//visibility:public"],
+)
+"""
+
+http_archive(
+    name = "datalogic_c_linux_x86_64",
+    build_file_content = _DATALOGIC_BUILD_FILE_CONTENT,
+    sha256 = "8c147de7129808546144e220955391e841343539c6e4ce66158a699ca141144a",
+    strip_prefix = "linux_amd64",
+    urls = [DATALOGIC_RELEASE_BASE + "/go-staticlib-linux-amd64.tar.gz"],
+)
+
+http_archive(
+    name = "datalogic_c_linux_aarch64",
+    build_file_content = _DATALOGIC_BUILD_FILE_CONTENT,
+    sha256 = "46ef85137b543adcba590767a09e52b308528ef4ef0caf431e09d8cf296f61c3",
+    strip_prefix = "linux_arm64",
+    urls = [DATALOGIC_RELEASE_BASE + "/go-staticlib-linux-arm64.tar.gz"],
+)
+
+http_archive(
+    name = "datalogic_c_darwin_x86_64",
+    build_file_content = _DATALOGIC_BUILD_FILE_CONTENT,
+    sha256 = "5205bdf7494b465c080fa9704a9dc4663d8bb4e55789e4b4ed9c0f9287c65967",
+    strip_prefix = "darwin_amd64",
+    urls = [DATALOGIC_RELEASE_BASE + "/go-staticlib-darwin-amd64.tar.gz"],
+)
+
+http_archive(
+    name = "datalogic_c_darwin_aarch64",
+    build_file_content = _DATALOGIC_BUILD_FILE_CONTENT,
+    sha256 = "76a7708ec353d86f478a6e9a341df83e7d2827e30fe3f4ac007a102d3faf7618",
+    strip_prefix = "darwin_arm64",
+    urls = [DATALOGIC_RELEASE_BASE + "/go-staticlib-darwin-arm64.tar.gz"],
 )
