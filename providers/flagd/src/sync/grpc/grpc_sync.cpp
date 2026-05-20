@@ -319,7 +319,7 @@ void GrpcSync::HandleNonFatalError(const grpc::Status& status) {
 
 void GrpcSync::CheckGracePeriod(
     std::chrono::steady_clock::time_point last_healthy_time) {
-  std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+  auto now = std::chrono::steady_clock::now();
   std::chrono::duration<int64_t> disconnected_duration =
       std::chrono::duration_cast<std::chrono::seconds>(now - last_healthy_time);
   if (disconnected_duration.count() > config_.GetRetryGracePeriod()) {
@@ -338,7 +338,7 @@ bool GrpcSync::WaitForBackoff() {
 }
 
 void GrpcSync::WaitForUpdates() {
-  std::chrono::steady_clock::time_point last_healthy_time = std::chrono::steady_clock::now();
+  auto last_healthy_time = std::chrono::steady_clock::now();
 
   while (!ShouldStop()) {
     StreamResult result = ExecuteStream();
