@@ -8,7 +8,6 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "flagd/sync/sync.h"
-#include "flagd_ops.h"
 
 namespace flagd {
 
@@ -108,12 +107,7 @@ nlohmann::json ContextToJson(const openfeature::EvaluationContext& ctx) {
 }  // namespace
 
 JsonLogicEvaluator::JsonLogicEvaluator(std::shared_ptr<FlagSync> sync)
-    : sync_(std::move(sync)) {
-  json_logic_.RegisterOperation("starts_with", StartsWith);
-  json_logic_.RegisterOperation("ends_with", EndsWith);
-  json_logic_.RegisterOperation("sem_ver", SemVer);
-  json_logic_.RegisterOperation("fractional", Fractional);
-}
+    : sync_(std::move(sync)) {}
 
 template <typename T>
 std::unique_ptr<openfeature::ResolutionDetails<T>>
@@ -171,7 +165,7 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
     };
 
     absl::StatusOr<nlohmann::json> result =
-        json_logic_.Apply(flag_config["targeting"], data);
+        engine_.Apply(flag_config["targeting"], data);
     if (result.ok()) {
       if (result.value().is_string()) {
         variant = result.value().get<std::string>();
