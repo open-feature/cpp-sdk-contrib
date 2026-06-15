@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
 #include "embedded_schemas.h"
 
 using Json = nlohmann::json;
@@ -38,13 +39,13 @@ class FlagSync::Validator {
     validator.set_root_schema(Json::parse(schema::schemas.at("flagd.json")));
   }
 
-  bool Validate(const Json& json) const {
+  absl::Status Validate(const Json& json) const {
     try {
       validator.validate(json);
-      return true;
+      return absl::OkStatus();
     } catch (const std::exception& e) {
-      LOG(ERROR) << "Flag configuration validation failed: " << e.what();
-      return false;
+      return absl::InvalidArgumentError(
+          absl::StrCat("Flag configuration validation failed: ", e.what()));
     }
   }
 };
@@ -58,12 +59,11 @@ FlagSync::FlagSync()
 
 FlagSync::~FlagSync() = default;
 
-void FlagSync::UpdateFlags(const nlohmann::json& new_json) {
+absl::Status FlagSync::UpdateFlags(const nlohmann::json& new_json) {
   if (validator_) {
-    if (!validator_->Validate(new_json)) {
-      // Validation failed, do not update flags.
-      LOG(ERROR) << "Flag configuration validation failed, skipping update.";
-      return;
+    absl::Status status = validator_->Validate(new_json);
+    if (!status.ok()) {
+      return status;
     }
   }
 
@@ -83,6 +83,8 @@ void FlagSync::UpdateFlags(const nlohmann::json& new_json) {
     current_flags_ = std::move(new_flags_snapshot);
     global_metadata_ = std::move(new_metadata_snapshot);
   }
+
+  return absl::OkStatus();
 }
 
 void FlagSync::ClearFlags() {

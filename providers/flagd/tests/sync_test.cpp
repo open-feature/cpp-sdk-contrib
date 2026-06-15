@@ -15,8 +15,8 @@ class TestableSync : public FlagSync {
   }
   absl::Status Shutdown() override { return absl::OkStatus(); }
 
-  void TriggerUpdate(const nlohmann::json& new_json) {
-    this->UpdateFlags(new_json);
+  absl::Status TriggerUpdate(const nlohmann::json& new_json) {
+    return this->UpdateFlags(new_json);
   }
 };
 
@@ -39,7 +39,7 @@ TEST_F(SyncTest, ValidatorAcceptsValidJson) {
     }
   })"_json;
 
-  sync_.TriggerUpdate(valid_json);
+  EXPECT_TRUE(sync_.TriggerUpdate(valid_json).ok());
 
   std::shared_ptr<const nlohmann::json> flags = sync_.GetFlags();
   EXPECT_TRUE(flags->contains("my-flag"));
@@ -51,7 +51,9 @@ TEST_F(SyncTest, ValidatorRejectsInvalidJson) {
     "something": "else"
   })"_json;
 
-  sync_.TriggerUpdate(invalid_json);
+  absl::Status status = sync_.TriggerUpdate(invalid_json);
+  EXPECT_FALSE(status.ok());
+  EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
 
   std::shared_ptr<const nlohmann::json> flags = sync_.GetFlags();
   EXPECT_TRUE(flags->empty());
@@ -72,7 +74,9 @@ TEST_F(SyncTest, ValidatorRejectsInvalidType) {
     }
   })"_json;
 
-  sync_.TriggerUpdate(invalid_json);
+  absl::Status status = sync_.TriggerUpdate(invalid_json);
+  EXPECT_FALSE(status.ok());
+  EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
 
   std::shared_ptr<const nlohmann::json> flags = sync_.GetFlags();
   EXPECT_TRUE(flags->empty());
@@ -89,7 +93,9 @@ TEST_F(SyncTest, ValidatorRejectsMissingVariants) {
     }
   })"_json;
 
-  sync_.TriggerUpdate(invalid_json);
+  absl::Status status = sync_.TriggerUpdate(invalid_json);
+  EXPECT_FALSE(status.ok());
+  EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
 
   std::shared_ptr<const nlohmann::json> flags = sync_.GetFlags();
   EXPECT_TRUE(flags->empty());
@@ -109,7 +115,9 @@ TEST_F(SyncTest, ValidatorRejectsMalformedFlag) {
     }
   })"_json;
 
-  sync_.TriggerUpdate(invalid_json);
+  absl::Status status = sync_.TriggerUpdate(invalid_json);
+  EXPECT_FALSE(status.ok());
+  EXPECT_EQ(status.code(), absl::StatusCode::kInvalidArgument);
 
   std::shared_ptr<const nlohmann::json> flags = sync_.GetFlags();
   EXPECT_TRUE(flags->empty());
@@ -123,7 +131,7 @@ TEST_F(SyncTest, MetadataIsExtracted) {
     }
   })"_json;
 
-  sync_.TriggerUpdate(json_with_metadata);
+  EXPECT_TRUE(sync_.TriggerUpdate(json_with_metadata).ok());
 
   std::shared_ptr<const nlohmann::json> metadata = sync_.GetMetadata();
   EXPECT_EQ((*metadata)["foo"], "bar");

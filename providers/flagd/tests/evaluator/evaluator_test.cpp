@@ -16,8 +16,8 @@ class TestableSync : public flagd::FlagSync {
   }
   absl::Status Shutdown() override { return absl::OkStatus(); }
 
-  void TriggerUpdate(const nlohmann::json& new_json) {
-    this->UpdateFlags(new_json);
+  absl::Status TriggerUpdate(const nlohmann::json& new_json) {
+    return this->UpdateFlags(new_json);
   }
 };
 
@@ -46,7 +46,7 @@ TEST_F(EvaluatorTest, ResolveBooleanSuccess) {
     }
   })");
 
-  sync_->TriggerUpdate(flags);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
@@ -63,7 +63,7 @@ TEST_F(EvaluatorTest, ResolveBooleanFlagNotFound) {
   nlohmann::json flags = nlohmann::json::parse(R"({
     "flags": {}
   })");
-  sync_->TriggerUpdate(flags);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
@@ -89,7 +89,7 @@ TEST_F(EvaluatorTest, ResolveBooleanTypeMismatch) {
     }
   })");
 
-  sync_->TriggerUpdate(flags);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
@@ -123,7 +123,7 @@ TEST_F(EvaluatorTest, ResolveBooleanMetadata) {
     }
   })");
 
-  sync_->TriggerUpdate(flags);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
@@ -154,7 +154,7 @@ TEST_F(EvaluatorTest, ResolveBooleanVariantNotFound) {
     }
   })");
 
-  sync_->TriggerUpdate(flags);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
@@ -183,7 +183,7 @@ TEST_F(EvaluatorTest, ResolveStringSuccess) {
     }
   })");
 
-  sync_->TriggerUpdate(flags);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
@@ -209,7 +209,7 @@ TEST_F(EvaluatorTest, ResolveIntegerSuccess) {
     }
   })");
 
-  sync_->TriggerUpdate(flags);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
@@ -235,7 +235,7 @@ TEST_F(EvaluatorTest, ResolveDoubleSuccess) {
     }
   })");
 
-  sync_->TriggerUpdate(flags);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
@@ -266,7 +266,7 @@ TEST_F(EvaluatorTest, ResolveObjectSuccess) {
     }
   })");
 
-  sync_->TriggerUpdate(flags);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
@@ -302,7 +302,7 @@ TEST_F(EvaluatorTest, ResolveStringTypeMismatch) {
     }
   })");
 
-  sync_->TriggerUpdate(flags);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
@@ -327,7 +327,7 @@ TEST_F(EvaluatorTest, ResolveIntegerTypeMismatch) {
     }
   })");
 
-  sync_->TriggerUpdate(flags);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
@@ -352,7 +352,7 @@ TEST_F(EvaluatorTest, ResolveDoubleTypeMismatch) {
     }
   })");
 
-  sync_->TriggerUpdate(flags);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
@@ -371,7 +371,7 @@ class EvaluatorDefaultVariantTest
 TEST_P(EvaluatorDefaultVariantTest, ResolveBooleanReturnsDefault) {
   nlohmann::json flags_json =
       nlohmann::json::parse(R"({"flags":)" + GetParam() + "}");
-  sync_->TriggerUpdate(flags_json);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags_json).ok());
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
@@ -421,7 +421,7 @@ TEST_F(EvaluatorTest, ResolveBooleanDisabled) {
     }
   })");
 
-  sync_->TriggerUpdate(flags);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
@@ -453,7 +453,7 @@ TEST_F(EvaluatorTest, ResolveStringTargetingSuccess) {
     }
   })");
 
-  sync_->TriggerUpdate(flags);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   // Match targeting rule
   openfeature::EvaluationContext ctx_blue =
@@ -504,7 +504,7 @@ TEST_F(EvaluatorTest, ResolveIntegerComplexTargeting) {
     }
   })");
 
-  sync_->TriggerUpdate(flags);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx = openfeature::EvaluationContext::Builder()
                                            .WithAttribute("env", "prod")
@@ -538,7 +538,7 @@ TEST_F(EvaluatorTest, ResolveObjectNestedStructure) {
     }
   })");
 
-  sync_->TriggerUpdate(flags);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
@@ -587,7 +587,7 @@ TEST_F(EvaluatorTest, ResolveBooleanFlagdSpecialVars) {
     }
   })");
 
-  sync_->TriggerUpdate(flags);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
       openfeature::EvaluationContext::Builder().build();
@@ -612,7 +612,7 @@ TEST_F(EvaluatorTest, ResolveBooleanTypeMismatchInTargeting) {
     }
   })");
 
-  sync_->TriggerUpdate(flags);
+  EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx = openfeature::EvaluationContext::Builder()
                                            .WithAttribute("color", "blue")

@@ -236,7 +236,11 @@ GrpcSync::StreamResult GrpcSync::ProcessStream(
       continue;
     }
 
-    UpdateFlags(raw);
+    absl::Status status = UpdateFlags(raw);
+    if (!status.ok()) {
+      LOG(ERROR) << "Failed to update flags: " << status;
+      continue;
+    }
 
     if (!connected) {
       connected = true;
