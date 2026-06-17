@@ -22,7 +22,7 @@ class FlagSync {
   std::shared_ptr<const nlohmann::json> GetMetadata() const;
 
  protected:
-  void UpdateFlags(const nlohmann::json& new_json);
+  absl::Status UpdateFlags(const nlohmann::json& new_json);
   void ClearFlags();
 
  private:

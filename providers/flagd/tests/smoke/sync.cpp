@@ -18,8 +18,8 @@ class MockSync : public flagd::FlagSync {
               (override));
   MOCK_METHOD(absl::Status, Shutdown, (), (override));
 
-  void TriggerUpdate(const nlohmann::json& new_json) {
-    this->UpdateFlags(new_json);
+  absl::Status TriggerUpdate(const nlohmann::json& new_json) {
+    return this->UpdateFlags(new_json);
   }
 };
 
@@ -55,7 +55,7 @@ TEST_F(FlagSyncTest, HelperMethodsUpdateAndRetrieveFlags) {
     }
   })"_json;
 
-  sync_.TriggerUpdate(expected_flags);
+  EXPECT_TRUE(sync_.TriggerUpdate(expected_flags).ok());
 
   result_ptr = sync_.GetFlags();
 
@@ -82,7 +82,7 @@ TEST_F(FlagSyncTest, ThreadSafetyReadersAndWriters) {
   const int k_iterations = 5000;
   std::atomic<bool> start_flag{false};
 
-  auto writer_func = [&]() {
+  auto writer_func = [&] {
     while (!start_flag.load());
 
     for (int i = 0; i < k_iterations; ++i) {
@@ -99,11 +99,11 @@ TEST_F(FlagSyncTest, ThreadSafetyReadersAndWriters) {
         "metadata": {}
       })"_json;
       update["flags"]["myFlag"]["variants"]["iteration"] = i;
-      sync_.TriggerUpdate(update);
+      EXPECT_TRUE(sync_.TriggerUpdate(update).ok());
     }
   };
 
-  auto reader_func = [&]() {
+  auto reader_func = [&] {
     while (!start_flag.load());
 
     for (int i = 0; i < k_iterations; ++i) {

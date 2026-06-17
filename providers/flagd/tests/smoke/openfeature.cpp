@@ -16,7 +16,9 @@ class MockSync : public flagd::FlagSync {
   }
   absl::Status Shutdown() override { return absl::OkStatus(); }
 
-  void SetFlags(const nlohmann::json& flags) { this->UpdateFlags(flags); }
+  absl::Status SetFlags(const nlohmann::json& flags) {
+    return this->UpdateFlags(flags);
+  }
 };
 
 class FlagdOpenFeatureTest : public ::testing::Test {
@@ -54,7 +56,7 @@ TEST_F(FlagdOpenFeatureTest, BooleanEvaluation) {
       }
     }
   })");
-  sync_->SetFlags(flags);
+  EXPECT_TRUE(sync_->SetFlags(flags).ok());
 
   EXPECT_TRUE(client_->GetBooleanValue("bool-flag", false));
   EXPECT_FALSE(client_->GetBooleanValue("non-existent", false));
@@ -73,7 +75,7 @@ TEST_F(FlagdOpenFeatureTest, StringEvaluation) {
       }
     }
   })");
-  sync_->SetFlags(flags);
+  EXPECT_TRUE(sync_->SetFlags(flags).ok());
 
   EXPECT_EQ(client_->GetStringValue("string-flag", "default"), "value2");
 }
@@ -91,7 +93,7 @@ TEST_F(FlagdOpenFeatureTest, IntegerEvaluation) {
       }
     }
   })");
-  sync_->SetFlags(flags);
+  EXPECT_TRUE(sync_->SetFlags(flags).ok());
 
   EXPECT_EQ(client_->GetIntegerValue("int-flag", 0), 1);
 }
@@ -109,7 +111,7 @@ TEST_F(FlagdOpenFeatureTest, DoubleEvaluation) {
       }
     }
   })");
-  sync_->SetFlags(flags);
+  EXPECT_TRUE(sync_->SetFlags(flags).ok());
 
   EXPECT_DOUBLE_EQ(client_->GetDoubleValue("double-flag", 0.0), 2.2);
 }
@@ -128,7 +130,7 @@ TEST_F(FlagdOpenFeatureTest, ObjectEvaluation) {
       }
     }
   })");
-  sync_->SetFlags(flags);
+  EXPECT_TRUE(sync_->SetFlags(flags).ok());
 
   openfeature::Value val =
       client_->GetObjectValue("obj-flag", openfeature::Value());
@@ -159,7 +161,7 @@ TEST_F(FlagdOpenFeatureTest, EvaluationContextTargeting) {
       }
     }
   })");
-  sync_->SetFlags(flags);
+  EXPECT_TRUE(sync_->SetFlags(flags).ok());
 
   // Without context, should return defaultVariant "red"
   EXPECT_EQ(client_->GetStringValue("targeting-flag", "default"), "red-value");
