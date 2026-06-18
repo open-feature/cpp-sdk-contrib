@@ -1,14 +1,29 @@
 #include "evaluator.h"
 
+#include <any>
 #include <chrono>
+#include <cstdint>
+#include <map>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/log/log.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "flagd/sync/sync.h"
 #include "flagd_ops.h"
+#include "openfeature/error_code.h"
+#include "openfeature/evaluation_context.h"
+#include "openfeature/flag_metadata.h"
+#include "openfeature/reason.h"
+#include "openfeature/resolution_details.h"
+#include "openfeature/value.h"
 
 namespace flagd {
 

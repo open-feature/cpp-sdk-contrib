@@ -1,9 +1,11 @@
 #include "json_logic.h"
 
+#include <nlohmann/json_fwd.hpp>
 #include <string>
 #include <utility>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "array.h"
 #include "data.h"
 #include "logic.h"

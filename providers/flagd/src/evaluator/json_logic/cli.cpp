@@ -1,8 +1,10 @@
 #include <exception>
 #include <iostream>
+#include <nlohmann/json_fwd.hpp>
 #include <string>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "json_logic.h"
 #include "nlohmann/json.hpp"
 

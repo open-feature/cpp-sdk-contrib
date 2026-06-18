@@ -1,10 +1,13 @@
 #include "data.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <nlohmann/json_fwd.hpp>
 #include <optional>
 #include <string>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "json_logic.h"
 

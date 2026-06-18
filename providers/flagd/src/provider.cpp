@@ -1,13 +1,24 @@
 #include "provider.h"
 
-#include <openfeature/provider.h>
-
+#include <cstdint>
+#include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "flagd/configuration.h"
+#include "flagd/evaluator/evaluator.h"
 #include "flagd/sync/grpc/grpc_sync.h"
+#include "flagd/sync/sync.h"
+#include "openfeature/error_code.h"
+#include "openfeature/evaluation_context.h"
+#include "openfeature/metadata.h"
+#include "openfeature/reason.h"
+#include "openfeature/resolution_details.h"
+#include "openfeature/value.h"
 
 namespace flagd {
 

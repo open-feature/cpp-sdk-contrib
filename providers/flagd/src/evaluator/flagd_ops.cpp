@@ -1,17 +1,23 @@
 #include "flagd_ops.h"
 
 #include <algorithm>
+#include <cctype>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <nlohmann/json_fwd.hpp>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
+#include "flagd/evaluator/json_logic/json_logic.h"
 #include "flagd/evaluator/murmur_hash/MurmurHash3.h"
 
 namespace flagd {

@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 
 #include "providers/flagd/src/evaluator/json_logic/json_logic.h"
 
