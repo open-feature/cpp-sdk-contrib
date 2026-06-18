@@ -3,12 +3,18 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <limits>
+#include <nlohmann/json_fwd.hpp>
 #include <numeric>
+#include <string>
+#include <string_view>
 #include <type_traits>
 #include <variant>
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "providers/flagd/src/evaluator/json_logic/json_logic.h"
 
 namespace json_logic::ops {
 
@@ -258,8 +264,8 @@ absl::StatusOr<nlohmann::json> Add(const JsonLogic& eval,
   if (!nums_res.ok()) return nums_res.status();
   if (nums_res->empty()) return 0;
 
-  return std::accumulate(nums_res->begin() + 1, nums_res->end(), (*nums_res)[0],
-                         Number::Add)
+  return std::accumulate(nums_res->begin() + 1, nums_res->end(),
+                         nums_res.value()[0], Number::Add)
       .ToJson();
 }
 
@@ -271,10 +277,10 @@ absl::StatusOr<nlohmann::json> Subtract(const JsonLogic& eval,
   if (!nums_res.ok()) return nums_res.status();
 
   if (nums_res->size() == 1) {
-    return Number::Sub(Number(int64_t{0}), (*nums_res)[0]).ToJson();
+    return Number::Sub(Number(int64_t{0}), nums_res.value()[0]).ToJson();
   }
   if (nums_res->size() == 2) {
-    return Number::Sub((*nums_res)[0], (*nums_res)[1]).ToJson();
+    return Number::Sub(nums_res.value()[0], nums_res.value()[1]).ToJson();
   }
   return absl::InvalidArgumentError(
       "Subtract requires exactly one or two arguments");
@@ -288,8 +294,8 @@ absl::StatusOr<nlohmann::json> Multiply(const JsonLogic& eval,
   if (!nums_res.ok()) return nums_res.status();
   if (nums_res->empty()) return 1;
 
-  return std::accumulate(nums_res->begin() + 1, nums_res->end(), (*nums_res)[0],
-                         Number::Mul)
+  return std::accumulate(nums_res->begin() + 1, nums_res->end(),
+                         nums_res.value()[0], Number::Mul)
       .ToJson();
 }
 
@@ -304,7 +310,7 @@ absl::StatusOr<nlohmann::json> Divide(const JsonLogic& eval,
   }
 
   absl::StatusOr<Number> result_res =
-      Number::Div((*nums_res)[0], (*nums_res)[1]);
+      Number::Div(nums_res.value()[0], nums_res.value()[1]);
   if (!result_res.ok()) return result_res.status();
   return result_res->ToJson();
 }
@@ -320,7 +326,7 @@ absl::StatusOr<nlohmann::json> Modulo(const JsonLogic& eval,
   }
 
   absl::StatusOr<Number> result_res =
-      Number::Mod((*nums_res)[0], (*nums_res)[1]);
+      Number::Mod(nums_res.value()[0], nums_res.value()[1]);
   if (!result_res.ok()) return result_res.status();
   return result_res->ToJson();
 }
@@ -332,9 +338,10 @@ absl::StatusOr<nlohmann::json> LessThan(const JsonLogic& eval,
       GetNumbers(eval, values, data, "<");
   if (!nums_res.ok()) return nums_res.status();
 
-  if (nums_res->size() == 2) return (*nums_res)[0] < (*nums_res)[1];
+  if (nums_res->size() == 2) return nums_res.value()[0] < nums_res.value()[1];
   if (nums_res->size() == 3) {
-    return (*nums_res)[0] < (*nums_res)[1] && (*nums_res)[1] < (*nums_res)[2];
+    return nums_res.value()[0] < nums_res.value()[1] &&
+           nums_res.value()[1] < nums_res.value()[2];
   }
   return absl::InvalidArgumentError("Comparison requires 2 or 3 arguments");
 }
@@ -349,10 +356,12 @@ absl::StatusOr<nlohmann::json> LessThanOrEqual(const JsonLogic& eval,
   auto is_lte = [](const Number& first, const Number& second) {
     return first < second || first == second;
   };
-  if (nums_res->size() == 2) return is_lte((*nums_res)[0], (*nums_res)[1]);
+  if (nums_res->size() == 2) {
+    return is_lte(nums_res.value()[0], nums_res.value()[1]);
+  }
   if (nums_res->size() == 3) {
-    return is_lte((*nums_res)[0], (*nums_res)[1]) &&
-           is_lte((*nums_res)[1], (*nums_res)[2]);
+    return is_lte(nums_res.value()[0], nums_res.value()[1]) &&
+           is_lte(nums_res.value()[1], nums_res.value()[2]);
   }
   return absl::InvalidArgumentError("Comparison requires 2 or 3 arguments");
 }
@@ -364,7 +373,7 @@ absl::StatusOr<nlohmann::json> GreaterThan(const JsonLogic& eval,
       GetNumbers(eval, values, data, ">");
   if (!nums_res.ok()) return nums_res.status();
 
-  if (nums_res->size() == 2) return (*nums_res)[1] < (*nums_res)[0];
+  if (nums_res->size() == 2) return nums_res.value()[1] < nums_res.value()[0];
   return absl::InvalidArgumentError("GreaterThan requires 2 arguments");
 }
 
@@ -376,7 +385,8 @@ absl::StatusOr<nlohmann::json> GreaterThanOrEqual(const JsonLogic& eval,
   if (!nums_res.ok()) return nums_res.status();
 
   if (nums_res->size() == 2) {
-    return (*nums_res)[1] < (*nums_res)[0] || (*nums_res)[0] == (*nums_res)[1];
+    return nums_res.value()[1] < nums_res.value()[0] ||
+           nums_res.value()[0] == nums_res.value()[1];
   }
   return absl::InvalidArgumentError("GreaterThanOrEqual requires 2 arguments");
 }

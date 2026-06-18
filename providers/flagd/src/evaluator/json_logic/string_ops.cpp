@@ -2,12 +2,17 @@
 #include "string_ops.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <nlohmann/json_fwd.hpp>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
+#include "providers/flagd/src/evaluator/json_logic/json_logic.h"
 
 namespace json_logic::ops {
 

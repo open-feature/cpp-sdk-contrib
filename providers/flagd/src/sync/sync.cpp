@@ -1,11 +1,16 @@
 #include "sync.h"
 
+#include <exception>
 #include <memory>
 #include <mutex>
 #include <nlohmann/json-schema.hpp>
-#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
+#include <shared_mutex>
+#include <string>
+#include <utility>
 
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "embedded_schemas.h"
 

@@ -1,6 +1,11 @@
 
 #include "array.h"
 
+#include <nlohmann/json_fwd.hpp>
+
+#include "absl/status/statusor.h"
+#include "providers/flagd/src/evaluator/json_logic/json_logic.h"
+
 namespace json_logic::ops {
 
 absl::StatusOr<nlohmann::json> Merge(const JsonLogic& eval,

@@ -1,6 +1,11 @@
 #include "logic.h"
 
+#include <cstddef>
+#include <nlohmann/json_fwd.hpp>
+
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "providers/flagd/src/evaluator/json_logic/json_logic.h"
 #include "providers/flagd/src/evaluator/json_logic/utils.h"
 
 namespace json_logic::ops {

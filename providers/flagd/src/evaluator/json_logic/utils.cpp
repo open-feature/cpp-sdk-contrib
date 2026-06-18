@@ -1,5 +1,7 @@
 #include "utils.h"
 
+#include <cstdint>
+#include <nlohmann/json_fwd.hpp>
 #include <string>
 
 namespace json_logic::ops {

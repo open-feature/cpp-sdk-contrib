@@ -3,8 +3,10 @@
 #include <fstream>
 #include <iostream>
 #include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <vector>
 
+#include "absl/status/statusor.h"
 #include "providers/flagd/src/evaluator/json_logic/json_logic.h"
 
 using json_logic::JsonLogic;

@@ -1,19 +1,32 @@
 #include "grpc_sync.h"
 
+#include <grpc/grpc.h>
 #include <grpcpp/grpcpp.h>
+#include <grpcpp/security/credentials.h>
+#include <grpcpp/support/channel_arguments.h>
+#include <grpcpp/support/status.h>
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
+#include <exception>
 #include <memory>
 #include <mutex>
 #include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
+#include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "flagd/configuration.h"
 #include "flagd/sync/v1/sync.grpc.pb.h"
+#include "flagd/sync/v1/sync.pb.h"
+#include "openfeature/evaluation_context.h"
 
 using ::flagd::sync::v1::FlagSyncService;
 using ::flagd::sync::v1::SyncFlagsRequest;
