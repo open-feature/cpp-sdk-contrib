@@ -4,6 +4,7 @@
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <nlohmann/json_fwd.hpp>
+#include <string>
 #include <vector>
 
 #include "absl/status/statusor.h"
