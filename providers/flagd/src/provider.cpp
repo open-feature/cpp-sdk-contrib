@@ -9,6 +9,7 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "flagd/configuration.h"
 #include "flagd/evaluator/evaluator.h"
 #include "flagd/sync/grpc/grpc_sync.h"
@@ -80,7 +81,7 @@ absl::Status FlagdProvider::Shutdown() {
   return status;
 }
 
-std::unique_ptr<openfeature::BoolResolutionDetails>
+absl::StatusOr<std::unique_ptr<openfeature::BoolResolutionDetails>>
 FlagdProvider::GetBooleanEvaluation(const std::string_view flag,
                                     bool default_value,
                                     const openfeature::EvaluationContext& ctx) {
@@ -93,7 +94,7 @@ FlagdProvider::GetBooleanEvaluation(const std::string_view flag,
   return evaluator_->ResolveBoolean(flag, default_value, ctx);
 }
 
-std::unique_ptr<openfeature::StringResolutionDetails>
+absl::StatusOr<std::unique_ptr<openfeature::StringResolutionDetails>>
 FlagdProvider::GetStringEvaluation(const std::string_view flag,
                                    std::string_view default_value,
                                    const openfeature::EvaluationContext& ctx) {
@@ -106,7 +107,7 @@ FlagdProvider::GetStringEvaluation(const std::string_view flag,
   return evaluator_->ResolveString(flag, default_value, ctx);
 }
 
-std::unique_ptr<openfeature::IntResolutionDetails>
+absl::StatusOr<std::unique_ptr<openfeature::IntResolutionDetails>>
 FlagdProvider::GetIntegerEvaluation(const std::string_view flag,
                                     int64_t default_value,
                                     const openfeature::EvaluationContext& ctx) {
@@ -119,7 +120,7 @@ FlagdProvider::GetIntegerEvaluation(const std::string_view flag,
   return evaluator_->ResolveInteger(flag, default_value, ctx);
 }
 
-std::unique_ptr<openfeature::DoubleResolutionDetails>
+absl::StatusOr<std::unique_ptr<openfeature::DoubleResolutionDetails>>
 FlagdProvider::GetDoubleEvaluation(const std::string_view flag,
                                    double default_value,
                                    const openfeature::EvaluationContext& ctx) {
@@ -132,7 +133,7 @@ FlagdProvider::GetDoubleEvaluation(const std::string_view flag,
   return evaluator_->ResolveDouble(flag, default_value, ctx);
 }
 
-std::unique_ptr<openfeature::ObjectResolutionDetails>
+absl::StatusOr<std::unique_ptr<openfeature::ObjectResolutionDetails>>
 FlagdProvider::GetObjectEvaluation(
     const std::string_view flag,
     openfeature::Value
