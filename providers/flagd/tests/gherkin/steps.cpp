@@ -126,7 +126,7 @@ GIVEN(AStableFlagdProvider, "a stable flagd provider") {
 
   ::flagd::FlagdProviderConfig config;
   config.SetHost("localhost");
-  config.SetPort(8015);
+  config.SetPort(8013);
   config.SetDeadlineMs(5000);
   if (!g_state.selector.empty()) {
     config.SetSelector(g_state.selector);

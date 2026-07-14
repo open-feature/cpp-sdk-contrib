@@ -13,10 +13,10 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <sstream>  // NOLINT(misc-include-cleaner) - Used for parsing FLAGD_TEST_FLAGS env var
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <nlohmann/json_fwd.hpp>
+#include <sstream>  // NOLINT(misc-include-cleaner) - Used for parsing FLAGD_TEST_FLAGS env var
 #include <string>
 #include <system_error>
 #include <thread>
@@ -62,11 +62,11 @@ std::string GetRunfilePath(const std::string& relative_path) {
 }
 
 FlagdProcess::FlagdProcess(std::string binary_path,
-                           std::vector<std::string> config_paths, int port,
+                           std::vector<FlagdSource> sources, int port,
                            std::string log_dir)
     : log_dir_(std::move(log_dir)),
       binary_path_(std::move(binary_path)),
-      config_paths_(std::move(config_paths)),
+      sources_(std::move(sources)),
       port_(port) {}
 
 FlagdProcess::~FlagdProcess() { Stop(); }
@@ -99,8 +99,12 @@ bool FlagdProcess::Start() {
     }
 
     json sources_arr = json::array();
-    for (const auto& path : config_paths_) {
-      sources_arr.push_back({{"uri", path}, {"provider", "file"}});
+    for (const auto& src : sources_) {
+      json src_obj = {{"uri", src.path}, {"provider", "file"}};
+      if (!src.selector.empty()) {
+        src_obj["selector"] = src.selector;
+      }
+      sources_arr.push_back(src_obj);
     }
     std::string sources_arg = sources_arr.dump();
     std::string port_arg = std::to_string(port_);
@@ -189,12 +193,11 @@ void SetupGlobalFlagd() {
   merged_root["metadata"] = json::object();
   merged_root["$evaluators"] = json::object();
 
+  std::vector<FlagdSource> sources;
+
   for (const auto& flag_file : flags_files) {
     fs::path p(flag_file);
     std::string filename = p.filename().string();
-    if (filename.rfind("selector-", 0) == 0) {
-      continue;  // Skip selector- files in all_flags.json merge, matching Launchpad behavior
-    }
 
     std::string runfile_path;
     if (fs::exists(flag_file)) {
@@ -212,6 +215,28 @@ void SetupGlobalFlagd() {
                 << '\n';
       continue;
     }
+
+    if (filename.rfind("selector-", 0) == 0) {
+      // Copy selector file to tmp scenario directory
+      fs::path dest_selector_path = fs::path(g_scenario_tmp_dir) / filename;
+      std::error_code ec;
+      fs::copy_file(runfile_path, dest_selector_path,
+                    fs::copy_options::overwrite_existing, ec);
+      if (ec) {
+        std::cerr << "CRITICAL: Could not copy selector file: " << runfile_path
+                  << " to " << dest_selector_path << " - " << ec.message()
+                  << '\n';
+        exit(1);
+      }
+      // Register selector file source, matching key format
+      // "rawflags/selector-flags.json"
+      sources.push_back({
+          .path = dest_selector_path.string(),
+          .selector = "rawflags/" + filename,
+      });
+      continue;
+    }
+
     std::ifstream ifs(runfile_path);
     if (!ifs.is_open()) {
       std::cerr << "CRITICAL: Could not open flag file: " << runfile_path
@@ -231,7 +256,7 @@ void SetupGlobalFlagd() {
           parsed_json["$evaluators"].is_object()) {
         merged_root["$evaluators"].update(parsed_json["$evaluators"]);
       } else if (parsed_json.contains("evaluators") &&
-                  parsed_json["evaluators"].is_object()) {
+                 parsed_json["evaluators"].is_object()) {
         merged_root["$evaluators"].update(parsed_json["evaluators"]);
       }
     }
@@ -242,10 +267,14 @@ void SetupGlobalFlagd() {
     std::ofstream ofs(dest);
     ofs << merged_root.dump(2);
   }
-  std::vector<std::string> copied_paths = {dest.string()};
+  // Add all_flags.json as the default (no selector) source
+  sources.insert(sources.begin(), {
+                                      .path = dest.string(),
+                                      .selector = "",
+                                  });
 
   int port = 8013;
-  g_flagd = std::make_unique<FlagdProcess>(flagd_bin, copied_paths, port,
+  g_flagd = std::make_unique<FlagdProcess>(flagd_bin, sources, port,
                                            g_scenario_tmp_dir);
   if (!g_flagd->Start()) {
     std::cerr << "CRITICAL: Failed to start flagd\n";

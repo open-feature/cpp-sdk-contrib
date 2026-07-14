@@ -11,10 +11,15 @@ namespace openfeature::contrib::flagd::test {
 // Helper to resolve Bazel runfiles for test fixtures and binaries.
 std::string GetRunfilePath(const std::string& relative_path);
 
+struct FlagdSource {
+  std::string path;
+  std::string selector;
+};
+
 // Manages a background Go flagd server subprocess during test execution.
 class FlagdProcess {
  public:
-  FlagdProcess(std::string binary_path, std::vector<std::string> config_paths,
+  FlagdProcess(std::string binary_path, std::vector<FlagdSource> sources,
                int port, std::string log_dir);
   ~FlagdProcess();
 
@@ -26,7 +31,7 @@ class FlagdProcess {
 
   std::string log_dir_;
   std::string binary_path_;
-  std::vector<std::string> config_paths_;
+  std::vector<FlagdSource> sources_;
   int port_;
   pid_t pid_ = -1;
 };
