@@ -29,6 +29,9 @@ cc_binary(
     srcs = SRCS,
     copts = ["-std=c++20"],
     data = DATA,
+    env = {
+        "FLAGD_TEST_FLAGS": "$(locations @flagd_testbed//:flags)",
+    },
     deps = DEPS,
 )
 
@@ -40,6 +43,9 @@ cc_test(
     ],
     copts = ["-std=c++20"],
     data = DATA,
+    env = {
+        "FLAGD_TEST_FLAGS": "$(locations @flagd_testbed//:flags)",
+    },
     # TODO(#91): This tag disables those tests from github action check
     # We should remove it once all tests will be passing
     tags = ["manual"],

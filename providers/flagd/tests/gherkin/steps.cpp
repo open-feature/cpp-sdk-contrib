@@ -1,6 +1,6 @@
-#include <chrono>
+#include <stdlib.h>  // NOLINT(modernize-deprecated-headers)
+
 #include <cstdint>
-#include <map>
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <nlohmann/json_fwd.hpp>

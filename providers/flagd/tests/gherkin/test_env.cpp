@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <sstream>  // NOLINT(misc-include-cleaner) - Used for parsing FLAGD_TEST_FLAGS env var
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <nlohmann/json_fwd.hpp>
@@ -158,17 +159,30 @@ void SetupGlobalFlagd() {
   std::cout << "BEFORE hook: Scenario temp dir: " << g_scenario_tmp_dir << '\n';
   fs::create_directories(g_scenario_tmp_dir);
 
-  std::vector<std::string> flags_files = {
-      "testing-flags.json",
-      "zero-flags.json",
-      "evaluator-refs.json",
-      "metadata-flags.json",
-      "changing-flag.json",
-      "custom-ops.json",
-      "edge-case-flags.json",
-      "selector-flags.json",
-      "selector-flag-combined-metadata.json",
-  };
+  std::vector<std::string> flags_files;
+  if (const char* env_flags = std::getenv("FLAGD_TEST_FLAGS")) {
+    std::istringstream iss(env_flags);
+    std::string path;
+    while (iss >> path) {
+      flags_files.push_back(path);
+    }
+  }
+
+  if (flags_files.empty()) {
+    std::string flags_dir = GetRunfilePath("flagd_testbed/flags");
+    if (flags_dir.empty() || !fs::exists(flags_dir)) {
+      if (fs::exists("../+_repo_rules+flagd_testbed/flags")) {
+        flags_dir = "../+_repo_rules+flagd_testbed/flags";
+      }
+    }
+    if (!flags_dir.empty() && fs::exists(flags_dir)) {
+      for (const auto& entry : fs::directory_iterator(flags_dir)) {
+        if (entry.path().extension() == ".json") {
+          flags_files.push_back(entry.path().string());
+        }
+      }
+    }
+  }
 
   json merged_root = json::object();
   merged_root["flags"] = json::object();
@@ -176,12 +190,27 @@ void SetupGlobalFlagd() {
   merged_root["$evaluators"] = json::object();
 
   for (const auto& flag_file : flags_files) {
-    std::string runfile_path =
-        GetRunfilePath("flagd_testbed/flags/" + flag_file);
-    if (runfile_path.empty()) {
-      std::cerr << "CRITICAL: Could not find flag file in runfiles: "
-                << flag_file << '\n';
-      exit(1);
+    fs::path p(flag_file);
+    std::string filename = p.filename().string();
+    if (filename.rfind("selector-", 0) == 0) {
+      continue;  // Skip selector- files in all_flags.json merge, matching Launchpad behavior
+    }
+
+    std::string runfile_path;
+    if (fs::exists(flag_file)) {
+      runfile_path = flag_file;
+    } else {
+      runfile_path = GetRunfilePath(flag_file);
+      if (runfile_path.empty() &&
+          flag_file.find("flagd_testbed/flags/") == std::string::npos) {
+        runfile_path = GetRunfilePath("flagd_testbed/flags/" + flag_file);
+      }
+    }
+
+    if (runfile_path.empty() || !fs::exists(runfile_path)) {
+      std::cerr << "WARNING: Could not resolve flag file path: " << flag_file
+                << '\n';
+      continue;
     }
     std::ifstream ifs(runfile_path);
     if (!ifs.is_open()) {
@@ -202,8 +231,8 @@ void SetupGlobalFlagd() {
           parsed_json["$evaluators"].is_object()) {
         merged_root["$evaluators"].update(parsed_json["$evaluators"]);
       } else if (parsed_json.contains("evaluators") &&
-                 parsed_json["evaluators"].is_object()) {
-        merged_root["$evaluators"].update(parsed_json["$evaluators"]);
+                  parsed_json["evaluators"].is_object()) {
+        merged_root["$evaluators"].update(parsed_json["evaluators"]);
       }
     }
   }
