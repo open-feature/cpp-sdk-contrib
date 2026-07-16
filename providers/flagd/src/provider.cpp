@@ -3,13 +3,11 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <utility>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "flagd/configuration.h"
 #include "flagd/evaluator/evaluator.h"
 #include "flagd/sync/grpc/grpc_sync.h"
