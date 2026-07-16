@@ -2,4 +2,5 @@ InheritParentConfig: true
 Checks: "
   -readability-magic-numbers,
   -readability-implicit-bool-conversion,
+  -misc-include-cleaner,
   "
