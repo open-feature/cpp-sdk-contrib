@@ -54,7 +54,7 @@ jobs:
           tidy-checks: "" # Use .clang-tidy config file.
           database: "compile_commands.json"
           version: "21"
-          extra-args: "--system-headers -fdiagnostics-absolute-paths"
+          extra-args: "-fdiagnostics-absolute-paths"
 
       - name: Fail fast?!
         if: steps.linter.outputs.checks-failed > 0
