@@ -3,6 +3,7 @@ Checks: "
   readability-*,
   modernize-*,
   performance-*,
+  misc-include-cleaner,
   -google-readability-todo,
   -readability-convert-member-functions-to-static,
   -readability-function-cognitive-complexity,
