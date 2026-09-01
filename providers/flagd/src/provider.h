@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "flagd/configuration.h"
 #include "flagd/evaluator/evaluator.h"
 #include "flagd/sync/sync.h"
@@ -29,25 +30,25 @@ class FlagdProvider : public openfeature::FeatureProvider {
   absl::Status Init(const openfeature::EvaluationContext& ctx) override;
   absl::Status Shutdown() override;
 
-  std::unique_ptr<openfeature::BoolResolutionDetails> GetBooleanEvaluation(
-      std::string_view flag, bool default_value,
-      const openfeature::EvaluationContext& ctx) override;
+  absl::StatusOr<std::unique_ptr<openfeature::BoolResolutionDetails>>
+  GetBooleanEvaluation(std::string_view flag, bool default_value,
+                       const openfeature::EvaluationContext& ctx) override;
 
-  std::unique_ptr<openfeature::StringResolutionDetails> GetStringEvaluation(
-      std::string_view flag, std::string_view default_value,
-      const openfeature::EvaluationContext& ctx) override;
+  absl::StatusOr<std::unique_ptr<openfeature::StringResolutionDetails>>
+  GetStringEvaluation(std::string_view flag, std::string_view default_value,
+                      const openfeature::EvaluationContext& ctx) override;
 
-  std::unique_ptr<openfeature::IntResolutionDetails> GetIntegerEvaluation(
-      std::string_view flag, int64_t default_value,
-      const openfeature::EvaluationContext& ctx) override;
+  absl::StatusOr<std::unique_ptr<openfeature::IntResolutionDetails>>
+  GetIntegerEvaluation(std::string_view flag, int64_t default_value,
+                       const openfeature::EvaluationContext& ctx) override;
 
-  std::unique_ptr<openfeature::DoubleResolutionDetails> GetDoubleEvaluation(
-      std::string_view flag, double default_value,
-      const openfeature::EvaluationContext& ctx) override;
+  absl::StatusOr<std::unique_ptr<openfeature::DoubleResolutionDetails>>
+  GetDoubleEvaluation(std::string_view flag, double default_value,
+                      const openfeature::EvaluationContext& ctx) override;
 
-  std::unique_ptr<openfeature::ObjectResolutionDetails> GetObjectEvaluation(
-      std::string_view flag, openfeature::Value default_value,
-      const openfeature::EvaluationContext& ctx) override;
+  absl::StatusOr<std::unique_ptr<openfeature::ObjectResolutionDetails>>
+  GetObjectEvaluation(std::string_view flag, openfeature::Value default_value,
+                      const openfeature::EvaluationContext& ctx) override;
 
  private:
   FlagdProviderConfig configuration_;
