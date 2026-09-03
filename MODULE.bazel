@@ -9,7 +9,7 @@ bazel_dep(name = "openfeature_cpp_sdk")
 git_override(
     module_name = "openfeature_cpp_sdk",
     remote = "https://github.com/open-feature/cpp-sdk.git",
-    tag = "v0.1.2",
+    tag = "v0.1.4",
 )
 
 # Hedron's Compile Commands Extractor for Bazel
