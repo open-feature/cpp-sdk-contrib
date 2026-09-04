@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <memory>
 #include <string>
 #include <vector>
@@ -10,6 +11,12 @@ namespace openfeature::contrib::flagd::test {
 
 // Helper to resolve Bazel runfiles for test fixtures and binaries.
 std::string GetRunfilePath(const std::string& relative_path);
+
+// Polls the gRPC channel connection state until it reaches GRPC_CHANNEL_READY
+// or times out.
+bool WaitForGrpcReady(
+    const std::string& target,
+    std::chrono::milliseconds timeout = std::chrono::milliseconds(5000));
 
 struct FlagdSource {
   std::string path;
@@ -25,6 +32,7 @@ class FlagdProcess {
 
   bool Start();
   void Stop();
+  bool IsAlive() const;
 
  private:
   std::string GetTmpDir();

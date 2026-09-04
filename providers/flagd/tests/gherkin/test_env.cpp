@@ -1,8 +1,11 @@
 #include "providers/flagd/tests/gherkin/test_env.h"
 
 #include <fcntl.h>
+#include <grpcpp/grpcpp.h>
+#include <grpcpp/security/credentials.h>
 #include <signal.h>  // NOLINT(modernize-deprecated-headers) - Need POSIX kill and signals
 #include <stdlib.h>  // NOLINT(modernize-deprecated-headers) - Need POSIX setenv
+#include <sys/prctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -61,6 +64,14 @@ std::string GetRunfilePath(const std::string& relative_path) {
   return path;
 }
 
+bool WaitForGrpcReady(const std::string& target,
+                      std::chrono::milliseconds timeout) {
+  auto channel =
+      grpc::CreateChannel(target, grpc::InsecureChannelCredentials());
+  auto deadline = std::chrono::system_clock::now() + timeout;
+  return channel->WaitForConnected(deadline);
+}
+
 FlagdProcess::FlagdProcess(std::string binary_path,
                            std::vector<FlagdSource> sources, int port,
                            std::string log_dir)
@@ -87,6 +98,12 @@ bool FlagdProcess::Start() {
   }
 
   if (pid_ == 0) {
+    // Terminate immediately if the parent test runner process exits or crashes.
+    prctl(PR_SET_PDEATHSIG, SIGKILL);
+    if (getppid() == 1) {
+      _exit(1);
+    }
+
     std::string tmp_dir = GetTmpDir();
     setenv("HOME", tmp_dir.c_str(), 1);
 
@@ -125,8 +142,15 @@ bool FlagdProcess::Start() {
     _exit(1);
   }
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(500));
   return true;
+}
+
+bool FlagdProcess::IsAlive() const {
+  if (pid_ <= 0) {
+    return false;
+  }
+  int status;
+  return waitpid(pid_, &status, WNOHANG) == 0;
 }
 
 void FlagdProcess::Stop() {
@@ -289,7 +313,10 @@ void SetupGlobalFlagd() {
     std::cerr << "CRITICAL: Failed to start flagd\n";
     exit(1);
   }
-  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  if (!WaitForGrpcReady("localhost:8015", std::chrono::milliseconds(5000))) {
+    std::cerr << "CRITICAL: Flagd failed to become ready on port 8015\n";
+    exit(1);
+  }
 }
 
 }  // namespace openfeature::contrib::flagd::test

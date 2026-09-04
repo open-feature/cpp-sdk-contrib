@@ -24,6 +24,10 @@ void InitializeProvider() {
     return;
   }
 
+  if (!openfeature::contrib::flagd::test::WaitForGrpcReady("localhost:8015")) {
+    std::cerr << "WARNING: Flagd gRPC service not ready on port 8015\n";
+  }
+
   ::flagd::FlagdProviderConfig config;
   config.SetHost("localhost");
   config.SetPort(8015);
@@ -38,7 +42,6 @@ void InitializeProvider() {
 
   auto& api = ::openfeature::OpenFeatureAPI::GetInstance();
   api.SetProviderAndWait(g_state.provider);
-  std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 }
 
 }  // namespace

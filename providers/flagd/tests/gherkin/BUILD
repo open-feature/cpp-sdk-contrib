@@ -25,6 +25,7 @@ DATA = [
 DEPS = [
     "//providers/flagd/src:flagd_provider",
     "@bazel_tools//tools/cpp/runfiles",
+    "@com_github_grpc_grpc//:grpc++",
     "@cwt_cucumber//:cwt-cucumber",
     "@nlohmann_json//:json",
     "@openfeature_cpp_sdk//openfeature",
