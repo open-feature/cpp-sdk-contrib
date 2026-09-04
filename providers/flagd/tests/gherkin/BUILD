@@ -1,7 +1,14 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_test")
 
 SRCS = [
-    "steps.cpp",
+    "steps/config_steps.cpp",
+    "steps/context_steps.cpp",
+    "steps/evaluation_steps.cpp",
+    "steps/flag_steps.cpp",
+    "steps/lifecycle_steps.cpp",
+    "steps/provider_steps.cpp",
+    "steps/step_utils.cpp",
+    "steps/step_utils.h",
     "test_env.cpp",
     "test_env.h",
     "test_runner.cpp",
