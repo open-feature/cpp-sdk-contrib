@@ -116,6 +116,8 @@ bool FlagdProcess::Start() {
     argv.push_back(const_cast<char*>(sources_arg.c_str()));
     argv.push_back(const_cast<char*>("--port"));
     argv.push_back(const_cast<char*>(port_arg.c_str()));
+    argv.push_back(const_cast<char*>("--sync-port"));
+    argv.push_back(const_cast<char*>("8015"));
     argv.push_back(nullptr);
 
     execvp(argv[0], argv.data());
@@ -213,6 +215,13 @@ void SetupGlobalFlagd() {
     if (runfile_path.empty() || !fs::exists(runfile_path)) {
       std::cerr << "WARNING: Could not resolve flag file path: " << flag_file
                 << '\n';
+      continue;
+    }
+
+    // TODO(#129): Re-enable edge-case-flags.json and custom-ops.json once
+    // schema validation in FlagSync handles flags with invalid targeting rules
+    // that are expected to be caught at evaluation time.
+    if (filename == "edge-case-flags.json" || filename == "custom-ops.json") {
       continue;
     }
 

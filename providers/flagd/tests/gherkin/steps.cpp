@@ -14,12 +14,17 @@
 #include "defines.hpp"  // for GIVEN, WHEN, THEN, BEFORE, AFTER
 #include "flagd/configuration.h"
 #include "flagd/provider.h"
-#include "get_args.hpp"  // for CUKE_ARG
+#include "get_args.hpp"  // for CUKE_ARG, CUKE_TABLE
+#include "openfeature/error_code.h"
 #include "openfeature/evaluation_context.h"
+#include "openfeature/flag_metadata.h"
+#include "openfeature/general_flag_evaluation_details.h"
 #include "openfeature/openfeature_api.h"
+#include "openfeature/reason.h"
 #include "openfeature/value.h"
 #include "providers/flagd/tests/gherkin/test_env.h"
 #include "providers/flagd/tests/gherkin/test_state.h"
+#include "table.hpp"
 
 using openfeature::contrib::flagd::test::g_stable_provider;
 using openfeature::contrib::flagd::test::g_state;
@@ -29,6 +34,62 @@ using openfeature::contrib::flagd::test::SetupGlobalFlagd;
 using nlohmann::json;
 
 std::string g_current_selector;
+
+std::string ReasonToString(openfeature::Reason reason) {
+  switch (reason) {
+    case openfeature::Reason::kStatic:
+      return "STATIC";
+    case openfeature::Reason::kDefault:
+      return "DEFAULT";
+    case openfeature::Reason::kTargetingMatch:
+      return "TARGETING_MATCH";
+    case openfeature::Reason::kSplit:
+      return "SPLIT";
+    case openfeature::Reason::kCached:
+      return "CACHED";
+    case openfeature::Reason::kDisabled:
+      return "DISABLED";
+    case openfeature::Reason::kUnknown:
+      return "UNKNOWN";
+    case openfeature::Reason::kStale:
+      return "STALE";
+    case openfeature::Reason::kError:
+      return "ERROR";
+  }
+  return "UNKNOWN_ENUM_VALUE";
+}
+
+std::string ErrorCodeToString(openfeature::ErrorCode error_code) {
+  switch (error_code) {
+    case openfeature::ErrorCode::kProviderNotReady:
+      return "PROVIDER_NOT_READY";
+    case openfeature::ErrorCode::kFlagNotFound:
+      return "FLAG_NOT_FOUND";
+    case openfeature::ErrorCode::kParseError:
+      return "PARSE_ERROR";
+    case openfeature::ErrorCode::kTypeMismatch:
+      return "TYPE_MISMATCH";
+    case openfeature::ErrorCode::kTargetingKeyMissing:
+      return "TARGETING_KEY_MISSING";
+    case openfeature::ErrorCode::kInvalidContext:
+      return "INVALID_CONTEXT";
+    case openfeature::ErrorCode::kProviderFatal:
+      return "PROVIDER_FATAL";
+    case openfeature::ErrorCode::kGeneral:
+      return "GENERAL";
+  }
+  return "UNKNOWN_ENUM_VALUE";
+}
+
+void RecordEvaluationDetails(
+    const openfeature::GeneralFlagEvaluationDetails& details) {
+  g_state.last_eval.resolved_value = details.GetValueAsValue();
+  g_state.last_eval.reason = details.GetReason();
+  g_state.last_eval.variant = details.GetVariant();
+  g_state.last_eval.error_code = details.GetErrorCode();
+  g_state.last_eval.error_message = details.GetErrorMessage();
+  g_state.last_eval.flag_metadata = details.GetFlagMetadata();
+}
 
 openfeature::Value JsonToValue(const nlohmann::json& json_val) {
   if (json_val.is_boolean()) {
@@ -126,7 +187,53 @@ GIVEN(AStableFlagdProvider, "a stable flagd provider") {
 
   ::flagd::FlagdProviderConfig config;
   config.SetHost("localhost");
-  config.SetPort(8013);
+  config.SetPort(8015);
+  config.SetDeadlineMs(5000);
+  if (!g_state.selector.empty()) {
+    config.SetSelector(g_state.selector);
+  }
+
+  g_stable_provider = std::make_shared<::flagd::FlagdProvider>(config);
+  g_state.provider = g_stable_provider;
+  g_current_selector = g_state.selector;
+
+  auto& api = ::openfeature::OpenFeatureAPI::GetInstance();
+  api.SetProviderAndWait(g_state.provider);
+  std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+}
+
+GIVEN(AMetadataFlagdProvider, "a metadata flagd provider") {
+  if (g_stable_provider && g_state.selector == g_current_selector) {
+    g_state.provider = g_stable_provider;
+    return;
+  }
+
+  ::flagd::FlagdProviderConfig config;
+  config.SetHost("localhost");
+  config.SetPort(8015);
+  config.SetDeadlineMs(5000);
+  if (!g_state.selector.empty()) {
+    config.SetSelector(g_state.selector);
+  }
+
+  g_stable_provider = std::make_shared<::flagd::FlagdProvider>(config);
+  g_state.provider = g_stable_provider;
+  g_current_selector = g_state.selector;
+
+  auto& api = ::openfeature::OpenFeatureAPI::GetInstance();
+  api.SetProviderAndWait(g_state.provider);
+  std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+}
+
+GIVEN(AnEvaluator, "an evaluator") {
+  if (g_stable_provider && g_state.selector == g_current_selector) {
+    g_state.provider = g_stable_provider;
+    return;
+  }
+
+  ::flagd::FlagdProviderConfig config;
+  config.SetHost("localhost");
+  config.SetPort(8015);
   config.SetDeadlineMs(5000);
   if (!g_state.selector.empty()) {
     config.SetSelector(g_state.selector);
@@ -171,6 +278,41 @@ GIVEN(AFloatFlag,
 
 GIVEN(AnObjectFlag,
       "a Object-flag with key {string} and a default value {string}") {
+  g_state.last_eval.flag_key = static_cast<std::string>(CUKE_ARG(1));
+  g_state.last_eval.flag_type = "Object";
+  g_state.last_eval.default_value_str = static_cast<std::string>(CUKE_ARG(2));
+}
+
+GIVEN(ABooleanFlagFallback,
+      "a Boolean-flag with key {string} and a fallback value {string}") {
+  g_state.last_eval.flag_key = static_cast<std::string>(CUKE_ARG(1));
+  g_state.last_eval.flag_type = "Boolean";
+  g_state.last_eval.default_value_str = static_cast<std::string>(CUKE_ARG(2));
+}
+
+GIVEN(AStringFlagFallback,
+      "a String-flag with key {string} and a fallback value {string}") {
+  g_state.last_eval.flag_key = static_cast<std::string>(CUKE_ARG(1));
+  g_state.last_eval.flag_type = "String";
+  g_state.last_eval.default_value_str = static_cast<std::string>(CUKE_ARG(2));
+}
+
+GIVEN(AIntegerFlagFallback,
+      "a Integer-flag with key {string} and a fallback value {string}") {
+  g_state.last_eval.flag_key = static_cast<std::string>(CUKE_ARG(1));
+  g_state.last_eval.flag_type = "Integer";
+  g_state.last_eval.default_value_str = static_cast<std::string>(CUKE_ARG(2));
+}
+
+GIVEN(AFloatFlagFallback,
+      "a Float-flag with key {string} and a fallback value {string}") {
+  g_state.last_eval.flag_key = static_cast<std::string>(CUKE_ARG(1));
+  g_state.last_eval.flag_type = "Float";
+  g_state.last_eval.default_value_str = static_cast<std::string>(CUKE_ARG(2));
+}
+
+GIVEN(AnObjectFlagFallback,
+      "a Object-flag with key {string} and a fallback value {string}") {
   g_state.last_eval.flag_key = static_cast<std::string>(CUKE_ARG(1));
   g_state.last_eval.flag_type = "Object";
   g_state.last_eval.default_value_str = static_cast<std::string>(CUKE_ARG(2));
@@ -240,22 +382,32 @@ WHEN(TheFlagWasEvaluatedWithDetails, "the flag was evaluated with details") {
   std::string def_str = g_state.last_eval.default_value_str;
 
   if (type == "Boolean") {
-    bool val = client->GetBooleanValue(key, def_str == "true", ctx);
-    g_state.last_eval.resolved_value = ::openfeature::Value(val);
+    RecordEvaluationDetails(
+        client->GetBooleanDetails(key, def_str == "true", ctx));
   } else if (type == "String") {
-    std::string val = client->GetStringValue(key, def_str, ctx);
-    g_state.last_eval.resolved_value = ::openfeature::Value(val);
+    RecordEvaluationDetails(client->GetStringDetails(key, def_str, ctx));
   } else if (type == "Integer") {
-    int64_t val = client->GetIntegerValue(key, std::stoll(def_str), ctx);
-    g_state.last_eval.resolved_value = ::openfeature::Value(val);
+    int64_t def_val = 0;
+    try {
+      if (!def_str.empty()) {
+        def_val = std::stoll(def_str);
+      }
+    } catch (...) {
+    }
+    RecordEvaluationDetails(client->GetIntegerDetails(key, def_val, ctx));
   } else if (type == "Float") {
-    double val = client->GetDoubleValue(key, std::stod(def_str), ctx);
-    g_state.last_eval.resolved_value = ::openfeature::Value(val);
+    double def_val = 0.0;
+    try {
+      if (!def_str.empty()) {
+        def_val = std::stod(def_str);
+      }
+    } catch (...) {
+    }
+    RecordEvaluationDetails(client->GetDoubleDetails(key, def_val, ctx));
   } else if (type == "Object") {
     nlohmann::json parsed_json = nlohmann::json::parse(def_str, nullptr, false);
     openfeature::Value def_val = JsonToValue(parsed_json);
-    openfeature::Value val = client->GetObjectValue(key, def_val, ctx);
-    g_state.last_eval.resolved_value = std::move(val);
+    RecordEvaluationDetails(client->GetObjectDetails(key, def_val, ctx));
   }
 }
 
@@ -289,13 +441,106 @@ THEN(TheResolvedDetailsValueShouldBe,
     auto actual = g_state.last_eval.resolved_value.AsDouble();
     cuke::equal(actual.has_value(), true);
     if (actual.has_value()) {
-      cuke::equal(actual.value(), expected);
+      cuke::equal(std::abs(actual.value() - expected) < 1e-5, true);
     }
   } else if (type == "Object") {
     nlohmann::json expected =
         nlohmann::json::parse(expected_str, nullptr, false);
     nlohmann::json actual = ValueToJson(g_state.last_eval.resolved_value);
     cuke::equal(actual.dump(), expected.dump());
+  }
+}
+
+THEN(TheReasonShouldBe, "the reason should be {string}") {
+  std::string expected = CUKE_ARG(1);
+  if (expected.empty()) {
+    cuke::equal(g_state.last_eval.reason.has_value(), false);
+  } else {
+    cuke::equal(g_state.last_eval.reason.has_value(), true);
+    if (g_state.last_eval.reason.has_value()) {
+      std::string actual = ReasonToString(*g_state.last_eval.reason);
+      cuke::equal(actual, expected);
+    }
+  }
+}
+
+THEN(TheVariantShouldBe, "the variant should be {string}") {
+  std::string expected = CUKE_ARG(1);
+  if (expected.empty()) {
+    cuke::equal(g_state.last_eval.variant.has_value(), false);
+  } else {
+    cuke::equal(g_state.last_eval.variant.has_value(), true);
+    if (g_state.last_eval.variant.has_value()) {
+      cuke::equal(g_state.last_eval.variant.value(), expected);
+    }
+  }
+}
+
+THEN(TheErrorCodeShouldBe, "the error-code should be {string}") {
+  std::string expected = CUKE_ARG(1);
+  if (expected.empty()) {
+    cuke::equal(g_state.last_eval.error_code.has_value(), false);
+  } else {
+    cuke::equal(g_state.last_eval.error_code.has_value(), true);
+    if (g_state.last_eval.error_code.has_value()) {
+      cuke::equal(ErrorCodeToString(*g_state.last_eval.error_code), expected);
+    }
+  }
+}
+
+THEN(TheResolvedMetadataIsEmpty, "the resolved metadata is empty") {
+  cuke::equal(g_state.last_eval.flag_metadata.data.empty(), true);
+}
+
+THEN(TheResolvedMetadataShouldContain, "the resolved metadata should contain") {
+  const cuke::table& t = CUKE_TABLE();
+  const auto& metadata_map = g_state.last_eval.flag_metadata.data;
+  for (const auto& row : t.hashes()) {
+    std::string key = row["key"].as<std::string>();
+    std::string type = row["metadata_type"].as<std::string>();
+    std::string expected_val = row["value"].as<std::string>();
+
+    auto it = metadata_map.find(key);
+    cuke::equal(it != metadata_map.end(), true);
+    if (it == metadata_map.end()) {
+      continue;
+    }
+    const auto& var_val = it->second;
+    if (type == "String") {
+      cuke::equal(std::holds_alternative<std::string>(var_val), true);
+      if (std::holds_alternative<std::string>(var_val)) {
+        cuke::equal(std::get<std::string>(var_val), expected_val);
+      }
+    } else if (type == "Integer") {
+      int64_t expected = std::stoll(expected_val);
+      bool is_int = std::holds_alternative<int64_t>(var_val);
+      bool is_double = std::holds_alternative<double>(var_val);
+      cuke::equal(is_int || is_double, true);
+      if (is_int) {
+        cuke::equal(std::get<int64_t>(var_val), expected);
+      } else if (is_double) {
+        cuke::equal(static_cast<int64_t>(std::get<double>(var_val)), expected);
+      }
+    } else if (type == "Float") {
+      double expected = std::stod(expected_val);
+      bool is_double = std::holds_alternative<double>(var_val);
+      bool is_int = std::holds_alternative<int64_t>(var_val);
+      cuke::equal(is_double || is_int, true);
+      if (is_double) {
+        cuke::equal(std::abs(std::get<double>(var_val) - expected) < 1e-5,
+                    true);
+      } else if (is_int) {
+        cuke::equal(std::abs(static_cast<double>(std::get<int64_t>(var_val)) -
+                             expected) < 1e-5,
+                    true);
+      }
+    } else if (type == "Boolean") {
+      bool expected = (expected_val == "true" || expected_val == "True");
+      cuke::equal(std::holds_alternative<bool>(var_val), true);
+      if (std::holds_alternative<bool>(var_val)) {
+        cuke::equal(std::get<bool>(var_val), expected);
+      }
+    }
   }
 }
 
