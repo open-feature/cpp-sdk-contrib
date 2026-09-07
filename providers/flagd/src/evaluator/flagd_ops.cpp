@@ -292,13 +292,9 @@ void EncodeJson(QCBOREncodeContext* enc_ctx, const nlohmann::json& data) {
       QCBOREncode_AddInt64(enc_ctx, val);
     }
   } else if (data.is_number_float()) {
-    constexpr double kMinInt64AsDouble = -9223372036854775808.0;        // -2^63
-    constexpr double kMaxUInt64LimitAsDouble = 18446744073709551616.0;  // 2^64
     double val = data.get<double>();
-    if (val == 0.0) {
-      QCBOREncode_AddUInt64(enc_ctx, 0);
-    } else if (std::trunc(val) == val && val >= kMinInt64AsDouble &&
-               val < kMaxUInt64LimitAsDouble) {
+    if (std::trunc(val) == val && val <= static_cast<double>(INT64_MAX) &&
+        val >= static_cast<double>(INT64_MIN)) {
       if (val < 0.0) {
         QCBOREncode_AddInt64(enc_ctx, static_cast<int64_t>(val));
       } else {
@@ -414,7 +410,13 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
   bool first_value_used = false;
 
   if (bucketing_property_eval.value().is_array()) {
-    // Shorthand or implicit targetingKey mode
+    std::string flag_key;
+    if (data.contains("$flagd") && data["$flagd"].is_object() &&
+        data["$flagd"].contains("flagKey") &&
+        data["$flagd"]["flagKey"].is_string()) {
+      flag_key = data["$flagd"]["flagKey"].get<std::string>();
+    }
+
     if (!data.is_object() || !data.contains("targetingKey") ||
         data["targetingKey"].is_null()) {
       return absl::InvalidArgumentError(
@@ -422,13 +424,6 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
     }
     if (!data["targetingKey"].is_string()) {
       return absl::InvalidArgumentError("targetingKey must be a string");
-    }
-
-    std::string flag_key;
-    if (data.contains("$flagd") && data["$flagd"].is_object() &&
-        data["$flagd"].contains("flagKey") &&
-        data["$flagd"]["flagKey"].is_string()) {
-      flag_key = data["$flagd"]["flagKey"].get<std::string>();
     }
 
     std::string targeting_key = data["targetingKey"].get<std::string>();
