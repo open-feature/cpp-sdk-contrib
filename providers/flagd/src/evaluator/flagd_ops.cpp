@@ -227,46 +227,26 @@ struct Distribution {
   int32_t weight;
 };
 
-constexpr size_t kStackKeyBufferSize = 256;
-
-// Encodes a single string key to deterministic CBOR bytes for map key sorting.
-std::vector<uint8_t> EncodeCborKey(const std::string& key) {
-  QCBOREncodeContext ctx;
-  UsefulBuf_MAKE_STACK_UB(buf, kStackKeyBufferSize);
-  QCBOREncode_Init(&ctx, buf);
-  QCBOREncode_AddText(&ctx, {key.data(), key.size()});
-  UsefulBufC out;
-  if (QCBOREncode_Finish(&ctx, &out) == QCBOR_SUCCESS) {
-    return std::vector<uint8_t>(static_cast<const uint8_t*>(out.ptr),
-                                static_cast<const uint8_t*>(out.ptr) + out.len);
+// CBOR Canonical sorting for string keys per RFC 7049 Section 3.9 / RFC 8949
+// Section 4.2.1: length first, then lexicographical.
+bool CompareCborKeys(const std::string& lhs, const std::string& rhs) {
+  if (lhs.length() != rhs.length()) {
+    return lhs.length() < rhs.length();
   }
-  UsefulBufC size_info;
-  QCBOREncode_Init(&ctx, SizeCalculateUsefulBuf);
-  QCBOREncode_AddText(&ctx, {key.data(), key.size()});
-  QCBOREncode_Finish(&ctx, &size_info);
-  std::vector<uint8_t> dyn_buf(size_info.len);
-  UsefulBuf dyn_ub = {dyn_buf.data(), dyn_buf.size()};
-  QCBOREncode_Init(&ctx, dyn_ub);
-  QCBOREncode_AddText(&ctx, {key.data(), key.size()});
-  QCBOREncode_Finish(&ctx, &out);
-  return std::vector<uint8_t>(static_cast<const uint8_t*>(out.ptr),
-                              static_cast<const uint8_t*>(out.ptr) + out.len);
+  return lhs < rhs;
 }
 
 // Encodes nlohmann::json to deterministic CBOR per RFC 8949.
 void EncodeJson(QCBOREncodeContext* enc_ctx, const nlohmann::json& data) {
   if (data.is_object()) {
     QCBOREncode_OpenMap(enc_ctx);
-    std::vector<std::pair<std::vector<uint8_t>, std::string>> keys;
+    std::vector<std::string> keys;
     keys.reserve(data.size());
     for (const auto& item : data.items()) {
-      keys.emplace_back(EncodeCborKey(item.key()), item.key());
+      keys.push_back(item.key());
     }
-    std::sort(keys.begin(), keys.end(), [](const auto& lhs, const auto& rhs) {
-      return lhs.first < rhs.first;
-    });
-    for (const auto& key_pair : keys) {
-      const std::string& key = key_pair.second;
+    std::sort(keys.begin(), keys.end(), CompareCborKeys);
+    for (const auto& key : keys) {
       QCBOREncode_AddText(enc_ctx, {key.data(), key.size()});
       EncodeJson(enc_ctx, data[key]);
     }
