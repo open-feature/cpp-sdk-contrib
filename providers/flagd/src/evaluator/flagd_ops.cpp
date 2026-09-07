@@ -32,18 +32,19 @@ bool HasLeadingZero(std::string_view str) {
 }
 
 // Parses number according to SemVer 2.0.0 specification.
-absl::Status ParseSemVerNum(std::string_view num_str, std::string_view name,
-                            uint64_t* out) {
+absl::StatusOr<uint64_t> ParseSemVerNum(std::string_view num_str,
+                                        std::string_view name) {
   if (HasLeadingZero(num_str)) {
     return absl::InvalidArgumentError(absl::StrCat(
         name, " version MUST NOT contain leading zeros: ", num_str));
   }
-  if (!absl::SimpleAtoi(num_str, out)) {
+  uint64_t out = 0;
+  if (!absl::SimpleAtoi(num_str, &out)) {
     return absl::InvalidArgumentError(
         absl::StrCat("Invalid SemVer ", name, " digits: ", num_str));
   }
-  return absl::OkStatus();
-};
+  return out;
+}
 
 // Evaluates and retrieves a fixed number of string arguments from JsonLogic.
 absl::StatusOr<std::vector<std::string>> GetStrings(
@@ -118,26 +119,29 @@ class SemanticVersion {
           absl::StrCat("Invalid SemVer core: ", core));
     }
 
-    uint64_t major = 0;
+    absl::StatusOr<uint64_t> major = ParseSemVerNum(core_parts[0], "Major");
+    if (!major.ok()) {
+      return major.status();
+    }
+
     uint64_t minor = 0;
-    uint64_t patch = 0;
-    if (absl::Status status = ParseSemVerNum(core_parts[0], "Major", &major);
-        !status.ok()) {
-      return status;
-    }
-
     if (core_parts.size() >= 2) {
-      if (absl::Status status = ParseSemVerNum(core_parts[1], "Minor", &minor);
-          !status.ok()) {
-        return status;
+      absl::StatusOr<uint64_t> minor_res =
+          ParseSemVerNum(core_parts[1], "Minor");
+      if (!minor_res.ok()) {
+        return minor_res.status();
       }
+      minor = *minor_res;
     }
 
+    uint64_t patch = 0;
     if (core_parts.size() == 3) {
-      if (absl::Status status = ParseSemVerNum(core_parts[2], "Patch", &patch);
-          !status.ok()) {
-        return status;
+      absl::StatusOr<uint64_t> patch_res =
+          ParseSemVerNum(core_parts[2], "Patch");
+      if (!patch_res.ok()) {
+        return patch_res.status();
       }
+      patch = *patch_res;
     }
 
     // 4. Parse pre-release identifiers
@@ -162,7 +166,7 @@ class SemanticVersion {
       }
     }
 
-    return SemanticVersion(major, minor, patch, std::move(pre_release));
+    return SemanticVersion(*major, minor, patch, std::move(pre_release));
   }
 
   // Compares two SemanticVersion objects based on SemVer 2.0.0 precedence
@@ -223,10 +227,12 @@ struct Distribution {
   int32_t weight;
 };
 
+constexpr size_t kStackKeyBufferSize = 256;
+
 // Encodes a single string key to deterministic CBOR bytes for map key sorting.
 std::vector<uint8_t> EncodeCborKey(const std::string& key) {
   QCBOREncodeContext ctx;
-  UsefulBuf_MAKE_STACK_UB(buf, 256);
+  UsefulBuf_MAKE_STACK_UB(buf, kStackKeyBufferSize);
   QCBOREncode_Init(&ctx, buf);
   QCBOREncode_AddText(&ctx, {key.data(), key.size()});
   UsefulBufC out;
@@ -253,13 +259,14 @@ void EncodeJson(QCBOREncodeContext* enc_ctx, const nlohmann::json& data) {
     QCBOREncode_OpenMap(enc_ctx);
     std::vector<std::pair<std::vector<uint8_t>, std::string>> keys;
     keys.reserve(data.size());
-    for (auto it = data.begin(); it != data.end(); ++it) {
-      keys.emplace_back(EncodeCborKey(it.key()), it.key());
+    for (const auto& item : data.items()) {
+      keys.emplace_back(EncodeCborKey(item.key()), item.key());
     }
     std::sort(keys.begin(), keys.end(), [](const auto& lhs, const auto& rhs) {
       return lhs.first < rhs.first;
     });
-    for (const auto& [_, key] : keys) {
+    for (const auto& key_pair : keys) {
+      const std::string& key = key_pair.second;
       QCBOREncode_AddText(enc_ctx, {key.data(), key.size()});
       EncodeJson(enc_ctx, data[key]);
     }
@@ -285,11 +292,13 @@ void EncodeJson(QCBOREncodeContext* enc_ctx, const nlohmann::json& data) {
       QCBOREncode_AddInt64(enc_ctx, val);
     }
   } else if (data.is_number_float()) {
+    constexpr double kMinInt64AsDouble = -9223372036854775808.0;        // -2^63
+    constexpr double kMaxUInt64LimitAsDouble = 18446744073709551616.0;  // 2^64
     double val = data.get<double>();
     if (val == 0.0) {
       QCBOREncode_AddUInt64(enc_ctx, 0);
-    } else if (std::trunc(val) == val && val >= -9223372036854775808.0 &&
-               val < 18446744073709551616.0) {
+    } else if (std::trunc(val) == val && val >= kMinInt64AsDouble &&
+               val < kMaxUInt64LimitAsDouble) {
       if (val < 0.0) {
         QCBOREncode_AddInt64(enc_ctx, static_cast<int64_t>(val));
       } else {
@@ -443,10 +452,7 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
 
     int32_t weight = 1;
     if (item.value().size() >= 2 && item.value()[1].is_number()) {
-      weight = item.value()[1].get<int32_t>();
-      if (weight < 0) {
-        weight = 0;
-      }
+      weight = std::max(item.value()[1].get<int32_t>(), 0);
     }
 
     distributions.push_back({item.value()[0], weight});
