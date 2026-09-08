@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <nlohmann/json.hpp>
+#include <optional>
 #include <string>
 
 #include "openfeature/error_code.h"
@@ -19,5 +20,7 @@ void RecordEvaluationDetails(
     const openfeature::GeneralFlagEvaluationDetails& details);
 openfeature::Value JsonToValue(const nlohmann::json& json_val);
 nlohmann::json ValueToJson(const openfeature::Value& val);
+std::optional<int64_t> ParseInt64(const std::string& str);
+std::optional<double> ParseDouble(const std::string& str);
 
 }  // namespace openfeature::contrib::flagd::test

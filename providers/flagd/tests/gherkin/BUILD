@@ -40,6 +40,10 @@ cc_binary(
     env = {
         "FLAGD_TEST_FLAGS": "$(locations @flagd_testbed//:flags)",
     },
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
     deps = DEPS,
 )
 
@@ -57,5 +61,9 @@ cc_test(
     # TODO(#91): This tag disables those tests from github action check
     # We should remove it once all tests will be passing
     tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
     deps = DEPS,
 )

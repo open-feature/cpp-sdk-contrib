@@ -18,6 +18,8 @@
 using openfeature::contrib::flagd::test::ErrorCodeToString;
 using openfeature::contrib::flagd::test::g_state;
 using openfeature::contrib::flagd::test::JsonToValue;
+using openfeature::contrib::flagd::test::ParseDouble;
+using openfeature::contrib::flagd::test::ParseInt64;
 using openfeature::contrib::flagd::test::ReasonToString;
 using openfeature::contrib::flagd::test::RecordEvaluationDetails;
 using openfeature::contrib::flagd::test::ValueToJson;
@@ -96,24 +98,42 @@ THEN(TheResolvedDetailsValueShouldBe,
       cuke::equal(actual.value(), expected_str);
     }
   } else if (type == "Integer") {
-    int64_t expected = std::stoll(expected_str);
+    auto expected = ParseInt64(expected_str);
+    cuke::equal(
+        expected.has_value(), true,
+        "Expected integer string is not a valid int64: " + expected_str);
+    if (!expected.has_value()) {
+      return;
+    }
     auto actual = g_state.last_eval.resolved_value.AsInt();
     cuke::equal(actual.has_value(), true);
     if (actual.has_value()) {
-      cuke::equal(actual.value(), expected);
+      cuke::equal(actual.value(), expected.value());
     }
   } else if (type == "Float") {
-    double expected = std::stod(expected_str);
+    auto expected = ParseDouble(expected_str);
+    cuke::equal(expected.has_value(), true,
+                "Expected float string is not a valid double: " + expected_str);
+    if (!expected.has_value()) {
+      return;
+    }
     auto actual = g_state.last_eval.resolved_value.AsDouble();
     cuke::equal(actual.has_value(), true);
     if (actual.has_value()) {
-      cuke::equal(std::abs(actual.value() - expected) < 1e-5, true);
+      cuke::equal(std::abs(actual.value() - expected.value()) < 1e-5, true);
     }
   } else if (type == "Object") {
     nlohmann::json expected =
         nlohmann::json::parse(expected_str, nullptr, false);
+    cuke::equal(expected.is_discarded(), false,
+                "Expected JSON is malformed: " + expected_str);
+    if (expected.is_discarded()) {
+      return;
+    }
     nlohmann::json actual = ValueToJson(g_state.last_eval.resolved_value);
-    cuke::equal(actual.dump(), expected.dump());
+    cuke::equal(actual == expected, true,
+                "Actual JSON does not match expected JSON. Actual: " +
+                    actual.dump() + ", Expected: " + expected.dump());
   }
 }
 
@@ -178,26 +198,40 @@ THEN(TheResolvedMetadataShouldContain, "the resolved metadata should contain") {
         cuke::equal(std::get<std::string>(var_val), expected_val);
       }
     } else if (type == "Integer") {
-      int64_t expected = std::stoll(expected_val);
+      auto expected = ParseInt64(expected_val);
+      cuke::equal(expected.has_value(), true,
+                  "Expected integer metadata string is not a valid int64: " +
+                      expected_val);
+      if (!expected.has_value()) {
+        continue;
+      }
       bool is_int = std::holds_alternative<int64_t>(var_val);
       bool is_double = std::holds_alternative<double>(var_val);
       cuke::equal(is_int || is_double, true);
       if (is_int) {
-        cuke::equal(std::get<int64_t>(var_val), expected);
+        cuke::equal(std::get<int64_t>(var_val), expected.value());
       } else if (is_double) {
-        cuke::equal(static_cast<int64_t>(std::get<double>(var_val)), expected);
+        cuke::equal(static_cast<int64_t>(std::get<double>(var_val)),
+                    expected.value());
       }
     } else if (type == "Float") {
-      double expected = std::stod(expected_val);
+      auto expected = ParseDouble(expected_val);
+      cuke::equal(expected.has_value(), true,
+                  "Expected float metadata string is not a valid double: " +
+                      expected_val);
+      if (!expected.has_value()) {
+        continue;
+      }
       bool is_double = std::holds_alternative<double>(var_val);
       bool is_int = std::holds_alternative<int64_t>(var_val);
       cuke::equal(is_double || is_int, true);
       if (is_double) {
-        cuke::equal(std::abs(std::get<double>(var_val) - expected) < 1e-5,
-                    true);
+        cuke::equal(
+            std::abs(std::get<double>(var_val) - expected.value()) < 1e-5,
+            true);
       } else if (is_int) {
         cuke::equal(std::abs(static_cast<double>(std::get<int64_t>(var_val)) -
-                             expected) < 1e-5,
+                             expected.value()) < 1e-5,
                     true);
       }
     } else if (type == "Boolean") {

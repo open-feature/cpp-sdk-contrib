@@ -123,8 +123,15 @@ GIVEN(AnEnvironmentVariableWithValue,
       "an environment variable {string} with value {string}") {
   std::string env_var = CUKE_ARG(1);
   std::string value = CUKE_ARG(2);
+  if (!g_state.saved_env_vars.contains(env_var)) {
+    const char* cur = std::getenv(env_var.c_str());
+    if (cur != nullptr) {
+      g_state.saved_env_vars[env_var] = std::string(cur);
+    } else {
+      g_state.saved_env_vars[env_var] = std::nullopt;
+    }
+  }
   setenv(env_var.c_str(), value.c_str(), 1);
-  g_state.set_env_vars.push_back(env_var);
 }
 
 WHEN(AConfigWasInitialized, "a config was initialized") {
@@ -254,10 +261,14 @@ THEN(WeShouldHaveAnError, "we should have an error") {
 }
 
 AFTER(CleanupEnv) {
-  for (const auto& var : g_state.set_env_vars) {
-    unsetenv(var.c_str());
+  for (const auto& [var, val] : g_state.saved_env_vars) {
+    if (val.has_value()) {
+      setenv(var.c_str(), val->c_str(), 1);
+    } else {
+      unsetenv(var.c_str());
+    }
   }
-  g_state.set_env_vars.clear();
+  g_state.saved_env_vars.clear();
   g_state.pending_options.clear();
   g_state.config.reset();
   g_state.config_error = false;

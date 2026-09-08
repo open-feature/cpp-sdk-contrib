@@ -39,7 +39,7 @@ struct TestState {
   std::string resolved_resolver = "rpc";
   std::string fatal_status_codes_str;
   bool config_error = false;
-  std::vector<std::string> set_env_vars;
+  std::map<std::string, std::optional<std::string>> saved_env_vars;
   std::map<std::string, std::string> pending_options;
 };
 

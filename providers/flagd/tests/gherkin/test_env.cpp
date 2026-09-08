@@ -298,7 +298,17 @@ void SetupGlobalFlagd() {
   fs::path dest = fs::path(g_scenario_tmp_dir) / "all_flags.json";
   {
     std::ofstream ofs(dest);
+    if (!ofs.is_open()) {
+      std::cerr << "CRITICAL: Could not open output flag file for writing: "
+                << dest << '\n';
+      exit(1);
+    }
     ofs << merged_root.dump(2);
+    if (!ofs.good()) {
+      std::cerr << "CRITICAL: Failed writing to output flag file: " << dest
+                << '\n';
+      exit(1);
+    }
   }
   // Add all_flags.json as the default (no selector) source
   sources.insert(sources.begin(), {

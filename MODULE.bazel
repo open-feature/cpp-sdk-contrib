@@ -5,6 +5,7 @@ bazel_dep(name = "rules_python", version = "2.3.2")
 bazel_dep(name = "rules_proto", version = "7.1.0")
 bazel_dep(name = "googletest", version = "1.18.0.bcr.1")
 bazel_dep(name = "abseil-cpp", version = "20250814.2")
+bazel_dep(name = "platforms", version = "0.0.10")
 bazel_dep(name = "openfeature_cpp_sdk")
 git_override(
     module_name = "openfeature_cpp_sdk",

@@ -1,5 +1,6 @@
 #include "providers/flagd/tests/gherkin/steps/step_utils.h"
 
+#include <cmath>
 #include <cstdint>
 #include <map>
 #include <nlohmann/json.hpp>
@@ -111,10 +112,12 @@ nlohmann::json ValueToJson(const openfeature::Value& val) {
     return val.AsBool().value();
   }
   if (val.IsNumber()) {
-    if (val.AsInt().has_value()) {
-      return val.AsInt().value();
+    double d = val.AsDouble().value();
+    int64_t i = val.AsInt().value();
+    if (static_cast<double>(i) == d && !std::isnan(d)) {
+      return i;
     }
-    return val.AsDouble().value();
+    return d;
   }
   if (val.IsString()) {
     return val.AsString().value();
@@ -136,6 +139,32 @@ nlohmann::json ValueToJson(const openfeature::Value& val) {
     return arr;
   }
   return nullptr;
+}
+
+std::optional<int64_t> ParseInt64(const std::string& str) {
+  try {
+    size_t idx = 0;
+    int64_t val = std::stoll(str, &idx);
+    if (idx != str.size()) {
+      return std::nullopt;
+    }
+    return val;
+  } catch (...) {
+    return std::nullopt;
+  }
+}
+
+std::optional<double> ParseDouble(const std::string& str) {
+  try {
+    size_t idx = 0;
+    double val = std::stod(str, &idx);
+    if (idx != str.size()) {
+      return std::nullopt;
+    }
+    return val;
+  } catch (...) {
+    return std::nullopt;
+  }
 }
 
 }  // namespace openfeature::contrib::flagd::test
