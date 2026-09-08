@@ -426,8 +426,19 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
     }
 
     int32_t weight = 1;
-    if (item.value().size() >= 2 && item.value()[1].is_number()) {
-      weight = std::max(item.value()[1].get<int32_t>(), 0);
+    if (item.value().size() >= 2) {
+      const nlohmann::json& weight_json = item.value()[1];
+      if (!weight_json.is_number()) {
+        return absl::InvalidArgumentError("Fractional weight must be a number");
+      }
+      if (weight_json.is_number_float()) {
+        double val = weight_json.get<double>();
+        if (!std::isfinite(val) || std::trunc(val) != val) {
+          return absl::InvalidArgumentError(
+              "Fractional weight must be an integer");
+        }
+      }
+      weight = std::max(weight_json.get<int32_t>(), 0);
     }
 
     distributions.push_back({item.value()[0], weight});
