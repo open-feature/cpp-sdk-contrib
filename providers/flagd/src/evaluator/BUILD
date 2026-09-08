@@ -13,6 +13,7 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
         "@nlohmann_json//:json",
+        "@qcbor//:qcbor",
     ],
 )
 
