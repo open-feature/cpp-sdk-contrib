@@ -211,8 +211,16 @@ THEN(TheResolvedMetadataShouldContain, "the resolved metadata should contain") {
       if (is_int) {
         cuke::equal(std::get<int64_t>(var_val), expected.value());
       } else if (is_double) {
-        cuke::equal(static_cast<int64_t>(std::get<double>(var_val)),
-                    expected.value());
+        double d = std::get<double>(var_val);
+        bool is_integral = !std::isnan(d) && !std::isinf(d) &&
+                           d >= -9223372036854775808.0 &&
+                           d < 9223372036854775808.0 && std::trunc(d) == d;
+        cuke::equal(is_integral, true,
+                    "Metadata double value " + std::to_string(d) +
+                        " is not an in-range integral value");
+        if (is_integral) {
+          cuke::equal(static_cast<int64_t>(d), expected.value());
+        }
       }
     } else if (type == "Float") {
       auto expected = ParseDouble(expected_val);

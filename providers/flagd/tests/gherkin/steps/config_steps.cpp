@@ -137,14 +137,16 @@ GIVEN(AnEnvironmentVariableWithValue,
 WHEN(AConfigWasInitialized, "a config was initialized") {
   try {
     ::flagd::FlagdProviderConfig config;
-
+    bool explicit_resolver = false;
     std::string resolver = "rpc";
     if (const char* env_res = std::getenv("FLAGD_RESOLVER")) {
       resolver = env_res;
+      explicit_resolver = true;
     }
     auto opt_it = g_state.pending_options.find("resolver");
     if (opt_it != g_state.pending_options.end()) {
       resolver = opt_it->second;
+      explicit_resolver = true;
     }
     for (char& c : resolver) {
       c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -160,7 +162,8 @@ WHEN(AConfigWasInitialized, "a config was initialized") {
     }
 
     if (has_offline_path) {
-      if (resolver == "in-process" || resolver == "file") {
+      if (!explicit_resolver || resolver == "in-process" ||
+          resolver == "file") {
         resolver = "file";
       }
     }
