@@ -91,7 +91,7 @@ cc_test(
         # otherwise run against the sync port and fail for the wrong reason.
         "GHERKIN_TAGS": "@in-process",
     },
-    # TODO(#91): drop once the suite is green, so CI can enforce it.
+    # TODO(#135): drop once the suite is green, so CI can enforce it.
     tags = ["manual"],
     target_compatible_with = GHERKIN_PLATFORM,
     deps = [
