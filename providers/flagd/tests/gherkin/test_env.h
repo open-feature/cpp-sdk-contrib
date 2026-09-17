@@ -6,6 +6,9 @@
 #include <string>
 #include <vector>
 
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+
 namespace openfeature::contrib::flagd::test {
 
 // flagd exposes the evaluation API on --port and the flag sync API on
@@ -14,8 +17,7 @@ namespace openfeature::contrib::flagd::test {
 inline constexpr int kFlagdRpcPort = 8013;
 inline constexpr int kFlagdSyncPort = 8015;
 
-// Returns an empty string when the path is unknown.
-std::string GetRunfilePath(const std::string& relative_path);
+absl::StatusOr<std::string> GetRunfilePath(const std::string& relative_path);
 
 bool WaitForGrpcReady(
     const std::string& target,
@@ -38,9 +40,9 @@ class FlagdProcess {
   FlagdProcess(const FlagdProcess&) = delete;
   FlagdProcess& operator=(const FlagdProcess&) = delete;
 
-  // On failure returns false and fills `error` with the reason, including
-  // anything the child managed to report before exec failed.
-  bool Start(std::string* error);
+  // A failed status carries anything the child managed to report before exec
+  // failed.
+  absl::Status Start();
   void Stop();
 
   std::string LogPath() const;
@@ -57,7 +59,7 @@ class FlagdProcess {
 
 // Writes the merged fixture files and starts the shared flagd instance. Safe
 // to call more than once; only the first call does anything.
-bool SetupGlobalFlagd(std::string* error);
+absl::Status SetupGlobalFlagd();
 
 // Safe to call when flagd was never started.
 void TeardownGlobalFlagd();

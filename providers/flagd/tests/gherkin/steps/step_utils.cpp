@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/strings/numbers.h"
 #include "asserts.hpp"  // for cuke::equal
 #include "openfeature/error_code.h"
 #include "openfeature/general_flag_evaluation_details.h"
@@ -178,29 +179,19 @@ nlohmann::json ValueToJson(const openfeature::Value& val) {
 }
 
 std::optional<int64_t> ParseInt64(const std::string& str) {
-  try {
-    size_t idx = 0;
-    int64_t val = std::stoll(str, &idx);
-    if (idx != str.size()) {
-      return std::nullopt;
-    }
-    return val;
-  } catch (...) {
+  int64_t val = 0;
+  if (!absl::SimpleAtoi(str, &val)) {
     return std::nullopt;
   }
+  return val;
 }
 
 std::optional<double> ParseDouble(const std::string& str) {
-  try {
-    size_t idx = 0;
-    double val = std::stod(str, &idx);
-    if (idx != str.size()) {
-      return std::nullopt;
-    }
-    return val;
-  } catch (...) {
+  double val = 0;
+  if (!absl::SimpleAtod(str, &val)) {
     return std::nullopt;
   }
+  return val;
 }
 
 std::optional<bool> ParseBool(const std::string& str) {

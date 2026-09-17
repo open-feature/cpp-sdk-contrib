@@ -39,6 +39,30 @@ GHERKIN_DATA = [
     "@flagd_testbed//:flags",
 ]
 
+# Deliberately NOT built with GHERKIN_COPTS. absl::SourceLocation aliases to
+# std::source_location only under C++20, which changes the mangled name of
+# every absl error factory. Abseil itself is built at the repo's default
+# standard, so a C++20 translation unit calling absl::NotFoundError fails to
+# link. This layer pulls in no cucumber headers, so it stays on the default
+# standard and can use absl::Status; the C++20 step definitions only ever
+# consume the returned Status, never construct one.
+cc_library(
+    name = "test_env",
+    testonly = True,
+    srcs = ["test_env.cpp"],
+    hdrs = ["test_env.h"],
+    data = GHERKIN_DATA,
+    tags = ["manual"],
+    deps = [
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@bazel_tools//tools/cpp/runfiles",
+        "@com_github_grpc_grpc//:grpc++",
+        "@nlohmann_json//:json",
+    ],
+)
+
 # Step definitions register from static initializers that nothing in main()
 # references, so without alwayslink the linker drops every object file here and
 # every step reports as UNDEFINED.
@@ -54,12 +78,10 @@ cc_library(
         "steps/provider_steps.cpp",
         "steps/step_utils.cpp",
         "test_context.cpp",
-        "test_env.cpp",
     ],
     hdrs = [
         "steps/step_utils.h",
         "test_context.h",
-        "test_env.h",
     ],
     copts = GHERKIN_COPTS,
     data = GHERKIN_DATA,
@@ -67,7 +89,10 @@ cc_library(
     # the library untagged would still make CI fetch the external repos.
     tags = ["manual"],
     deps = [
+        ":test_env",
         "//providers/flagd/src:flagd_provider",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
         "@bazel_tools//tools/cpp/runfiles",
         "@com_github_grpc_grpc//:grpc++",
         "@cwt_cucumber//:cwt-cucumber",

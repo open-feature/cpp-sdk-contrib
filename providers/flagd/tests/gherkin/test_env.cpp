@@ -19,13 +19,16 @@
 #include <iostream>
 #include <memory>
 #include <nlohmann/json.hpp>
-#include <sstream>
 #include <string>
 #include <system_error>
 #include <thread>
 #include <utility>
 #include <vector>
 
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_split.h"
 #include "tools/cpp/runfiles/runfiles.h"
 
 using bazel::tools::cpp::runfiles::Runfiles;
@@ -81,21 +84,19 @@ std::vector<std::string> CollectFixtureFiles() {
   std::vector<std::string> files;
   const char* env_flags = getenv("FLAGD_TEST_FLAGS");
   if (env_flags != nullptr) {
-    std::istringstream iss(env_flags);
-    std::string path;
-    while (iss >> path) {
-      files.push_back(path);
-    }
+    files =
+        absl::StrSplit(env_flags, absl::ByAnyChar(" \t\n"), absl::SkipEmpty());
   }
   if (!files.empty()) {
     return files;
   }
 
-  const std::string flags_dir = GetRunfilePath("flagd_testbed/flags");
-  if (flags_dir.empty() || !fs::exists(flags_dir)) {
+  const absl::StatusOr<std::string> flags_dir =
+      GetRunfilePath("flagd_testbed/flags");
+  if (!flags_dir.ok() || !fs::exists(*flags_dir)) {
     return files;
   }
-  for (const auto& entry : fs::directory_iterator(flags_dir)) {
+  for (const auto& entry : fs::directory_iterator(*flags_dir)) {
     if (entry.path().extension() == ".json") {
       files.push_back(entry.path().string());
     }
@@ -103,28 +104,30 @@ std::vector<std::string> CollectFixtureFiles() {
   return files;
 }
 
-// Resolves a fixture path that may be absolute, runfiles-relative, or a bare
-// filename inside the testbed's flags directory.
-std::string ResolveFixturePath(const std::string& fixture) {
+// A fixture path may be absolute, runfiles-relative, or a bare filename inside
+// the testbed's flags directory.
+absl::StatusOr<std::string> ResolveFixturePath(const std::string& fixture) {
   if (fs::exists(fixture)) {
     return fixture;
   }
-  std::string resolved = GetRunfilePath(fixture);
-  if (!resolved.empty() && fs::exists(resolved)) {
-    return resolved;
+  absl::StatusOr<std::string> resolved = GetRunfilePath(fixture);
+  if (resolved.ok() && fs::exists(*resolved)) {
+    return *resolved;
   }
   if (fixture.find("flagd_testbed/flags/") == std::string::npos) {
-    resolved = GetRunfilePath("flagd_testbed/flags/" + fixture);
-    if (!resolved.empty() && fs::exists(resolved)) {
-      return resolved;
+    resolved = GetRunfilePath(absl::StrCat("flagd_testbed/flags/", fixture));
+    if (resolved.ok() && fs::exists(*resolved)) {
+      return *resolved;
     }
   }
-  return {};
+  return absl::NotFoundError(
+      absl::StrCat("could not resolve fixture path: ", fixture));
 }
 
 }  // namespace
 
-std::string GetRunfilePath(const std::string& relative_path) {
+absl::StatusOr<std::string> GetRunfilePath(const std::string& relative_path) {
+  static std::string* creation_error = new std::string();
   static Runfiles* runfiles = [] {
     std::string error;
     Runfiles* created = Runfiles::CreateForTest(&error);
@@ -136,15 +139,21 @@ std::string GetRunfilePath(const std::string& relative_path) {
       }
     }
     if (created == nullptr) {
-      std::cerr << "CRITICAL: failed to create Runfiles: " << error << '\n';
+      *creation_error = error;
     }
     return created;
   }();
 
   if (runfiles == nullptr) {
-    return {};
+    return absl::InternalError(
+        absl::StrCat("failed to create Runfiles: ", *creation_error));
   }
-  return runfiles->Rlocation(relative_path);
+  std::string resolved = runfiles->Rlocation(relative_path);
+  if (resolved.empty()) {
+    return absl::NotFoundError(
+        absl::StrCat("no runfile named '", relative_path, "'"));
+  }
+  return resolved;
 }
 
 bool WaitForGrpcReady(const std::string& target,
@@ -155,7 +164,7 @@ bool WaitForGrpcReady(const std::string& target,
 }
 
 std::string FlagdSyncTarget() {
-  return "localhost:" + std::to_string(kFlagdSyncPort);
+  return absl::StrCat("localhost:", kFlagdSyncPort);
 }
 
 FlagdProcess::FlagdProcess(std::string binary_path,
@@ -169,12 +178,14 @@ FlagdProcess::FlagdProcess(std::string binary_path,
 
 FlagdProcess::~FlagdProcess() { Stop(); }
 
-std::string FlagdProcess::LogPath() const { return log_dir_ + "/flagd.log"; }
+std::string FlagdProcess::LogPath() const {
+  return absl::StrCat(log_dir_, "/flagd.log");
+}
 
 std::string FlagdProcess::TailLog(int max_lines) const {
   std::ifstream ifs(LogPath());
   if (!ifs.is_open()) {
-    return "(no flagd log at " + LogPath() + ")";
+    return absl::StrCat("(no flagd log at ", LogPath(), ")");
   }
   std::deque<std::string> lines;
   std::string line;
@@ -186,12 +197,12 @@ std::string FlagdProcess::TailLog(int max_lines) const {
   }
   std::string result;
   for (const std::string& kept : lines) {
-    result += "  | " + kept + '\n';
+    absl::StrAppend(&result, "  | ", kept, "\n");
   }
   return result.empty() ? "(flagd log is empty)" : result;
 }
 
-bool FlagdProcess::Start(std::string* error) {
+absl::Status FlagdProcess::Start() {
   // Built in the parent: between fork() and execvp() only async-signal-safe
   // calls are legal, and allocating (as std::string and nlohmann::json do) can
   // deadlock on a malloc lock another thread held at the moment of the fork.
@@ -225,22 +236,22 @@ bool FlagdProcess::Start(std::string* error) {
   // infer it from a readiness timeout several seconds later.
   int exec_status[2];
   if (pipe(exec_status) != 0) {
-    *error = std::string("pipe() failed: ") + strerror(errno);
-    return false;
+    return absl::InternalError(
+        absl::StrCat("pipe() failed: ", strerror(errno)));
   }
   if (fcntl(exec_status[1], F_SETFD, FD_CLOEXEC) != 0) {
     close(exec_status[0]);
     close(exec_status[1]);
-    *error = std::string("fcntl(FD_CLOEXEC) failed: ") + strerror(errno);
-    return false;
+    return absl::InternalError(
+        absl::StrCat("fcntl(FD_CLOEXEC) failed: ", strerror(errno)));
   }
 
   pid_ = fork();
   if (pid_ == -1) {
     close(exec_status[0]);
     close(exec_status[1]);
-    *error = std::string("fork() failed: ") + strerror(errno);
-    return false;
+    return absl::InternalError(
+        absl::StrCat("fork() failed: ", strerror(errno)));
   }
 
   if (pid_ == 0) {
@@ -279,10 +290,10 @@ bool FlagdProcess::Start(std::string* error) {
     int status = 0;
     waitpid(pid_, &status, 0);
     pid_ = -1;
-    *error = "failed to exec '" + binary_path_ + "': " + strerror(child_errno);
-    return false;
+    return absl::InternalError(absl::StrCat("failed to exec '", binary_path_,
+                                            "': ", strerror(child_errno)));
   }
-  return true;
+  return absl::OkStatus();
 }
 
 void FlagdProcess::Stop() {
@@ -303,32 +314,32 @@ void FlagdProcess::Stop() {
   pid_ = -1;
 }
 
-bool SetupGlobalFlagd(std::string* error) {
+absl::Status SetupGlobalFlagd() {
   if (g_flagd) {
-    return true;
+    return absl::OkStatus();
   }
 
-  const std::string flagd_bin =
+  const absl::StatusOr<std::string> flagd_bin =
       GetRunfilePath("flagd_binary/flagd_linux_x86_64");
-  if (flagd_bin.empty()) {
-    *error = "could not find the flagd binary in runfiles";
-    return false;
+  if (!flagd_bin.ok()) {
+    return absl::NotFoundError(
+        absl::StrCat("could not find the flagd binary in runfiles: ",
+                     flagd_bin.status().message()));
   }
 
   g_scenario_tmp_dir = (fs::path(TmpBaseDir()) / "gherkin_flagd").string();
   std::error_code ec;
   fs::create_directories(g_scenario_tmp_dir, ec);
   if (ec) {
-    *error = "could not create " + g_scenario_tmp_dir + ": " + ec.message();
-    return false;
+    return absl::InternalError(absl::StrCat(
+        "could not create ", g_scenario_tmp_dir, ": ", ec.message()));
   }
 
   const std::vector<std::string> fixtures = CollectFixtureFiles();
   if (fixtures.empty()) {
-    *error =
+    return absl::FailedPreconditionError(
         "no flag fixtures found; expected FLAGD_TEST_FLAGS to be set by the "
-        "Bazel target, or flagd_testbed/flags to be present in runfiles";
-    return false;
+        "Bazel target, or flagd_testbed/flags to be present in runfiles");
   }
 
   json merged = json::object();
@@ -348,10 +359,9 @@ bool SetupGlobalFlagd(std::string* error) {
       continue;
     }
 
-    const std::string path = ResolveFixturePath(fixture);
-    if (path.empty()) {
-      *error = "could not resolve fixture path: " + fixture;
-      return false;
+    const absl::StatusOr<std::string> path = ResolveFixturePath(fixture);
+    if (!path.ok()) {
+      return path.status();
     }
 
     // Files named selector-*.json back the selector scenarios, which need each
@@ -359,26 +369,26 @@ bool SetupGlobalFlagd(std::string* error) {
     // folded into the combined payload.
     if (filename.rfind("selector-", 0) == 0) {
       const fs::path dest = fs::path(g_scenario_tmp_dir) / filename;
-      fs::copy_file(path, dest, fs::copy_options::overwrite_existing, ec);
+      fs::copy_file(*path, dest, fs::copy_options::overwrite_existing, ec);
       if (ec) {
-        *error = "could not copy selector fixture " + path + " to " +
-                 dest.string() + ": " + ec.message();
-        return false;
+        return absl::InternalError(
+            absl::StrCat("could not copy selector fixture ", *path, " to ",
+                         dest.string(), ": ", ec.message()));
       }
-      sources.push_back(
-          {.path = dest.string(), .selector = "rawflags/" + filename});
+      sources.push_back({.path = dest.string(),
+                         .selector = absl::StrCat("rawflags/", filename)});
       continue;
     }
 
-    std::ifstream ifs(path);
+    std::ifstream ifs(*path);
     if (!ifs.is_open()) {
-      *error = "could not open fixture " + path;
-      return false;
+      return absl::InternalError(
+          absl::StrCat("could not open fixture ", *path));
     }
     json parsed = json::parse(ifs, nullptr, false);
     if (parsed.is_discarded() || !parsed.is_object()) {
-      *error = "fixture " + path + " is not a JSON object";
-      return false;
+      return absl::InvalidArgumentError(
+          absl::StrCat("fixture ", *path, " is not a JSON object"));
     }
 
     if (parsed.contains("flags") && parsed["flags"].is_object()) {
@@ -403,41 +413,39 @@ bool SetupGlobalFlagd(std::string* error) {
   }
 
   if (merged_count == 0) {
-    *error = "every fixture was skipped; nothing to serve";
-    return false;
+    return absl::FailedPreconditionError(
+        "every fixture was skipped; nothing to serve");
   }
 
   const fs::path combined = fs::path(g_scenario_tmp_dir) / "all_flags.json";
   {
     std::ofstream ofs(combined);
     if (!ofs.is_open()) {
-      *error = "could not write " + combined.string();
-      return false;
+      return absl::InternalError(
+          absl::StrCat("could not write ", combined.string()));
     }
     ofs << merged.dump(2);
     if (!ofs.good()) {
-      *error = "failed while writing " + combined.string();
-      return false;
+      return absl::InternalError(
+          absl::StrCat("failed while writing ", combined.string()));
     }
   }
   sources.insert(sources.begin(), {.path = combined.string(), .selector = ""});
 
-  g_flagd = std::make_unique<FlagdProcess>(flagd_bin, sources, kFlagdRpcPort,
+  g_flagd = std::make_unique<FlagdProcess>(*flagd_bin, sources, kFlagdRpcPort,
                                            kFlagdSyncPort, g_scenario_tmp_dir);
-  std::string start_error;
-  if (!g_flagd->Start(&start_error)) {
-    *error = "could not start flagd: " + start_error;
+  if (const absl::Status started = g_flagd->Start(); !started.ok()) {
     g_flagd.reset();
-    return false;
+    return absl::InternalError(
+        absl::StrCat("could not start flagd: ", started.message()));
   }
 
   if (!WaitForGrpcReady(FlagdSyncTarget())) {
-    *error = "flagd did not become ready on " + FlagdSyncTarget() +
-             "\nlast lines of " + g_flagd->LogPath() + ":\n" +
-             g_flagd->TailLog();
-    return false;
+    return absl::UnavailableError(absl::StrCat(
+        "flagd did not become ready on ", FlagdSyncTarget(), "\nlast lines of ",
+        g_flagd->LogPath(), ":\n", g_flagd->TailLog()));
   }
-  return true;
+  return absl::OkStatus();
 }
 
 void TeardownGlobalFlagd() { g_flagd.reset(); }

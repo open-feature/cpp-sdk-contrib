@@ -1,9 +1,10 @@
-#include <algorithm>
 #include <map>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_split.h"
 #include "asserts.hpp"  // for cuke::equal
 #include "defines.hpp"  // for GIVEN, WHEN, THEN
 #include "flagd/configuration.h"
@@ -91,14 +92,15 @@ void CheckFatalStatusCodes(const ::flagd::FlagdProviderConfig& config,
   // The testbed uses placeholder names ("A, B"). FlagdProviderConfig parses
   // the list into grpc::StatusCode and drops what it cannot recognise, so a
   // placeholder can never round-trip.
-  const auto expected_count =
-      std::count(expected.begin(), expected.end(), ',') + 1;
-  cuke::equal(static_cast<int64_t>(actual.size()),
-              static_cast<int64_t>(expected_count),
-              "fatalStatusCodes '" + expected + "' produced " +
-                  std::to_string(actual.size()) +
-                  " parsed code(s); FlagdProviderConfig silently discards "
-                  "tokens it cannot map to a grpc::StatusCode");
+  const std::vector<std::string> expected_codes =
+      absl::StrSplit(expected, ',', absl::SkipWhitespace());
+  cuke::equal(
+      static_cast<int64_t>(actual.size()),
+      static_cast<int64_t>(expected_codes.size()),
+      absl::StrCat("fatalStatusCodes '", expected, "' produced ", actual.size(),
+                   " parsed code(s); FlagdProviderConfig silently "
+                   "discards tokens it cannot map to a "
+                   "grpc::StatusCode"));
 }
 
 void CheckOptionValue(const std::string& option, const std::string& expected) {
