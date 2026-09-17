@@ -2,20 +2,29 @@
 
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <nlohmann/json.hpp>
+#include <optional>
 #include <string>
 #include <vector>
 
+#include "asserts.hpp"  // for cuke::equal
 #include "openfeature/error_code.h"
 #include "openfeature/general_flag_evaluation_details.h"
 #include "openfeature/reason.h"
 #include "openfeature/value.h"
-#include "providers/flagd/tests/gherkin/test_state.h"
+#include "providers/flagd/tests/gherkin/test_context.h"
 
 namespace openfeature::contrib::flagd::test {
 
-std::string g_current_selector;
+void FailStep(const std::string& reason) { cuke::equal(true, false, reason); }
+
+void FailStepNotImplemented(const std::string& what) {
+  FailStep(what +
+           " has no representation in FlagdProviderConfig/FlagdProvider yet, "
+           "so this expectation cannot be verified");
+}
 
 std::string ReasonToString(openfeature::Reason reason) {
   switch (reason) {
@@ -63,14 +72,41 @@ std::string ErrorCodeToString(openfeature::ErrorCode error_code) {
   return "UNKNOWN_ENUM_VALUE";
 }
 
+std::string FlagTypeToString(FlagType type) {
+  switch (type) {
+    case FlagType::kBoolean:
+      return "Boolean";
+    case FlagType::kString:
+      return "String";
+    case FlagType::kInteger:
+      return "Integer";
+    case FlagType::kFloat:
+      return "Float";
+    case FlagType::kObject:
+      return "Object";
+  }
+  return "UNKNOWN_ENUM_VALUE";
+}
+
+std::optional<FlagType> ParseFlagType(const std::string& name) {
+  if (name == "Boolean") return FlagType::kBoolean;
+  if (name == "String") return FlagType::kString;
+  if (name == "Integer") return FlagType::kInteger;
+  if (name == "Float") return FlagType::kFloat;
+  if (name == "Object") return FlagType::kObject;
+  return std::nullopt;
+}
+
 void RecordEvaluationDetails(
     const openfeature::GeneralFlagEvaluationDetails& details) {
-  g_state.last_eval.resolved_value = details.GetValueAsValue();
-  g_state.last_eval.reason = details.GetReason();
-  g_state.last_eval.variant = details.GetVariant();
-  g_state.last_eval.error_code = details.GetErrorCode();
-  g_state.last_eval.error_message = details.GetErrorMessage();
-  g_state.last_eval.flag_metadata = details.GetFlagMetadata();
+  EvaluationResult& result = Ctx().scenario.last_eval;
+  result.recorded = true;
+  result.value = details.GetValueAsValue();
+  result.reason = details.GetReason();
+  result.variant = details.GetVariant();
+  result.error_code = details.GetErrorCode();
+  result.error_message = details.GetErrorMessage();
+  result.flag_metadata = details.GetFlagMetadata();
 }
 
 openfeature::Value JsonToValue(const nlohmann::json& json_val) {
@@ -112,28 +148,28 @@ nlohmann::json ValueToJson(const openfeature::Value& val) {
     return val.AsBool().value();
   }
   if (val.IsNumber()) {
-    double d = val.AsDouble().value();
-    int64_t i = val.AsInt().value();
-    if (static_cast<double>(i) == d && !std::isnan(d)) {
-      return i;
+    const double as_double = val.AsDouble().value();
+    // Emit whole numbers as JSON integers so they compare equal to the
+    // integer literals in the feature files. AsExactInt64 refuses values the
+    // int64_t cast could not represent.
+    if (std::optional<int64_t> exact = AsExactInt64(as_double)) {
+      return *exact;
     }
-    return d;
+    return as_double;
   }
   if (val.IsString()) {
     return val.AsString().value();
   }
   if (val.IsStructure()) {
     nlohmann::json obj = nlohmann::json::object();
-    const auto* map = val.AsStructure();
-    for (const auto& [key, value] : *map) {
+    for (const auto& [key, value] : *val.AsStructure()) {
       obj[key] = ValueToJson(value);
     }
     return obj;
   }
   if (val.IsList()) {
     nlohmann::json arr = nlohmann::json::array();
-    const auto* vec = val.AsList();
-    for (const auto& item : *vec) {
+    for (const auto& item : *val.AsList()) {
       arr.push_back(ValueToJson(item));
     }
     return arr;
@@ -165,6 +201,49 @@ std::optional<double> ParseDouble(const std::string& str) {
   } catch (...) {
     return std::nullopt;
   }
+}
+
+std::optional<bool> ParseBool(const std::string& str) {
+  if (str == "true" || str == "True") return true;
+  if (str == "false" || str == "False") return false;
+  return std::nullopt;
+}
+
+std::optional<int64_t> AsExactInt64(double value) {
+  if (std::isnan(value) || std::isinf(value)) {
+    return std::nullopt;
+  }
+  // 2^63 is the first double above the int64_t range; the lower bound is
+  // exactly representable, the upper bound is not, hence the asymmetry.
+  constexpr double kMin = -9223372036854775808.0;
+  constexpr double kMax = 9223372036854775808.0;
+  if (value < kMin || value >= kMax) {
+    return std::nullopt;
+  }
+  if (std::trunc(value) != value) {
+    return std::nullopt;
+  }
+  return static_cast<int64_t>(value);
+}
+
+bool NearlyEqual(double lhs, double rhs) {
+  if (lhs == rhs) {
+    return true;
+  }
+  if (std::isnan(lhs) || std::isnan(rhs)) {
+    return false;
+  }
+  constexpr double kRelativeTolerance = 1e-9;
+  constexpr double kAbsoluteTolerance = 1e-9;
+  const double diff = std::abs(lhs - rhs);
+  if (diff <= kAbsoluteTolerance) {
+    return true;
+  }
+  const double scale = std::max(std::abs(lhs), std::abs(rhs));
+  if (scale > std::numeric_limits<double>::max() / 2) {
+    return false;
+  }
+  return diff <= kRelativeTolerance * scale;
 }
 
 }  // namespace openfeature::contrib::flagd::test

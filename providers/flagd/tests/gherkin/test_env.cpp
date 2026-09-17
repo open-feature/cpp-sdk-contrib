@@ -3,30 +3,29 @@
 #include <fcntl.h>
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/security/credentials.h>
-#include <signal.h>  // NOLINT(modernize-deprecated-headers) - Need POSIX kill and signals
-#include <stdlib.h>  // NOLINT(modernize-deprecated-headers) - Need POSIX setenv
+#include <signal.h>
+#include <stdlib.h>
 #include <sys/prctl.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include <cerrno>
 #include <chrono>
-#include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <nlohmann/json.hpp>
-#include <nlohmann/json_fwd.hpp>
-#include <sstream>  // NOLINT(misc-include-cleaner) - Used for parsing FLAGD_TEST_FLAGS env var
+#include <sstream>
 #include <string>
 #include <system_error>
 #include <thread>
 #include <utility>
 #include <vector>
 
-#include "flagd/provider.h"
 #include "tools/cpp/runfiles/runfiles.h"
 
 using bazel::tools::cpp::runfiles::Runfiles;
@@ -36,297 +35,415 @@ namespace openfeature::contrib::flagd::test {
 
 using nlohmann::json;
 
+namespace {
+
+// Fixture files that cannot be loaded yet. flagd's FlagSync rejects the whole
+// payload when schema validation fails, and these two deliberately contain
+// targeting rules that are only supposed to be caught at evaluation time.
+// TODO(#129): re-enable once FlagSync tolerates them.
+constexpr std::string_view kUnsupportedFixtures[] = {"edge-case-flags.json",
+                                                     "custom-ops.json"};
+
 std::unique_ptr<FlagdProcess> g_flagd;
 std::string g_scenario_tmp_dir;
-std::shared_ptr<::flagd::FlagdProvider> g_stable_provider;
+
+bool IsUnsupportedFixture(std::string_view filename) {
+  for (std::string_view unsupported : kUnsupportedFixtures) {
+    if (filename == unsupported) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::string TmpBaseDir() {
+  const char* env_tmp = getenv("TEST_TMPDIR");
+  if (env_tmp != nullptr && *env_tmp != '\0') {
+    return env_tmp;
+  }
+  return fs::current_path().string();
+}
+
+// Last write wins, but collisions are reported rather than silent.
+void MergeObject(json& target, const json& source, std::string_view section,
+                 std::string_view origin) {
+  for (const auto& [key, value] : source.items()) {
+    if (target.contains(key)) {
+      std::cerr << "WARNING: duplicate " << section << " key '" << key
+                << "' redefined by " << origin
+                << "; the later definition wins\n";
+    }
+    target[key] = value;
+  }
+}
+
+std::vector<std::string> CollectFixtureFiles() {
+  std::vector<std::string> files;
+  const char* env_flags = getenv("FLAGD_TEST_FLAGS");
+  if (env_flags != nullptr) {
+    std::istringstream iss(env_flags);
+    std::string path;
+    while (iss >> path) {
+      files.push_back(path);
+    }
+  }
+  if (!files.empty()) {
+    return files;
+  }
+
+  const std::string flags_dir = GetRunfilePath("flagd_testbed/flags");
+  if (flags_dir.empty() || !fs::exists(flags_dir)) {
+    return files;
+  }
+  for (const auto& entry : fs::directory_iterator(flags_dir)) {
+    if (entry.path().extension() == ".json") {
+      files.push_back(entry.path().string());
+    }
+  }
+  return files;
+}
+
+// Resolves a fixture path that may be absolute, runfiles-relative, or a bare
+// filename inside the testbed's flags directory.
+std::string ResolveFixturePath(const std::string& fixture) {
+  if (fs::exists(fixture)) {
+    return fixture;
+  }
+  std::string resolved = GetRunfilePath(fixture);
+  if (!resolved.empty() && fs::exists(resolved)) {
+    return resolved;
+  }
+  if (fixture.find("flagd_testbed/flags/") == std::string::npos) {
+    resolved = GetRunfilePath("flagd_testbed/flags/" + fixture);
+    if (!resolved.empty() && fs::exists(resolved)) {
+      return resolved;
+    }
+  }
+  return {};
+}
+
+}  // namespace
 
 std::string GetRunfilePath(const std::string& relative_path) {
-  static std::unique_ptr<Runfiles> runfiles;
-  if (!runfiles) {
+  static Runfiles* runfiles = [] {
     std::string error;
-    runfiles.reset(Runfiles::CreateForTest(&error));
-    if (!runfiles) {
+    Runfiles* created = Runfiles::CreateForTest(&error);
+    if (created == nullptr) {
       std::error_code err_code;
-      auto exe_path = fs::canonical("/proc/self/exe", err_code);
+      const auto exe_path = fs::canonical("/proc/self/exe", err_code);
       if (!err_code) {
-        runfiles.reset(Runfiles::Create(exe_path.string(), &error));
+        created = Runfiles::Create(exe_path.string(), &error);
       }
     }
-    if (!runfiles) {
-      std::cerr << "Failed to create Runfiles: " << error << '\n';
-      exit(1);
+    if (created == nullptr) {
+      std::cerr << "CRITICAL: failed to create Runfiles: " << error << '\n';
     }
+    return created;
+  }();
+
+  if (runfiles == nullptr) {
+    return {};
   }
-  std::string path = runfiles->Rlocation(relative_path);
-  if (path.empty()) {
-    std::cerr << "Failed to resolve runfile: " << relative_path << '\n';
-  }
-  return path;
+  return runfiles->Rlocation(relative_path);
 }
 
 bool WaitForGrpcReady(const std::string& target,
                       std::chrono::milliseconds timeout) {
   auto channel =
       grpc::CreateChannel(target, grpc::InsecureChannelCredentials());
-  auto deadline = std::chrono::system_clock::now() + timeout;
-  return channel->WaitForConnected(deadline);
+  return channel->WaitForConnected(std::chrono::system_clock::now() + timeout);
+}
+
+std::string FlagdSyncTarget() {
+  return "localhost:" + std::to_string(kFlagdSyncPort);
 }
 
 FlagdProcess::FlagdProcess(std::string binary_path,
-                           std::vector<FlagdSource> sources, int port,
-                           std::string log_dir)
-    : log_dir_(std::move(log_dir)),
-      binary_path_(std::move(binary_path)),
+                           std::vector<FlagdSource> sources, int rpc_port,
+                           int sync_port, std::string log_dir)
+    : binary_path_(std::move(binary_path)),
       sources_(std::move(sources)),
-      port_(port) {}
+      rpc_port_(rpc_port),
+      sync_port_(sync_port),
+      log_dir_(std::move(log_dir)) {}
 
 FlagdProcess::~FlagdProcess() { Stop(); }
 
-std::string FlagdProcess::GetTmpDir() {
-  const char* env_tmp = std::getenv("TEST_TMPDIR");
-  if (env_tmp) {
-    return {env_tmp};
+std::string FlagdProcess::LogPath() const { return log_dir_ + "/flagd.log"; }
+
+std::string FlagdProcess::TailLog(int max_lines) const {
+  std::ifstream ifs(LogPath());
+  if (!ifs.is_open()) {
+    return "(no flagd log at " + LogPath() + ")";
   }
-  return ".";
+  std::deque<std::string> lines;
+  std::string line;
+  while (std::getline(ifs, line)) {
+    lines.push_back(line);
+    if (static_cast<int>(lines.size()) > max_lines) {
+      lines.pop_front();
+    }
+  }
+  std::string result;
+  for (const std::string& kept : lines) {
+    result += "  | " + kept + '\n';
+  }
+  return result.empty() ? "(flagd log is empty)" : result;
 }
 
-bool FlagdProcess::Start() {
+bool FlagdProcess::Start(std::string* error) {
+  // Built in the parent: between fork() and execvp() only async-signal-safe
+  // calls are legal, and allocating (as std::string and nlohmann::json do) can
+  // deadlock on a malloc lock another thread held at the moment of the fork.
+  json sources_arr = json::array();
+  for (const auto& src : sources_) {
+    json src_obj = {{"uri", src.path}, {"provider", "file"}};
+    if (!src.selector.empty()) {
+      src_obj["selector"] = src.selector;
+    }
+    sources_arr.push_back(src_obj);
+  }
+  const std::string sources_arg = sources_arr.dump();
+  const std::string rpc_port_arg = std::to_string(rpc_port_);
+  const std::string sync_port_arg = std::to_string(sync_port_);
+  const std::string log_path = LogPath();
+  const std::string home_dir = TmpBaseDir();
+
+  std::vector<char*> argv = {
+      binary_path_.data(),
+      const_cast<char*>("start"),
+      const_cast<char*>("--sources"),
+      const_cast<char*>(sources_arg.c_str()),
+      const_cast<char*>("--port"),
+      const_cast<char*>(rpc_port_arg.c_str()),
+      const_cast<char*>("--sync-port"),
+      const_cast<char*>(sync_port_arg.c_str()),
+      nullptr,
+  };
+
+  // Lets the child report an execvp failure instead of the parent having to
+  // infer it from a readiness timeout several seconds later.
+  int exec_status[2];
+  if (pipe(exec_status) != 0) {
+    *error = std::string("pipe() failed: ") + strerror(errno);
+    return false;
+  }
+  if (fcntl(exec_status[1], F_SETFD, FD_CLOEXEC) != 0) {
+    close(exec_status[0]);
+    close(exec_status[1]);
+    *error = std::string("fcntl(FD_CLOEXEC) failed: ") + strerror(errno);
+    return false;
+  }
+
   pid_ = fork();
   if (pid_ == -1) {
-    std::cerr << "Failed to fork\n";
+    close(exec_status[0]);
+    close(exec_status[1]);
+    *error = std::string("fork() failed: ") + strerror(errno);
     return false;
   }
 
   if (pid_ == 0) {
-    // Terminate immediately if the parent test runner process exits or crashes.
+    close(exec_status[0]);
+
+    // Terminate if the parent test runner exits or crashes.
     prctl(PR_SET_PDEATHSIG, SIGKILL);
     if (getppid() == 1) {
       _exit(1);
     }
 
-    std::string tmp_dir = GetTmpDir();
-    setenv("HOME", tmp_dir.c_str(), 1);
+    setenv("HOME", home_dir.c_str(), 1);
 
-    std::string log_path = log_dir_ + "/flagd.log";
-    int log_fd = open(log_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    const int log_fd =
+        open(log_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (log_fd != -1) {
       dup2(log_fd, STDOUT_FILENO);
       dup2(log_fd, STDERR_FILENO);
       close(log_fd);
     }
 
-    json sources_arr = json::array();
-    for (const auto& src : sources_) {
-      json src_obj = {{"uri", src.path}, {"provider", "file"}};
-      if (!src.selector.empty()) {
-        src_obj["selector"] = src.selector;
-      }
-      sources_arr.push_back(src_obj);
-    }
-    std::string sources_arg = sources_arr.dump();
-    std::string port_arg = std::to_string(port_);
-
-    std::vector<char*> argv;
-    argv.push_back(const_cast<char*>(binary_path_.c_str()));
-    argv.push_back(const_cast<char*>("start"));
-    argv.push_back(const_cast<char*>("--sources"));
-    argv.push_back(const_cast<char*>(sources_arg.c_str()));
-    argv.push_back(const_cast<char*>("--port"));
-    argv.push_back(const_cast<char*>(port_arg.c_str()));
-    argv.push_back(const_cast<char*>("--sync-port"));
-    argv.push_back(const_cast<char*>("8015"));
-    argv.push_back(nullptr);
-
     execvp(argv[0], argv.data());
-    std::cerr << "Failed to exec flagd: " << strerror(errno) << '\n';
-    _exit(1);
+
+    const int exec_errno = errno;
+    ssize_t ignored = write(exec_status[1], &exec_errno, sizeof(exec_errno));
+    static_cast<void>(ignored);
+    _exit(127);
   }
 
+  close(exec_status[1]);
+  int child_errno = 0;
+  const ssize_t got = read(exec_status[0], &child_errno, sizeof(child_errno));
+  close(exec_status[0]);
+
+  if (got == static_cast<ssize_t>(sizeof(child_errno))) {
+    int status = 0;
+    waitpid(pid_, &status, 0);
+    pid_ = -1;
+    *error = "failed to exec '" + binary_path_ + "': " + strerror(child_errno);
+    return false;
+  }
   return true;
 }
 
-bool FlagdProcess::IsAlive() const {
-  if (pid_ <= 0) {
-    return false;
-  }
-  int status;
-  return waitpid(pid_, &status, WNOHANG) == 0;
-}
-
 void FlagdProcess::Stop() {
-  if (pid_ > 0) {
-    kill(pid_, SIGTERM);
-    int status;
-    auto start = std::chrono::steady_clock::now();
-    while (waitpid(pid_, &status, WNOHANG) == 0) {
-      if (std::chrono::steady_clock::now() - start > std::chrono::seconds(2)) {
-        kill(pid_, SIGKILL);
-        waitpid(pid_, &status, 0);
-        break;
-      }
-      std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    }
-    pid_ = -1;
-  }
-}
-
-void SetupGlobalFlagd() {
-  if (g_flagd) {
+  if (pid_ <= 0) {
     return;
   }
+  kill(pid_, SIGTERM);
+  int status = 0;
+  const auto start = std::chrono::steady_clock::now();
+  while (waitpid(pid_, &status, WNOHANG) == 0) {
+    if (std::chrono::steady_clock::now() - start > std::chrono::seconds(2)) {
+      kill(pid_, SIGKILL);
+      waitpid(pid_, &status, 0);
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
+  pid_ = -1;
+}
 
-  std::cout << "BEFORE hook: Starting global flagd process\n";
+bool SetupGlobalFlagd(std::string* error) {
+  if (g_flagd) {
+    return true;
+  }
 
-  std::string flagd_bin = GetRunfilePath("flagd_binary/flagd_linux_x86_64");
+  const std::string flagd_bin =
+      GetRunfilePath("flagd_binary/flagd_linux_x86_64");
   if (flagd_bin.empty()) {
-    std::cerr << "CRITICAL: Could not find flagd binary in runfiles\n";
-    exit(1);
+    *error = "could not find the flagd binary in runfiles";
+    return false;
   }
 
-  const char* env_tmp = std::getenv("TEST_TMPDIR");
-  fs::path tmp_base = env_tmp ? fs::path(env_tmp) : fs::current_path();
-  g_scenario_tmp_dir = (tmp_base / "global_flagd_scenario_dir").string();
-  std::cout << "BEFORE hook: Scenario temp dir: " << g_scenario_tmp_dir << '\n';
-  fs::create_directories(g_scenario_tmp_dir);
-
-  std::vector<std::string> flags_files;
-  if (const char* env_flags = std::getenv("FLAGD_TEST_FLAGS")) {
-    std::istringstream iss(env_flags);
-    std::string path;
-    while (iss >> path) {
-      flags_files.push_back(path);
-    }
+  g_scenario_tmp_dir = (fs::path(TmpBaseDir()) / "gherkin_flagd").string();
+  std::error_code ec;
+  fs::create_directories(g_scenario_tmp_dir, ec);
+  if (ec) {
+    *error = "could not create " + g_scenario_tmp_dir + ": " + ec.message();
+    return false;
   }
 
-  if (flags_files.empty()) {
-    std::string flags_dir = GetRunfilePath("flagd_testbed/flags");
-    if (flags_dir.empty() || !fs::exists(flags_dir)) {
-      if (fs::exists("../+_repo_rules+flagd_testbed/flags")) {
-        flags_dir = "../+_repo_rules+flagd_testbed/flags";
-      }
-    }
-    if (!flags_dir.empty() && fs::exists(flags_dir)) {
-      for (const auto& entry : fs::directory_iterator(flags_dir)) {
-        if (entry.path().extension() == ".json") {
-          flags_files.push_back(entry.path().string());
-        }
-      }
-    }
+  const std::vector<std::string> fixtures = CollectFixtureFiles();
+  if (fixtures.empty()) {
+    *error =
+        "no flag fixtures found; expected FLAGD_TEST_FLAGS to be set by the "
+        "Bazel target, or flagd_testbed/flags to be present in runfiles";
+    return false;
   }
 
-  json merged_root = json::object();
-  merged_root["flags"] = json::object();
-  merged_root["metadata"] = json::object();
-  merged_root["$evaluators"] = json::object();
+  json merged = json::object();
+  merged["flags"] = json::object();
+  merged["metadata"] = json::object();
+  merged["$evaluators"] = json::object();
 
   std::vector<FlagdSource> sources;
+  int merged_count = 0;
 
-  for (const auto& flag_file : flags_files) {
-    fs::path p(flag_file);
-    std::string filename = p.filename().string();
-
-    std::string runfile_path;
-    if (fs::exists(flag_file)) {
-      runfile_path = flag_file;
-    } else {
-      runfile_path = GetRunfilePath(flag_file);
-      if (runfile_path.empty() &&
-          flag_file.find("flagd_testbed/flags/") == std::string::npos) {
-        runfile_path = GetRunfilePath("flagd_testbed/flags/" + flag_file);
-      }
-    }
-
-    if (runfile_path.empty() || !fs::exists(runfile_path)) {
-      std::cerr << "WARNING: Could not resolve flag file path: " << flag_file
-                << '\n';
+  for (const std::string& fixture : fixtures) {
+    const std::string filename = fs::path(fixture).filename().string();
+    if (IsUnsupportedFixture(filename)) {
+      std::cerr << "NOTE: skipping fixture " << filename
+                << " (see TODO(#129)); the scenarios that depend on it will "
+                   "fail\n";
       continue;
     }
 
-    // TODO(#129): Re-enable edge-case-flags.json and custom-ops.json once
-    // schema validation in FlagSync handles flags with invalid targeting rules
-    // that are expected to be caught at evaluation time.
-    if (filename == "edge-case-flags.json" || filename == "custom-ops.json") {
-      continue;
+    const std::string path = ResolveFixturePath(fixture);
+    if (path.empty()) {
+      *error = "could not resolve fixture path: " + fixture;
+      return false;
     }
 
+    // Files named selector-*.json back the selector scenarios, which need each
+    // file to stay an addressable sync source of its own rather than being
+    // folded into the combined payload.
     if (filename.rfind("selector-", 0) == 0) {
-      // Copy selector file to tmp scenario directory
-      fs::path dest_selector_path = fs::path(g_scenario_tmp_dir) / filename;
-      std::error_code ec;
-      fs::copy_file(runfile_path, dest_selector_path,
-                    fs::copy_options::overwrite_existing, ec);
+      const fs::path dest = fs::path(g_scenario_tmp_dir) / filename;
+      fs::copy_file(path, dest, fs::copy_options::overwrite_existing, ec);
       if (ec) {
-        std::cerr << "CRITICAL: Could not copy selector file: " << runfile_path
-                  << " to " << dest_selector_path << " - " << ec.message()
-                  << '\n';
-        exit(1);
+        *error = "could not copy selector fixture " + path + " to " +
+                 dest.string() + ": " + ec.message();
+        return false;
       }
-      // Register selector file source, matching key format
-      // "rawflags/selector-flags.json"
-      sources.push_back({
-          .path = dest_selector_path.string(),
-          .selector = "rawflags/" + filename,
-      });
+      sources.push_back(
+          {.path = dest.string(), .selector = "rawflags/" + filename});
       continue;
     }
 
-    std::ifstream ifs(runfile_path);
+    std::ifstream ifs(path);
     if (!ifs.is_open()) {
-      std::cerr << "CRITICAL: Could not open flag file: " << runfile_path
-                << '\n';
-      exit(1);
+      *error = "could not open fixture " + path;
+      return false;
     }
-    json parsed_json = json::parse(ifs, nullptr, false);
-    if (!parsed_json.is_discarded() && parsed_json.is_object()) {
-      if (parsed_json.contains("flags") && parsed_json["flags"].is_object()) {
-        merged_root["flags"].update(parsed_json["flags"]);
-      }
-      if (parsed_json.contains("metadata") &&
-          parsed_json["metadata"].is_object()) {
-        merged_root["metadata"].update(parsed_json["metadata"]);
-      }
-      if (parsed_json.contains("$evaluators") &&
-          parsed_json["$evaluators"].is_object()) {
-        merged_root["$evaluators"].update(parsed_json["$evaluators"]);
-      } else if (parsed_json.contains("evaluators") &&
-                 parsed_json["evaluators"].is_object()) {
-        merged_root["$evaluators"].update(parsed_json["evaluators"]);
-      }
+    json parsed = json::parse(ifs, nullptr, false);
+    if (parsed.is_discarded() || !parsed.is_object()) {
+      *error = "fixture " + path + " is not a JSON object";
+      return false;
     }
+
+    if (parsed.contains("flags") && parsed["flags"].is_object()) {
+      MergeObject(merged["flags"], parsed["flags"], "flag", filename);
+    }
+    if (parsed.contains("metadata") && parsed["metadata"].is_object()) {
+      // Flag-set metadata is really a per-source concept. Collapsing every
+      // fixture into one source means the scenarios see a union no real
+      // deployment would produce, so at least make collisions visible.
+      // TODO(#129): register each fixture as its own flagd sync source.
+      MergeObject(merged["metadata"], parsed["metadata"], "flag-set metadata",
+                  filename);
+    }
+    const char* evaluators_key = parsed.contains("$evaluators")  ? "$evaluators"
+                                 : parsed.contains("evaluators") ? "evaluators"
+                                                                 : nullptr;
+    if (evaluators_key != nullptr && parsed[evaluators_key].is_object()) {
+      MergeObject(merged["$evaluators"], parsed[evaluators_key], "$evaluator",
+                  filename);
+    }
+    ++merged_count;
   }
 
-  fs::path dest = fs::path(g_scenario_tmp_dir) / "all_flags.json";
+  if (merged_count == 0) {
+    *error = "every fixture was skipped; nothing to serve";
+    return false;
+  }
+
+  const fs::path combined = fs::path(g_scenario_tmp_dir) / "all_flags.json";
   {
-    std::ofstream ofs(dest);
+    std::ofstream ofs(combined);
     if (!ofs.is_open()) {
-      std::cerr << "CRITICAL: Could not open output flag file for writing: "
-                << dest << '\n';
-      exit(1);
+      *error = "could not write " + combined.string();
+      return false;
     }
-    ofs << merged_root.dump(2);
+    ofs << merged.dump(2);
     if (!ofs.good()) {
-      std::cerr << "CRITICAL: Failed writing to output flag file: " << dest
-                << '\n';
-      exit(1);
+      *error = "failed while writing " + combined.string();
+      return false;
     }
   }
-  // Add all_flags.json as the default (no selector) source
-  sources.insert(sources.begin(), {
-                                      .path = dest.string(),
-                                      .selector = "",
-                                  });
+  sources.insert(sources.begin(), {.path = combined.string(), .selector = ""});
 
-  int port = 8013;
-  g_flagd = std::make_unique<FlagdProcess>(flagd_bin, sources, port,
-                                           g_scenario_tmp_dir);
-  if (!g_flagd->Start()) {
-    std::cerr << "CRITICAL: Failed to start flagd\n";
-    exit(1);
+  g_flagd = std::make_unique<FlagdProcess>(flagd_bin, sources, kFlagdRpcPort,
+                                           kFlagdSyncPort, g_scenario_tmp_dir);
+  std::string start_error;
+  if (!g_flagd->Start(&start_error)) {
+    *error = "could not start flagd: " + start_error;
+    g_flagd.reset();
+    return false;
   }
-  if (!WaitForGrpcReady("localhost:8015", std::chrono::milliseconds(5000))) {
-    std::cerr << "CRITICAL: Flagd failed to become ready on port 8015\n";
-    exit(1);
+
+  if (!WaitForGrpcReady(FlagdSyncTarget())) {
+    *error = "flagd did not become ready on " + FlagdSyncTarget() +
+             "\nlast lines of " + g_flagd->LogPath() + ":\n" +
+             g_flagd->TailLog();
+    return false;
   }
+  return true;
+}
+
+void TeardownGlobalFlagd() { g_flagd.reset(); }
+
+std::string GlobalFlagdLogTail() {
+  return g_flagd ? g_flagd->TailLog() : "(flagd was never started)";
 }
 
 }  // namespace openfeature::contrib::flagd::test

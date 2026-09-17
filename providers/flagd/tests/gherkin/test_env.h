@@ -1,22 +1,27 @@
 #pragma once
 
+#include <sys/types.h>
+
 #include <chrono>
-#include <memory>
 #include <string>
 #include <vector>
 
-#include "flagd/provider.h"
-
 namespace openfeature::contrib::flagd::test {
 
-// Helper to resolve Bazel runfiles for test fixtures and binaries.
+// flagd exposes the evaluation API on --port and the flag sync API on
+// --sync-port. The provider is in-process only today, so it always talks to
+// kFlagdSyncPort; kFlagdRpcPort exists because flagd insists on binding it.
+inline constexpr int kFlagdRpcPort = 8013;
+inline constexpr int kFlagdSyncPort = 8015;
+
+// Returns an empty string when the path is unknown.
 std::string GetRunfilePath(const std::string& relative_path);
 
-// Polls the gRPC channel connection state until it reaches GRPC_CHANNEL_READY
-// or times out.
 bool WaitForGrpcReady(
     const std::string& target,
     std::chrono::milliseconds timeout = std::chrono::milliseconds(5000));
+
+std::string FlagdSyncTarget();
 
 struct FlagdSource {
   std::string path;
@@ -27,28 +32,36 @@ struct FlagdSource {
 class FlagdProcess {
  public:
   FlagdProcess(std::string binary_path, std::vector<FlagdSource> sources,
-               int port, std::string log_dir);
+               int rpc_port, int sync_port, std::string log_dir);
   ~FlagdProcess();
 
-  bool Start();
+  FlagdProcess(const FlagdProcess&) = delete;
+  FlagdProcess& operator=(const FlagdProcess&) = delete;
+
+  // On failure returns false and fills `error` with the reason, including
+  // anything the child managed to report before exec failed.
+  bool Start(std::string* error);
   void Stop();
-  bool IsAlive() const;
+
+  std::string LogPath() const;
+  std::string TailLog(int max_lines = 40) const;
 
  private:
-  std::string GetTmpDir();
-
-  std::string log_dir_;
   std::string binary_path_;
   std::vector<FlagdSource> sources_;
-  int port_;
+  int rpc_port_;
+  int sync_port_;
+  std::string log_dir_;
   pid_t pid_ = -1;
 };
 
-extern std::unique_ptr<FlagdProcess> g_flagd;
-extern std::string g_scenario_tmp_dir;
-extern std::shared_ptr<::flagd::FlagdProvider> g_stable_provider;
+// Writes the merged fixture files and starts the shared flagd instance. Safe
+// to call more than once; only the first call does anything.
+bool SetupGlobalFlagd(std::string* error);
 
-// Initializes the global flagd test process and merges JSON test fixtures.
-void SetupGlobalFlagd();
+// Safe to call when flagd was never started.
+void TeardownGlobalFlagd();
+
+std::string GlobalFlagdLogTail();
 
 }  // namespace openfeature::contrib::flagd::test

@@ -1,119 +1,161 @@
-#include <cctype>
-#include <cstdlib>
+#include <algorithm>
+#include <map>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include "asserts.hpp"  // for cuke::equal
-#include "defines.hpp"  // for GIVEN, WHEN, THEN, AFTER
+#include "defines.hpp"  // for GIVEN, WHEN, THEN
 #include "flagd/configuration.h"
 #include "get_args.hpp"  // for CUKE_ARG
-#include "providers/flagd/tests/gherkin/test_state.h"
-
-using openfeature::contrib::flagd::test::g_state;
+#include "grpcpp/support/status.h"
+#include "providers/flagd/tests/gherkin/steps/step_utils.h"
+#include "providers/flagd/tests/gherkin/test_context.h"
 
 namespace {
 
-void CheckOptionValue(const std::string& option, const std::string& type,
-                      const std::string& expected_val) {
-  cuke::equal(g_state.config.has_value(), true);
-  if (!g_state.config.has_value()) {
+using openfeature::contrib::flagd::test::Ctx;
+using openfeature::contrib::flagd::test::ExpectEq;
+using openfeature::contrib::flagd::test::FailStep;
+using openfeature::contrib::flagd::test::FailStepNotImplemented;
+using openfeature::contrib::flagd::test::ParseBool;
+using openfeature::contrib::flagd::test::ParseInt64;
+
+// The provider is in-process only: there is no Resolver type, and
+// `cache`/`maxCacheSize` describe the unimplemented RPC resolver's flag cache.
+// Asserting on them would mean asserting on a value the test itself invented,
+// so they are reported as unimplemented instead.
+bool IsUnmodelledOption(const std::string& option) {
+  return option == "resolver" || option == "cache" || option == "maxCacheSize";
+}
+
+bool ApplyInt(const std::string& option, const std::string& value, int* out) {
+  const auto parsed = ParseInt64(value);
+  if (!parsed.has_value()) {
+    FailStep("option '" + option + "' is not a valid integer: '" + value + "'");
+    return false;
+  }
+  *out = static_cast<int>(*parsed);
+  return true;
+}
+
+void ExpectOptionalEquals(const std::optional<std::string>& actual,
+                          const std::string& expected,
+                          const std::string& option) {
+  if (expected == "null") {
+    cuke::equal(actual.has_value(), false,
+                "expected option '" + option + "' to be unset, got '" +
+                    actual.value_or("") + "'");
     return;
   }
-  const auto& config = g_state.config.value();
+  if (!actual.has_value()) {
+    FailStep("expected option '" + option + "' to be '" + expected +
+             "', but it is unset");
+    return;
+  }
+  ExpectEq(*actual, expected, "option '" + option + "'");
+}
+
+void ExpectIntEquals(int actual, const std::string& expected,
+                     const std::string& option) {
+  const auto parsed = ParseInt64(expected);
+  if (!parsed.has_value()) {
+    FailStep("expected value for option '" + option +
+             "' is not a valid integer: '" + expected + "'");
+    return;
+  }
+  ExpectEq(static_cast<int64_t>(actual), *parsed, "option '" + option + "'");
+}
+
+std::string StatusCodesToString(const std::vector<grpc::StatusCode>& codes) {
+  std::string out;
+  for (const grpc::StatusCode code : codes) {
+    if (!out.empty()) {
+      out += ", ";
+    }
+    out += std::to_string(static_cast<int>(code));
+  }
+  return out;
+}
+
+void CheckFatalStatusCodes(const ::flagd::FlagdProviderConfig& config,
+                           const std::string& expected) {
+  const std::vector<grpc::StatusCode>& actual = config.GetFatalStatusCodes();
+  if (expected.empty() || expected == "null" || expected == "[]") {
+    cuke::equal(actual.empty(), true,
+                "expected no fatal status codes, got '" +
+                    StatusCodesToString(actual) + "'");
+    return;
+  }
+
+  // The testbed uses placeholder names ("A, B"). FlagdProviderConfig parses
+  // the list into grpc::StatusCode and drops what it cannot recognise, so a
+  // placeholder can never round-trip.
+  const auto expected_count =
+      std::count(expected.begin(), expected.end(), ',') + 1;
+  cuke::equal(static_cast<int64_t>(actual.size()),
+              static_cast<int64_t>(expected_count),
+              "fatalStatusCodes '" + expected + "' produced " +
+                  std::to_string(actual.size()) +
+                  " parsed code(s); FlagdProviderConfig silently discards "
+                  "tokens it cannot map to a grpc::StatusCode");
+}
+
+void CheckOptionValue(const std::string& option, const std::string& expected) {
+  if (IsUnmodelledOption(option)) {
+    FailStepNotImplemented("the '" + option + "' option");
+    return;
+  }
+
+  const auto& maybe_config = Ctx().scenario.config;
+  if (!maybe_config.has_value()) {
+    FailStep("no config was initialized before checking option '" + option +
+             "'");
+    return;
+  }
+  const ::flagd::FlagdProviderConfig& config = *maybe_config;
 
   if (option == "host") {
-    cuke::equal(config.GetHost(), expected_val);
+    ExpectEq(config.GetHost(), expected, "option 'host'");
   } else if (option == "port") {
-    cuke::equal(config.GetPort(), std::stoi(expected_val));
+    ExpectIntEquals(config.GetPort(), expected, option);
   } else if (option == "tls") {
-    bool expected = expected_val == "true" || expected_val == "True";
-    cuke::equal(config.GetTls(), expected);
+    const auto parsed = ParseBool(expected);
+    if (!parsed.has_value()) {
+      FailStep("expected value for 'tls' is not a boolean: '" + expected + "'");
+      return;
+    }
+    ExpectEq(config.GetTls(), *parsed, "option 'tls'");
   } else if (option == "deadlineMs") {
-    cuke::equal(config.GetDeadlineMs(), std::stoi(expected_val));
+    ExpectIntEquals(config.GetDeadlineMs(), expected, option);
   } else if (option == "streamDeadlineMs") {
-    cuke::equal(config.GetStreamDeadlineMs(), std::stoi(expected_val));
+    ExpectIntEquals(config.GetStreamDeadlineMs(), expected, option);
   } else if (option == "retryBackoffMs") {
-    cuke::equal(config.GetRetryBackoffMs(), std::stoi(expected_val));
+    ExpectIntEquals(config.GetRetryBackoffMs(), expected, option);
   } else if (option == "retryBackoffMaxMs") {
-    cuke::equal(config.GetRetryBackoffMaxMs(), std::stoi(expected_val));
+    ExpectIntEquals(config.GetRetryBackoffMaxMs(), expected, option);
   } else if (option == "retryGracePeriod") {
-    cuke::equal(config.GetRetryGracePeriod(), std::stoi(expected_val));
+    ExpectIntEquals(config.GetRetryGracePeriod(), expected, option);
   } else if (option == "keepAliveTime") {
-    cuke::equal(config.GetKeepAliveTimeMs(), std::stoi(expected_val));
-  } else if (option == "targetUri") {
-    auto val = config.GetTargetUri();
-    if (expected_val == "null") {
-      cuke::equal(val.has_value(), false);
-    } else {
-      cuke::equal(val.has_value(), true);
-      if (val.has_value()) {
-        cuke::equal(val.value(), expected_val);
-      }
-    }
-  } else if (option == "certPath") {
-    auto val = config.GetCertPath();
-    if (expected_val == "null") {
-      cuke::equal(val.has_value(), false);
-    } else {
-      cuke::equal(val.has_value(), true);
-      if (val.has_value()) {
-        cuke::equal(val.value(), expected_val);
-      }
-    }
-  } else if (option == "socketPath") {
-    auto val = config.GetSocketPath();
-    if (expected_val == "null") {
-      cuke::equal(val.has_value(), false);
-    } else {
-      cuke::equal(val.has_value(), true);
-      if (val.has_value()) {
-        cuke::equal(val.value(), expected_val);
-      }
-    }
-  } else if (option == "selector") {
-    auto val = config.GetSelector();
-    if (expected_val == "null") {
-      cuke::equal(val.has_value(), false);
-    } else {
-      cuke::equal(val.has_value(), true);
-      if (val.has_value()) {
-        cuke::equal(val.value(), expected_val);
-      }
-    }
-  } else if (option == "providerId") {
-    auto val = config.GetProviderId();
-    if (expected_val == "null") {
-      cuke::equal(val.has_value(), false);
-    } else {
-      cuke::equal(val.has_value(), true);
-      if (val.has_value()) {
-        cuke::equal(val.value(), expected_val);
-      }
-    }
-  } else if (option == "offlineFlagSourcePath") {
-    auto val = config.GetOfflineFlagSourcePath();
-    if (expected_val == "null") {
-      cuke::equal(val.has_value(), false);
-    } else {
-      cuke::equal(val.has_value(), true);
-      if (val.has_value()) {
-        cuke::equal(val.value(), expected_val);
-      }
-    }
+    ExpectIntEquals(config.GetKeepAliveTimeMs(), expected, option);
   } else if (option == "offlinePollIntervalMs") {
-    cuke::equal(config.GetOfflinePollIntervalMs(), std::stoi(expected_val));
+    ExpectIntEquals(config.GetOfflinePollIntervalMs(), expected, option);
+  } else if (option == "targetUri") {
+    ExpectOptionalEquals(config.GetTargetUri(), expected, option);
+  } else if (option == "certPath") {
+    ExpectOptionalEquals(config.GetCertPath(), expected, option);
+  } else if (option == "socketPath") {
+    ExpectOptionalEquals(config.GetSocketPath(), expected, option);
+  } else if (option == "selector") {
+    ExpectOptionalEquals(config.GetSelector(), expected, option);
+  } else if (option == "providerId") {
+    ExpectOptionalEquals(config.GetProviderId(), expected, option);
+  } else if (option == "offlineFlagSourcePath") {
+    ExpectOptionalEquals(config.GetOfflineFlagSourcePath(), expected, option);
   } else if (option == "fatalStatusCodes") {
-    if (expected_val.empty() || expected_val == "null" ||
-        expected_val == "[]") {
-      cuke::equal(g_state.fatal_status_codes_str.empty(), true);
-    } else {
-      cuke::equal(g_state.fatal_status_codes_str, expected_val);
-    }
-  } else if (option == "resolver") {
-    std::string expected_res = expected_val;
-    for (char& c : expected_res) {
-      c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    }
-    cuke::equal(g_state.resolved_resolver, expected_res);
+    CheckFatalStatusCodes(config, expected);
+  } else {
+    FailStep("unknown config option '" + option + "'");
   }
 }
 
@@ -121,160 +163,112 @@ void CheckOptionValue(const std::string& option, const std::string& type,
 
 GIVEN(AnEnvironmentVariableWithValue,
       "an environment variable {string} with value {string}") {
-  std::string env_var = CUKE_ARG(1);
-  std::string value = CUKE_ARG(2);
-  if (!g_state.saved_env_vars.contains(env_var)) {
-    const char* cur = std::getenv(env_var.c_str());
-    if (cur != nullptr) {
-      g_state.saved_env_vars[env_var] = std::string(cur);
-    } else {
-      g_state.saved_env_vars[env_var] = std::nullopt;
-    }
-  }
-  setenv(env_var.c_str(), value.c_str(), 1);
+  const std::string name = CUKE_ARG(1);
+  const std::string value = CUKE_ARG(2);
+  Ctx().scenario.env.Set(name, value);
 }
 
 WHEN(AConfigWasInitialized, "a config was initialized") {
-  try {
-    ::flagd::FlagdProviderConfig config;
-    bool explicit_resolver = false;
-    std::string resolver = "rpc";
-    if (const char* env_res = std::getenv("FLAGD_RESOLVER")) {
-      resolver = env_res;
-      explicit_resolver = true;
-    }
-    auto opt_it = g_state.pending_options.find("resolver");
-    if (opt_it != g_state.pending_options.end()) {
-      resolver = opt_it->second;
-      explicit_resolver = true;
-    }
-    for (char& c : resolver) {
-      c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    }
+  // The constructor reads every FLAGD_* environment variable itself, so
+  // env-driven scenarios are covered just by constructing it here.
+  ::flagd::FlagdProviderConfig config;
+  bool ok = true;
 
-    bool has_offline_path = config.GetOfflineFlagSourcePath().has_value();
-    auto path_it = g_state.pending_options.find("offlineFlagSourcePath");
-    if (path_it != g_state.pending_options.end()) {
-      has_offline_path = !path_it->second.empty();
-    } else if (const char* env_path =
-                   std::getenv("FLAGD_OFFLINE_FLAG_SOURCE_PATH")) {
-      has_offline_path = *env_path != '\0';
+  for (const auto& [option, value] : Ctx().scenario.pending_options) {
+    if (IsUnmodelledOption(option)) {
+      continue;
     }
-
-    if (has_offline_path) {
-      if (!explicit_resolver || resolver == "in-process" ||
-          resolver == "file") {
-        resolver = "file";
+    int int_value = 0;
+    if (option == "host") {
+      config.SetHost(value);
+    } else if (option == "port") {
+      if (ApplyInt(option, value, &int_value))
+        config.SetPort(int_value);
+      else
+        ok = false;
+    } else if (option == "tls") {
+      const auto parsed = ParseBool(value);
+      if (parsed.has_value()) {
+        config.SetTls(*parsed);
+      } else {
+        FailStep("option 'tls' is not a boolean: '" + value + "'");
+        ok = false;
       }
+    } else if (option == "deadlineMs") {
+      if (ApplyInt(option, value, &int_value))
+        config.SetDeadlineMs(int_value);
+      else
+        ok = false;
+    } else if (option == "streamDeadlineMs") {
+      if (ApplyInt(option, value, &int_value))
+        config.SetStreamDeadlineMs(int_value);
+      else
+        ok = false;
+    } else if (option == "retryBackoffMs") {
+      if (ApplyInt(option, value, &int_value))
+        config.SetRetryBackoffMs(int_value);
+      else
+        ok = false;
+    } else if (option == "retryBackoffMaxMs") {
+      if (ApplyInt(option, value, &int_value))
+        config.SetRetryBackoffMaxMs(int_value);
+      else
+        ok = false;
+    } else if (option == "retryGracePeriod") {
+      if (ApplyInt(option, value, &int_value))
+        config.SetRetryGracePeriod(int_value);
+      else
+        ok = false;
+    } else if (option == "keepAliveTime") {
+      if (ApplyInt(option, value, &int_value))
+        config.SetKeepAliveTimeMs(int_value);
+      else
+        ok = false;
+    } else if (option == "offlinePollIntervalMs") {
+      if (ApplyInt(option, value, &int_value))
+        config.SetOfflinePollIntervalMs(int_value);
+      else
+        ok = false;
+    } else if (option == "targetUri") {
+      config.SetTargetUri(value);
+    } else if (option == "certPath") {
+      config.SetCertPath(value);
+    } else if (option == "socketPath") {
+      config.SetSocketPath(value);
+    } else if (option == "selector") {
+      config.SetSelector(value);
+    } else if (option == "providerId") {
+      config.SetProviderId(value);
+    } else if (option == "offlineFlagSourcePath") {
+      config.SetOfflineFlagSourcePath(value);
+    } else if (option == "fatalStatusCodes") {
+      config.SetFatalStatusCodes(value);
+    } else {
+      FailStep("unknown config option '" + option + "'");
+      ok = false;
     }
-
-    if (resolver == "file" && !has_offline_path) {
-      g_state.config_error = true;
-      g_state.config = std::nullopt;
-      return;
-    }
-
-    bool explicit_port = g_state.pending_options.contains("port") ||
-                         std::getenv("FLAGD_PORT") != nullptr ||
-                         std::getenv("FLAGD_SYNC_PORT") != nullptr;
-    if (!explicit_port) {
-      if (resolver == "rpc") {
-        config.SetPort(8013);
-      } else if (resolver == "in-process") {
-        config.SetPort(8015);
-      }
-    } else if (std::getenv("FLAGD_SYNC_PORT") != nullptr &&
-               resolver == "in-process") {
-      config.SetPort(std::stoi(std::getenv("FLAGD_SYNC_PORT")));
-    }
-
-    for (const auto& [option, value] : g_state.pending_options) {
-      if (option == "host") {
-        config.SetHost(value);
-      } else if (option == "port") {
-        config.SetPort(std::stoi(value));
-      } else if (option == "tls") {
-        config.SetTls(value == "true" || value == "True");
-      } else if (option == "deadlineMs") {
-        config.SetDeadlineMs(std::stoi(value));
-      } else if (option == "streamDeadlineMs") {
-        config.SetStreamDeadlineMs(std::stoi(value));
-      } else if (option == "retryBackoffMs") {
-        config.SetRetryBackoffMs(std::stoi(value));
-      } else if (option == "retryBackoffMaxMs") {
-        config.SetRetryBackoffMaxMs(std::stoi(value));
-      } else if (option == "retryGracePeriod") {
-        config.SetRetryGracePeriod(std::stoi(value));
-      } else if (option == "keepAliveTime") {
-        config.SetKeepAliveTimeMs(std::stoi(value));
-      } else if (option == "targetUri") {
-        config.SetTargetUri(value);
-      } else if (option == "certPath") {
-        config.SetCertPath(value);
-      } else if (option == "socketPath") {
-        config.SetSocketPath(value);
-      } else if (option == "selector") {
-        config.SetSelector(value);
-      } else if (option == "providerId") {
-        config.SetProviderId(value);
-      } else if (option == "offlineFlagSourcePath") {
-        config.SetOfflineFlagSourcePath(value);
-      } else if (option == "offlinePollIntervalMs") {
-        config.SetOfflinePollIntervalMs(std::stoi(value));
-      } else if (option == "fatalStatusCodes") {
-        config.SetFatalStatusCodes(value);
-      }
-    }
-
-    std::string fatal_codes_str;
-    if (const char* env_codes = std::getenv("FLAGD_FATAL_STATUS_CODES")) {
-      fatal_codes_str = env_codes;
-    }
-    auto fatal_it = g_state.pending_options.find("fatalStatusCodes");
-    if (fatal_it != g_state.pending_options.end()) {
-      fatal_codes_str = fatal_it->second;
-    }
-    g_state.fatal_status_codes_str = fatal_codes_str;
-
-    g_state.resolved_resolver = resolver;
-    g_state.config = config;
-    g_state.config_error = false;
-  } catch (...) {
-    g_state.config_error = true;
   }
+
+  Ctx().scenario.config = config;
+  // FlagdProviderConfig has no validation entry point, so the only errors the
+  // test can observe are the ones it produced applying the options above.
+  Ctx().scenario.config_error = !ok;
 }
 
 THEN(TheOptionOfTypeShouldHaveValue,
      "the option {string} of type {string} should have the value {string}") {
-  std::string option = CUKE_ARG(1);
-  std::string type = CUKE_ARG(2);
-  std::string expected_val = CUKE_ARG(3);
-  CheckOptionValue(option, type, expected_val);
+  CheckOptionValue(CUKE_ARG(1), CUKE_ARG(3));
 }
 
 THEN(TheOptionOfTypeShouldHaveEmptyValue,
-     "the option {string} of type {string} should have the value \"\"\"\"") {
-  std::string option = CUKE_ARG(1);
-  std::string type = CUKE_ARG(2);
-  CheckOptionValue(option, type, "");
+     "the option {string} of type {string} should have the "
+     "value " GHERKIN_EMPTY_ARG) {
+  CheckOptionValue(CUKE_ARG(1), "");
 }
 
 THEN(WeShouldHaveAnError, "we should have an error") {
-  cuke::equal(g_state.config_error, true);
-}
-
-AFTER(CleanupEnv) {
-  for (const auto& [var, val] : g_state.saved_env_vars) {
-    if (val.has_value()) {
-      setenv(var.c_str(), val->c_str(), 1);
-    } else {
-      unsetenv(var.c_str());
-    }
-  }
-  g_state.saved_env_vars.clear();
-  g_state.pending_options.clear();
-  g_state.config.reset();
-  g_state.config_error = false;
-  g_state.resolved_resolver = "rpc";
-  g_state.fatal_status_codes_str.clear();
+  // config.feature reaches this only for the "file" resolver without an
+  // offlineFlagSourcePath. FlagdProviderConfig neither models the resolver nor
+  // validates that combination, so there is nothing real to assert.
+  FailStepNotImplemented("configuration validation");
 }
