@@ -45,7 +45,7 @@ jobs:
       - name: Build compilation database
         run: bazel run @hedron_compile_commands//:refresh_all
 
-      - uses: cpp-linter/cpp-linter-action@03467cd2a9855102d6b99a7853c1f836ace2a0a8 # v2.23.0
+      - uses: cpp-linter/cpp-linter-action@8120e05c7fbd25fa09fa93424ec49f55f7b304ab # v2.23.1
         id: linter
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
