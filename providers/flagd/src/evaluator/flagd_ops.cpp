@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -19,6 +20,7 @@
 #include "absl/strings/str_split.h"
 #include "flagd/evaluator/json_logic/json_logic.h"
 #include "flagd/evaluator/murmur_hash/MurmurHash3.h"
+#include "qcbor/qcbor.h"
 
 namespace flagd {
 
@@ -30,18 +32,19 @@ bool HasLeadingZero(std::string_view str) {
 }
 
 // Parses number according to SemVer 2.0.0 specification.
-absl::Status ParseSemVerNum(std::string_view num_str, std::string_view name,
-                            uint64_t* out) {
+absl::StatusOr<uint64_t> ParseSemVerNum(std::string_view num_str,
+                                        std::string_view name) {
   if (HasLeadingZero(num_str)) {
     return absl::InvalidArgumentError(absl::StrCat(
         name, " version MUST NOT contain leading zeros: ", num_str));
   }
-  if (!absl::SimpleAtoi(num_str, out)) {
+  uint64_t out = 0;
+  if (!absl::SimpleAtoi(num_str, &out)) {
     return absl::InvalidArgumentError(
         absl::StrCat("Invalid SemVer ", name, " digits: ", num_str));
   }
-  return absl::OkStatus();
-};
+  return out;
+}
 
 // Evaluates and retrieves a fixed number of string arguments from JsonLogic.
 absl::StatusOr<std::vector<std::string>> GetStrings(
@@ -116,26 +119,29 @@ class SemanticVersion {
           absl::StrCat("Invalid SemVer core: ", core));
     }
 
-    uint64_t major = 0;
+    absl::StatusOr<uint64_t> major = ParseSemVerNum(core_parts[0], "Major");
+    if (!major.ok()) {
+      return major.status();
+    }
+
     uint64_t minor = 0;
-    uint64_t patch = 0;
-    if (absl::Status status = ParseSemVerNum(core_parts[0], "Major", &major);
-        !status.ok()) {
-      return status;
-    }
-
     if (core_parts.size() >= 2) {
-      if (absl::Status status = ParseSemVerNum(core_parts[1], "Minor", &minor);
-          !status.ok()) {
-        return status;
+      absl::StatusOr<uint64_t> minor_res =
+          ParseSemVerNum(core_parts[1], "Minor");
+      if (!minor_res.ok()) {
+        return minor_res.status();
       }
+      minor = *minor_res;
     }
 
+    uint64_t patch = 0;
     if (core_parts.size() == 3) {
-      if (absl::Status status = ParseSemVerNum(core_parts[2], "Patch", &patch);
-          !status.ok()) {
-        return status;
+      absl::StatusOr<uint64_t> patch_res =
+          ParseSemVerNum(core_parts[2], "Patch");
+      if (!patch_res.ok()) {
+        return patch_res.status();
       }
+      patch = *patch_res;
     }
 
     // 4. Parse pre-release identifiers
@@ -160,7 +166,7 @@ class SemanticVersion {
       }
     }
 
-    return SemanticVersion(major, minor, patch, std::move(pre_release));
+    return SemanticVersion(*major, minor, patch, std::move(pre_release));
   }
 
   // Compares two SemanticVersion objects based on SemVer 2.0.0 precedence
@@ -217,124 +223,69 @@ class SemanticVersion {
 };
 
 struct Distribution {
-  std::string variant;
+  nlohmann::json variant;
   int32_t weight;
 };
 
-struct FractionalContext {
-  std::vector<Distribution> distributions;
-  uint64_t sum_of_weights;
-};
-
-// Resolves the bucketing value based on the rule and data.
-// If the first argument evaluates to a string, it's used as the bucketing
-// property. Otherwise, it falls back to flagKey + targetingKey.
-absl::StatusOr<std::string> ResolveBucketingValue(
-    const json_logic::JsonLogic& eval, const nlohmann::json& values,
-    const nlohmann::json& data, bool& first_value_used) {
-  absl::StatusOr<nlohmann::json> bucketing_property_eval =
-      eval.Apply(values[0], data);
-  if (!bucketing_property_eval.ok()) return bucketing_property_eval.status();
-
-  if (bucketing_property_eval.value().is_string()) {
-    first_value_used = true;
-    return bucketing_property_eval.value().get<std::string>();
+// CBOR Canonical sorting for string keys per RFC 7049 Section 3.9 / RFC 8949
+// Section 4.2.1: length first, then lexicographical.
+bool CompareCborKeys(const std::string& lhs, const std::string& rhs) {
+  if (lhs.length() != rhs.length()) {
+    return lhs.length() < rhs.length();
   }
-
-  first_value_used = false;
-  // Fallback logic from spec: Concatenate flagKey and targetingKey if property
-  // is missing
-  std::string flag_key;
-  if (data.contains("$flagd") && data["$flagd"].is_object() &&
-      data["$flagd"].contains("flagKey") &&
-      data["$flagd"]["flagKey"].is_string()) {
-    flag_key = data["$flagd"]["flagKey"].get<std::string>();
-  }
-
-  std::string targeting_key;
-  if (data.contains("targetingKey") && data["targetingKey"].is_string()) {
-    targeting_key = data["targetingKey"].get<std::string>();
-  }
-  return absl::StrCat(flag_key, targeting_key);
+  return lhs < rhs;
 }
 
-// Parses the distributions from the values array.
-absl::StatusOr<FractionalContext> ParseDistributions(
-    const json_logic::JsonLogic& eval, const nlohmann::json& values,
-    const nlohmann::json& data, bool first_value_used) {
-  std::vector<Distribution> distributions;
-  uint64_t sum_of_weights = 0;
-
-  for (size_t i = first_value_used ? 1 : 0; i < values.size(); i++) {
-    absl::StatusOr<nlohmann::json> item = eval.Apply(values[i], data);
-    if (!item.ok()) return item.status();
-    if (!item.value().is_array() || item.value().empty()) {
-      return absl::InvalidArgumentError("Invalid distribution element");
+// Encodes nlohmann::json to deterministic CBOR per RFC 8949.
+void EncodeJson(QCBOREncodeContext* enc_ctx, const nlohmann::json& data) {
+  if (data.is_object()) {
+    QCBOREncode_OpenMap(enc_ctx);
+    std::vector<std::string> keys;
+    keys.reserve(data.size());
+    for (const auto& item : data.items()) {
+      keys.push_back(item.key());
     }
-
-    if (!item.value()[0].is_string()) {
-      return absl::InvalidArgumentError("Variant name must be a string");
+    std::sort(keys.begin(), keys.end(), CompareCborKeys);
+    for (const auto& key : keys) {
+      QCBOREncode_AddText(enc_ctx, {key.data(), key.size()});
+      EncodeJson(enc_ctx, data[key]);
     }
-
-    int32_t weight = 1;
-    if (item.value().size() >= 2) {
-      if (!item.value()[1].is_number()) {
-        return absl::InvalidArgumentError("Bucket weight must be a number");
+    QCBOREncode_CloseMap(enc_ctx);
+  } else if (data.is_array()) {
+    QCBOREncode_OpenArray(enc_ctx);
+    for (const auto& element : data) {
+      EncodeJson(enc_ctx, element);
+    }
+    QCBOREncode_CloseArray(enc_ctx);
+  } else if (data.is_string()) {
+    const std::string& str = data.get<std::string>();
+    QCBOREncode_AddText(enc_ctx, {str.data(), str.size()});
+  } else if (data.is_boolean()) {
+    QCBOREncode_AddBool(enc_ctx, data.get<bool>());
+  } else if (data.is_number_unsigned()) {
+    QCBOREncode_AddUInt64(enc_ctx, data.get<uint64_t>());
+  } else if (data.is_number_integer()) {
+    int64_t val = data.get<int64_t>();
+    if (val >= 0) {
+      QCBOREncode_AddUInt64(enc_ctx, static_cast<uint64_t>(val));
+    } else {
+      QCBOREncode_AddInt64(enc_ctx, val);
+    }
+  } else if (data.is_number_float()) {
+    double val = data.get<double>();
+    if (std::trunc(val) == val && val <= static_cast<double>(INT64_MAX) &&
+        val >= static_cast<double>(INT64_MIN)) {
+      if (val < 0.0) {
+        QCBOREncode_AddInt64(enc_ctx, static_cast<int64_t>(val));
+      } else {
+        QCBOREncode_AddUInt64(enc_ctx, static_cast<uint64_t>(val));
       }
-      weight = item.value()[1].get<int32_t>();
-      weight = std::max(weight, 0);
+    } else {
+      QCBOREncode_AddDouble(enc_ctx, val);
     }
-
-    distributions.push_back({item.value()[0].get<std::string>(), weight});
-    sum_of_weights += weight;
+  } else if (data.is_null()) {
+    QCBOREncode_AddNULL(enc_ctx);
   }
-
-  if (distributions.empty()) {
-    return absl::InvalidArgumentError("No distributions found");
-  }
-
-  if (sum_of_weights == 0) {
-    return absl::InvalidArgumentError("Sum of weights must be positive");
-  }
-
-  if (sum_of_weights >=
-      static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
-    return absl::InvalidArgumentError("Sum of weights exceeds maximum limit");
-  }
-
-  return FractionalContext{std::move(distributions), sum_of_weights};
-}
-
-// Calculates the hash value for the given input using MurmurHash3.
-absl::StatusOr<uint32_t> CalculateHash(const std::string& input) {
-  if (input.length() > static_cast<size_t>(std::numeric_limits<int>::max())) {
-    return absl::InvalidArgumentError(
-        "Input string is too long for MurmurHash3");
-  }
-  uint32_t hash_value;
-  MurmurHash3_x86_32(input.data(), static_cast<int>(input.length()), 0,
-                     &hash_value);
-  return hash_value;
-}
-
-// Calculates the bucket and selects the variant based on the hash value.
-absl::StatusOr<std::string> SelectVariant(
-    const std::vector<Distribution>& distributions, uint64_t sum_of_weights,
-    uint32_t hash_value) {
-  // High-precision bucketing using 64-bit math to distribute hash over
-  // sum_of_weights
-  uint64_t bucket = (static_cast<uint64_t>(hash_value) * sum_of_weights) >>
-                    std::numeric_limits<uint32_t>::digits;
-
-  uint64_t range_end = 0;
-  for (const Distribution& dist : distributions) {
-    range_end += dist.weight;
-    if (bucket < range_end) {
-      return dist.variant;
-    }
-  }
-
-  return absl::InternalError("Fractional bucketing failed to find a variant");
 }
 
 }  // namespace
@@ -421,30 +372,135 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
         "fractional evaluation data is not an array");
   }
 
-  if (values.size() < 2) {
-    return absl::InvalidArgumentError(
-        "fractional evaluation data has length under 2");
+  if (values.empty()) {
+    return absl::InvalidArgumentError("fractional evaluation data is empty");
   }
 
+  // 1. Get the target property value used for bucketing
+  absl::StatusOr<nlohmann::json> bucketing_property_eval =
+      eval.Apply(values[0], data);
+  if (!bucketing_property_eval.ok()) return bucketing_property_eval.status();
+
+  if (bucketing_property_eval.value().is_null()) {
+    return absl::InvalidArgumentError(
+        "Fractional evaluation data cannot be null");
+  }
+
+  nlohmann::json bucketing_property_value;
   bool first_value_used = false;
-  absl::StatusOr<std::string> bucketing_property_res =
-      ResolveBucketingValue(eval, values, data, first_value_used);
-  if (!bucketing_property_res.ok()) return bucketing_property_res.status();
 
-  absl::StatusOr<FractionalContext> context_res =
-      ParseDistributions(eval, values, data, first_value_used);
-  if (!context_res.ok()) return context_res.status();
+  if (bucketing_property_eval.value().is_array()) {
+    std::string flag_key;
+    if (data.contains("$flagd") && data["$flagd"].is_object() &&
+        data["$flagd"].contains("flagKey") &&
+        data["$flagd"]["flagKey"].is_string()) {
+      flag_key = data["$flagd"]["flagKey"].get<std::string>();
+    }
 
-  absl::StatusOr<uint32_t> hash_res =
-      CalculateHash(bucketing_property_res.value());
-  if (!hash_res.ok()) return hash_res.status();
+    if (!data.is_object() || !data.contains("targetingKey") ||
+        data["targetingKey"].is_null()) {
+      return absl::InvalidArgumentError(
+          "Missing targetingKey for fractional evaluation");
+    }
+    if (!data["targetingKey"].is_string()) {
+      return absl::InvalidArgumentError("targetingKey must be a string");
+    }
 
-  absl::StatusOr<std::string> variant_res =
-      SelectVariant(context_res->distributions, context_res->sum_of_weights,
-                    hash_res.value());
-  if (!variant_res.ok()) return variant_res.status();
+    std::string targeting_key = data["targetingKey"].get<std::string>();
+    bucketing_property_value = nlohmann::json::array({flag_key, targeting_key});
+    first_value_used = false;
+  } else {
+    bucketing_property_value = bucketing_property_eval.value();
+    first_value_used = true;
+  }
 
-  return variant_res.value();
+  // 2. Parse the fractional distribution
+  std::vector<Distribution> distributions;
+  uint64_t sum_of_weights = 0;
+
+  for (size_t i = first_value_used ? 1 : 0; i < values.size(); i++) {
+    absl::StatusOr<nlohmann::json> item = eval.Apply(values[i], data);
+    if (!item.ok()) return item.status();
+    if (!item.value().is_array() || item.value().empty()) {
+      return absl::InvalidArgumentError("Invalid distribution element");
+    }
+
+    int32_t weight = 1;
+    if (item.value().size() >= 2) {
+      const nlohmann::json& weight_json = item.value()[1];
+      if (!weight_json.is_number()) {
+        return absl::InvalidArgumentError("Fractional weight must be a number");
+      }
+      if (weight_json.is_number_float()) {
+        double val = weight_json.get<double>();
+        if (!std::isfinite(val) || std::trunc(val) != val) {
+          return absl::InvalidArgumentError(
+              "Fractional weight must be an integer");
+        }
+      }
+      weight = std::max(weight_json.get<int32_t>(), 0);
+    }
+
+    distributions.push_back({item.value()[0], weight});
+    sum_of_weights += weight;
+  }
+
+  if (distributions.empty()) {
+    return absl::InvalidArgumentError("No distributions found");
+  }
+
+  if (sum_of_weights == 0) {
+    return absl::InvalidArgumentError("Sum of weights must be positive");
+  }
+
+  if (sum_of_weights >
+      static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
+    return absl::InvalidArgumentError("Sum of weights exceeds maximum limit");
+  }
+
+  // 3. Serialize hashing value to deterministic CBOR representation using qcbor
+  QCBOREncodeContext encode_ctx;
+  UsefulBufC size_info;
+  QCBORError err;
+
+  QCBOREncode_Init(&encode_ctx, SizeCalculateUsefulBuf);
+  EncodeJson(&encode_ctx, bucketing_property_value);
+  err = QCBOREncode_Finish(&encode_ctx, &size_info);
+  if (err != QCBOR_SUCCESS) {
+    return absl::InternalError(
+        absl::StrCat("QCBOR size calculation failed: ", err));
+  }
+
+  std::vector<uint8_t> buffer(size_info.len);
+  UsefulBuf cbor_buffer = {buffer.data(), buffer.size()};
+
+  QCBOREncode_Init(&encode_ctx, cbor_buffer);
+  EncodeJson(&encode_ctx, bucketing_property_value);
+  UsefulBufC encoded;
+  err = QCBOREncode_Finish(&encode_ctx, &encoded);
+  if (err != QCBOR_SUCCESS) {
+    return absl::InternalError(absl::StrCat("QCBOR encoding failed: ", err));
+  }
+
+  // 4. Calculate MurmurHash3_x86_32 on the CBOR bytes
+  uint32_t hash_value = 0;
+  MurmurHash3_x86_32(encoded.ptr, static_cast<int>(encoded.len), 0,
+                     &hash_value);
+
+  // 5. Calculate bucket using high-precision 64-bit integer arithmetic
+  uint64_t bucket = (static_cast<uint64_t>(hash_value) * sum_of_weights) >>
+                    std::numeric_limits<uint32_t>::digits;
+
+  // 6. Select variant
+  uint64_t range_end = 0;
+  for (const Distribution& dist : distributions) {
+    range_end += dist.weight;
+    if (bucket < range_end) {
+      return dist.variant;
+    }
+  }
+
+  return absl::InternalError("Fractional bucketing failed to find a variant");
 }
 
 }  // namespace flagd

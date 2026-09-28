@@ -37,6 +37,13 @@ git_repository(
 )
 
 git_repository(
+    name = "qcbor",
+    build_file = "//providers/flagd:qcbor.BUILD",
+    remote = "https://github.com/laurencelundblade/QCBOR.git",
+    tag = "v1.6.1",
+)
+
+git_repository(
     name = "nlohmann_json_schema_validator",
     build_file = "//providers/flagd:json_schema_validator.BUILD",
     remote = "https://github.com/pboettch/json-schema-validator.git",
