@@ -3,6 +3,7 @@
 // They should be removed once automatic gherkin tests are introduced.
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <nlohmann/json.hpp>
 
 #include "providers/flagd/src/evaluator/flagd_ops.h"
@@ -231,6 +232,14 @@ TEST_F(FlagdOpsTest, FractionalV3FloatMapping) {
   EXPECT_EQ(eval(-2), "bucket12");
   EXPECT_EQ(eval(9007199254740992.0), "bucket10");
   EXPECT_EQ(eval(int64_t{9007199254740992LL}), "bucket10");
+  EXPECT_EQ(eval(9223372036854775808.0), "bucket16");
+  EXPECT_EQ(eval(uint64_t{9223372036854775808ULL}), "bucket16");
+  EXPECT_EQ(eval(1e19), "bucket14");
+  EXPECT_EQ(eval(uint64_t{10000000000000000000ULL}), "bucket14");
+  EXPECT_EQ(eval(18446744073709549568.0), "bucket16");
+  EXPECT_EQ(eval(uint64_t{18446744073709549568ULL}), "bucket16");
+  EXPECT_EQ(eval(-9223372036854775808.0), "bucket3");
+  EXPECT_EQ(eval(INT64_MIN), "bucket3");
 }
 
 TEST_F(FlagdOpsTest, FractionalV3ZeroValues) {
@@ -285,6 +294,7 @@ TEST_F(FlagdOpsTest, FractionalV3FloatLimits) {
     return res.value();
   };
 
+  EXPECT_EQ(eval(18446744073709551616.0), "bucket15");
   EXPECT_EQ(eval(1e20), "bucket19");
   EXPECT_EQ(eval(-1e20), "bucket25");
   EXPECT_EQ(eval(65504.0), "bucket16");

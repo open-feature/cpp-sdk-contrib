@@ -273,7 +273,9 @@ void EncodeJson(QCBOREncodeContext* enc_ctx, const nlohmann::json& data) {
     }
   } else if (data.is_number_float()) {
     double val = data.get<double>();
-    if (std::trunc(val) == val && val <= static_cast<double>(INT64_MAX) &&
+    // UINT64_MAX (2^64 - 1) rounds up to 2^64 in double, so strict '<' includes
+    // all representable whole doubles in [0, 2^64 - 1] while excluding 2^64.
+    if (std::trunc(val) == val && val < static_cast<double>(UINT64_MAX) &&
         val >= static_cast<double>(INT64_MIN)) {
       if (val < 0.0) {
         QCBOREncode_AddInt64(enc_ctx, static_cast<int64_t>(val));
