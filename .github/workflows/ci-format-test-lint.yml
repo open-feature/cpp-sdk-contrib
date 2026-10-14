@@ -10,7 +10,7 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: "recursive"
 
@@ -29,7 +29,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: "recursive"
 
@@ -45,7 +45,7 @@ jobs:
       - name: Build compilation database
         run: bazel run @hedron_compile_commands//:refresh_all
 
-      - uses: cpp-linter/cpp-linter-action@v2
+      - uses: cpp-linter/cpp-linter-action@8120e05c7fbd25fa09fa93424ec49f55f7b304ab # v2.23.1
         id: linter
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
