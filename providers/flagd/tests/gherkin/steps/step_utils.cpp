@@ -19,10 +19,12 @@
 
 namespace openfeature::contrib::flagd::test {
 
-void FailStep(const std::string& reason) { cuke::equal(true, false, reason); }
+void FailStep(std::string_view reason) {
+  cuke::equal(true, false, std::string(reason));
+}
 
-void FailStepNotImplemented(const std::string& what) {
-  FailStep(what +
+void FailStepNotImplemented(std::string_view what) {
+  FailStep(std::string(what) +
            " has no representation in FlagdProviderConfig/FlagdProvider yet, "
            "so this expectation cannot be verified");
 }
@@ -89,15 +91,6 @@ std::string FlagTypeToString(FlagType type) {
   return "UNKNOWN_ENUM_VALUE";
 }
 
-std::optional<FlagType> ParseFlagType(const std::string& name) {
-  if (name == "Boolean") return FlagType::kBoolean;
-  if (name == "String") return FlagType::kString;
-  if (name == "Integer") return FlagType::kInteger;
-  if (name == "Float") return FlagType::kFloat;
-  if (name == "Object") return FlagType::kObject;
-  return std::nullopt;
-}
-
 void RecordEvaluationDetails(
     const openfeature::GeneralFlagEvaluationDetails& details) {
   EvaluationResult& result = Ctx().scenario.last_eval;
@@ -106,7 +99,6 @@ void RecordEvaluationDetails(
   result.reason = details.GetReason();
   result.variant = details.GetVariant();
   result.error_code = details.GetErrorCode();
-  result.error_message = details.GetErrorMessage();
   result.flag_metadata = details.GetFlagMetadata();
 }
 
@@ -178,7 +170,7 @@ nlohmann::json ValueToJson(const openfeature::Value& val) {
   return nullptr;
 }
 
-std::optional<int64_t> ParseInt64(const std::string& str) {
+std::optional<int64_t> ParseInt64(std::string_view str) {
   int64_t val = 0;
   if (!absl::SimpleAtoi(str, &val)) {
     return std::nullopt;
@@ -186,7 +178,7 @@ std::optional<int64_t> ParseInt64(const std::string& str) {
   return val;
 }
 
-std::optional<double> ParseDouble(const std::string& str) {
+std::optional<double> ParseDouble(std::string_view str) {
   double val = 0;
   if (!absl::SimpleAtod(str, &val)) {
     return std::nullopt;
@@ -194,7 +186,7 @@ std::optional<double> ParseDouble(const std::string& str) {
   return val;
 }
 
-std::optional<bool> ParseBool(const std::string& str) {
+std::optional<bool> ParseBool(std::string_view str) {
   if (str == "true" || str == "True") return true;
   if (str == "false" || str == "False") return false;
   return std::nullopt;

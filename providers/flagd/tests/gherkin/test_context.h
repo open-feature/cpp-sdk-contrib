@@ -1,4 +1,5 @@
-#pragma once
+#ifndef PROVIDERS_FLAGD_TESTS_GHERKIN_TEST_CONTEXT_H_
+#define PROVIDERS_FLAGD_TESTS_GHERKIN_TEST_CONTEXT_H_
 
 #include <any>
 #include <map>
@@ -53,7 +54,6 @@ struct EvaluationResult {
   std::optional<::openfeature::Reason> reason;
   std::optional<std::string> variant;
   std::optional<::openfeature::ErrorCode> error_code;
-  std::optional<std::string> error_message;
   ::openfeature::FlagMetadata flag_metadata;
 };
 
@@ -71,7 +71,6 @@ struct ScenarioState {
   std::map<std::string, std::string> pending_options;
 
   std::optional<::flagd::FlagdProviderConfig> config;
-  bool config_error = false;
 
   ScopedEnv env;
 };
@@ -96,4 +95,10 @@ TestContext& Ctx();
 // (the cached provider) deliberately survives.
 void ResetScenarioState();
 
+// Shuts down OpenFeatureAPI and releases the cached provider before the
+// underlying flagd subprocess is stopped.
+void ShutdownPersistentProvider();
+
 }  // namespace openfeature::contrib::flagd::test
+
+#endif  // PROVIDERS_FLAGD_TESTS_GHERKIN_TEST_CONTEXT_H_

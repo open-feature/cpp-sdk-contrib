@@ -106,15 +106,15 @@ std::vector<std::string> CollectFixtureFiles() {
 
 // A fixture path may be absolute, runfiles-relative, or a bare filename inside
 // the testbed's flags directory.
-absl::StatusOr<std::string> ResolveFixturePath(const std::string& fixture) {
+absl::StatusOr<std::string> ResolveFixturePath(std::string_view fixture) {
   if (fs::exists(fixture)) {
-    return fixture;
+    return std::string(fixture);
   }
   absl::StatusOr<std::string> resolved = GetRunfilePath(fixture);
   if (resolved.ok() && fs::exists(*resolved)) {
     return *resolved;
   }
-  if (fixture.find("flagd_testbed/flags/") == std::string::npos) {
+  if (fixture.find("flagd_testbed/flags/") == std::string_view::npos) {
     resolved = GetRunfilePath(absl::StrCat("flagd_testbed/flags/", fixture));
     if (resolved.ok() && fs::exists(*resolved)) {
       return *resolved;
@@ -124,9 +124,148 @@ absl::StatusOr<std::string> ResolveFixturePath(const std::string& fixture) {
       absl::StrCat("could not resolve fixture path: ", fixture));
 }
 
+absl::StatusOr<std::vector<FlagdSource>> StageTestbedFixtures(
+    const fs::path& work_dir) {
+  const std::vector<std::string> fixtures = CollectFixtureFiles();
+  if (fixtures.empty()) {
+    return absl::FailedPreconditionError(
+        "no flag fixtures found; expected FLAGD_TEST_FLAGS to be set by the "
+        "Bazel target, or flagd_testbed/flags to be present in runfiles");
+  }
+
+  std::error_code ec;
+  const fs::path flags_dir = work_dir / "flags";
+  const fs::path rawflags_dir = work_dir / "rawflags";
+  fs::create_directories(flags_dir, ec);
+  if (ec) {
+    return absl::InternalError(absl::StrCat(
+        "could not create ", flags_dir.string(), ": ", ec.message()));
+  }
+  fs::create_directories(rawflags_dir, ec);
+  if (ec) {
+    return absl::InternalError(absl::StrCat(
+        "could not create ", rawflags_dir.string(), ": ", ec.message()));
+  }
+
+  json merged = json::object();
+  merged["flags"] = json::object();
+  merged["metadata"] = json::object();
+  merged["$evaluators"] = json::object();
+
+  std::vector<FlagdSource> sources;
+  int merged_count = 0;
+
+  for (const std::string& fixture : fixtures) {
+    const std::string filename = fs::path(fixture).filename().string();
+    if (IsUnsupportedFixture(filename)) {
+      std::cerr << "NOTE: skipping fixture " << filename
+                << " (see TODO(#129)); the scenarios that depend on it will "
+                   "fail\n";
+      continue;
+    }
+
+    const absl::StatusOr<std::string> path = ResolveFixturePath(fixture);
+    if (!path.ok()) {
+      return path.status();
+    }
+
+    // Files named selector-*.json back the selector scenarios, which need each
+    // file to stay an addressable sync source of its own rather than being
+    // folded into the combined payload. Stage them under `rawflags/<filename>`
+    // so flagd registers their file URI as `"rawflags/<filename>"`.
+    if (filename.rfind("selector-", 0) == 0) {
+      const fs::path dest = rawflags_dir / filename;
+      fs::copy_file(*path, dest, fs::copy_options::overwrite_existing, ec);
+      if (ec) {
+        return absl::InternalError(
+            absl::StrCat("could not copy selector fixture ", *path, " to ",
+                         dest.string(), ": ", ec.message()));
+      }
+      sources.push_back({.uri = absl::StrCat("rawflags/", filename)});
+      continue;
+    }
+
+    std::ifstream ifs(*path);
+    if (!ifs.is_open()) {
+      return absl::InternalError(
+          absl::StrCat("could not open fixture ", *path));
+    }
+    json parsed = json::parse(ifs, nullptr, false);
+    if (parsed.is_discarded() || !parsed.is_object()) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("fixture ", *path, " is not a JSON object"));
+    }
+
+    if (parsed.contains("flags") && parsed["flags"].is_object()) {
+      MergeObject(merged["flags"], parsed["flags"], "flag", filename);
+    }
+    if (parsed.contains("metadata") && parsed["metadata"].is_object()) {
+      // Flag-set metadata is really a per-source concept. Collapsing every
+      // fixture into one source means the scenarios see a union no real
+      // deployment would produce, so at least make collisions visible.
+      // TODO(#129): register each fixture as its own flagd sync source.
+      MergeObject(merged["metadata"], parsed["metadata"], "flag-set metadata",
+                  filename);
+    }
+    const char* evaluators_key = parsed.contains("$evaluators")  ? "$evaluators"
+                                 : parsed.contains("evaluators") ? "evaluators"
+                                                                 : nullptr;
+    if (evaluators_key != nullptr && parsed[evaluators_key].is_object()) {
+      MergeObject(merged["$evaluators"], parsed[evaluators_key], "$evaluator",
+                  filename);
+    }
+    ++merged_count;
+  }
+
+  if (merged_count == 0) {
+    return absl::FailedPreconditionError(
+        "every fixture was skipped; nothing to serve");
+  }
+
+  const fs::path combined = flags_dir / "allFlags.json";
+  {
+    std::ofstream ofs(combined);
+    if (!ofs.is_open()) {
+      return absl::InternalError(
+          absl::StrCat("could not write ", combined.string()));
+    }
+    ofs << merged.dump(2);
+    if (!ofs.good()) {
+      return absl::InternalError(
+          absl::StrCat("failed while writing ", combined.string()));
+    }
+  }
+  sources.insert(sources.begin(), {.uri = "flags/allFlags.json"});
+  return sources;
+}
+
+bool WaitForFlagdProcessReady(const FlagdProcess& process,
+                              const std::string& target,
+                              std::chrono::milliseconds timeout) {
+  auto channel =
+      grpc::CreateChannel(target, grpc::InsecureChannelCredentials());
+  const auto deadline = std::chrono::steady_clock::now() + timeout;
+
+  while (std::chrono::steady_clock::now() < deadline) {
+    if (!process.IsRunning()) {
+      return false;
+    }
+    const auto slice = std::min<std::chrono::milliseconds>(
+        std::chrono::milliseconds(50),
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            deadline - std::chrono::steady_clock::now()));
+    if (channel->WaitForConnected(std::chrono::system_clock::now() + slice)) {
+      // Confirm our own child is still alive so we do not mistake an
+      // already-running flagd on the same port for a healthy startup.
+      return process.IsRunning();
+    }
+  }
+  return false;
+}
+
 }  // namespace
 
-absl::StatusOr<std::string> GetRunfilePath(const std::string& relative_path) {
+absl::StatusOr<std::string> GetRunfilePath(std::string_view relative_path) {
   static std::string* creation_error = new std::string();
   static Runfiles* runfiles = [] {
     std::string error;
@@ -148,12 +287,33 @@ absl::StatusOr<std::string> GetRunfilePath(const std::string& relative_path) {
     return absl::InternalError(
         absl::StrCat("failed to create Runfiles: ", *creation_error));
   }
-  std::string resolved = runfiles->Rlocation(relative_path);
+  std::string resolved = runfiles->Rlocation(std::string(relative_path));
   if (resolved.empty()) {
     return absl::NotFoundError(
         absl::StrCat("no runfile named '", relative_path, "'"));
   }
   return resolved;
+}
+
+std::string ResolveFeaturePath(std::string_view feature_arg) {
+  if (fs::exists(feature_arg)) {
+    return std::string(feature_arg);
+  }
+  if (const auto resolved = GetRunfilePath(feature_arg);
+      resolved.ok() && fs::exists(*resolved)) {
+    return *resolved;
+  }
+  if (const auto resolved =
+          GetRunfilePath(absl::StrCat("flagd_testbed/", feature_arg));
+      resolved.ok() && fs::exists(*resolved)) {
+    return *resolved;
+  }
+  if (const auto resolved =
+          GetRunfilePath(absl::StrCat("flagd_testbed/gherkin/", feature_arg));
+      resolved.ok() && fs::exists(*resolved)) {
+    return *resolved;
+  }
+  return std::string(feature_arg);
 }
 
 bool WaitForGrpcReady(const std::string& target,
@@ -169,17 +329,25 @@ std::string FlagdSyncTarget() {
 
 FlagdProcess::FlagdProcess(std::string binary_path,
                            std::vector<FlagdSource> sources, int rpc_port,
-                           int sync_port, std::string log_dir)
+                           int sync_port, std::string work_dir)
     : binary_path_(std::move(binary_path)),
       sources_(std::move(sources)),
       rpc_port_(rpc_port),
       sync_port_(sync_port),
-      log_dir_(std::move(log_dir)) {}
+      work_dir_(std::move(work_dir)) {}
 
 FlagdProcess::~FlagdProcess() { Stop(); }
 
+bool FlagdProcess::IsRunning() const {
+  if (pid_ <= 0) {
+    return false;
+  }
+  int status = 0;
+  return waitpid(pid_, &status, WNOHANG) == 0;
+}
+
 std::string FlagdProcess::LogPath() const {
-  return absl::StrCat(log_dir_, "/flagd.log");
+  return absl::StrCat(work_dir_, "/flagd.log");
 }
 
 std::string FlagdProcess::TailLog(int max_lines) const {
@@ -208,11 +376,7 @@ absl::Status FlagdProcess::Start() {
   // deadlock on a malloc lock another thread held at the moment of the fork.
   json sources_arr = json::array();
   for (const auto& src : sources_) {
-    json src_obj = {{"uri", src.path}, {"provider", "file"}};
-    if (!src.selector.empty()) {
-      src_obj["selector"] = src.selector;
-    }
-    sources_arr.push_back(src_obj);
+    sources_arr.push_back({{"uri", src.uri}, {"provider", "file"}});
   }
   const std::string sources_arg = sources_arr.dump();
   const std::string rpc_port_arg = std::to_string(rpc_port_);
@@ -246,6 +410,7 @@ absl::Status FlagdProcess::Start() {
         absl::StrCat("fcntl(FD_CLOEXEC) failed: ", strerror(errno)));
   }
 
+  const pid_t parent_pid = getpid();
   pid_ = fork();
   if (pid_ == -1) {
     close(exec_status[0]);
@@ -257,9 +422,12 @@ absl::Status FlagdProcess::Start() {
   if (pid_ == 0) {
     close(exec_status[0]);
 
-    // Terminate if the parent test runner exits or crashes.
+    // Terminate if the parent test runner exits or crashes. Compare against
+    // `parent_pid` rather than 1 because under a subreaper (e.g. Bazel's
+    // linux-sandbox or systemd --user), an orphaned child is reparented to the
+    // subreaper PID rather than init.
     prctl(PR_SET_PDEATHSIG, SIGKILL);
-    if (getppid() == 1) {
+    if (getppid() != parent_pid) {
       _exit(1);
     }
 
@@ -270,7 +438,17 @@ absl::Status FlagdProcess::Start() {
     if (log_fd != -1) {
       dup2(log_fd, STDOUT_FILENO);
       dup2(log_fd, STDERR_FILENO);
-      close(log_fd);
+      if (log_fd > STDERR_FILENO) {
+        close(log_fd);
+      }
+    }
+
+    if (chdir(work_dir_.c_str()) != 0) {
+      const int chdir_errno = errno;
+      ssize_t ignored =
+          write(exec_status[1], &chdir_errno, sizeof(chdir_errno));
+      static_cast<void>(ignored);
+      _exit(127);
     }
 
     execvp(argv[0], argv.data());
@@ -335,115 +513,29 @@ absl::Status SetupGlobalFlagd() {
         "could not create ", g_scenario_tmp_dir, ": ", ec.message()));
   }
 
-  const std::vector<std::string> fixtures = CollectFixtureFiles();
-  if (fixtures.empty()) {
-    return absl::FailedPreconditionError(
-        "no flag fixtures found; expected FLAGD_TEST_FLAGS to be set by the "
-        "Bazel target, or flagd_testbed/flags to be present in runfiles");
+  absl::StatusOr<std::vector<FlagdSource>> sources =
+      StageTestbedFixtures(g_scenario_tmp_dir);
+  if (!sources.ok()) {
+    return sources.status();
   }
 
-  json merged = json::object();
-  merged["flags"] = json::object();
-  merged["metadata"] = json::object();
-  merged["$evaluators"] = json::object();
-
-  std::vector<FlagdSource> sources;
-  int merged_count = 0;
-
-  for (const std::string& fixture : fixtures) {
-    const std::string filename = fs::path(fixture).filename().string();
-    if (IsUnsupportedFixture(filename)) {
-      std::cerr << "NOTE: skipping fixture " << filename
-                << " (see TODO(#129)); the scenarios that depend on it will "
-                   "fail\n";
-      continue;
-    }
-
-    const absl::StatusOr<std::string> path = ResolveFixturePath(fixture);
-    if (!path.ok()) {
-      return path.status();
-    }
-
-    // Files named selector-*.json back the selector scenarios, which need each
-    // file to stay an addressable sync source of its own rather than being
-    // folded into the combined payload.
-    if (filename.rfind("selector-", 0) == 0) {
-      const fs::path dest = fs::path(g_scenario_tmp_dir) / filename;
-      fs::copy_file(*path, dest, fs::copy_options::overwrite_existing, ec);
-      if (ec) {
-        return absl::InternalError(
-            absl::StrCat("could not copy selector fixture ", *path, " to ",
-                         dest.string(), ": ", ec.message()));
-      }
-      sources.push_back({.path = dest.string(),
-                         .selector = absl::StrCat("rawflags/", filename)});
-      continue;
-    }
-
-    std::ifstream ifs(*path);
-    if (!ifs.is_open()) {
-      return absl::InternalError(
-          absl::StrCat("could not open fixture ", *path));
-    }
-    json parsed = json::parse(ifs, nullptr, false);
-    if (parsed.is_discarded() || !parsed.is_object()) {
-      return absl::InvalidArgumentError(
-          absl::StrCat("fixture ", *path, " is not a JSON object"));
-    }
-
-    if (parsed.contains("flags") && parsed["flags"].is_object()) {
-      MergeObject(merged["flags"], parsed["flags"], "flag", filename);
-    }
-    if (parsed.contains("metadata") && parsed["metadata"].is_object()) {
-      // Flag-set metadata is really a per-source concept. Collapsing every
-      // fixture into one source means the scenarios see a union no real
-      // deployment would produce, so at least make collisions visible.
-      // TODO(#129): register each fixture as its own flagd sync source.
-      MergeObject(merged["metadata"], parsed["metadata"], "flag-set metadata",
-                  filename);
-    }
-    const char* evaluators_key = parsed.contains("$evaluators")  ? "$evaluators"
-                                 : parsed.contains("evaluators") ? "evaluators"
-                                                                 : nullptr;
-    if (evaluators_key != nullptr && parsed[evaluators_key].is_object()) {
-      MergeObject(merged["$evaluators"], parsed[evaluators_key], "$evaluator",
-                  filename);
-    }
-    ++merged_count;
-  }
-
-  if (merged_count == 0) {
-    return absl::FailedPreconditionError(
-        "every fixture was skipped; nothing to serve");
-  }
-
-  const fs::path combined = fs::path(g_scenario_tmp_dir) / "all_flags.json";
-  {
-    std::ofstream ofs(combined);
-    if (!ofs.is_open()) {
-      return absl::InternalError(
-          absl::StrCat("could not write ", combined.string()));
-    }
-    ofs << merged.dump(2);
-    if (!ofs.good()) {
-      return absl::InternalError(
-          absl::StrCat("failed while writing ", combined.string()));
-    }
-  }
-  sources.insert(sources.begin(), {.path = combined.string(), .selector = ""});
-
-  g_flagd = std::make_unique<FlagdProcess>(*flagd_bin, sources, kFlagdRpcPort,
-                                           kFlagdSyncPort, g_scenario_tmp_dir);
+  g_flagd = std::make_unique<FlagdProcess>(*flagd_bin, *std::move(sources),
+                                           kFlagdRpcPort, kFlagdSyncPort,
+                                           g_scenario_tmp_dir);
   if (const absl::Status started = g_flagd->Start(); !started.ok()) {
     g_flagd.reset();
     return absl::InternalError(
         absl::StrCat("could not start flagd: ", started.message()));
   }
 
-  if (!WaitForGrpcReady(FlagdSyncTarget())) {
-    return absl::UnavailableError(absl::StrCat(
-        "flagd did not become ready on ", FlagdSyncTarget(), "\nlast lines of ",
-        g_flagd->LogPath(), ":\n", g_flagd->TailLog()));
+  if (!WaitForFlagdProcessReady(*g_flagd, FlagdSyncTarget(),
+                                std::chrono::milliseconds(5000))) {
+    const std::string log_path = g_flagd->LogPath();
+    const std::string log_tail = g_flagd->TailLog();
+    g_flagd.reset();
+    return absl::UnavailableError(
+        absl::StrCat("flagd did not become ready on ", FlagdSyncTarget(),
+                     "\nlast lines of ", log_path, ":\n", log_tail));
   }
   return absl::OkStatus();
 }

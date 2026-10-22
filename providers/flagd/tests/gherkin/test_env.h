@@ -1,9 +1,11 @@
-#pragma once
+#ifndef PROVIDERS_FLAGD_TESTS_GHERKIN_TEST_ENV_H_
+#define PROVIDERS_FLAGD_TESTS_GHERKIN_TEST_ENV_H_
 
 #include <sys/types.h>
 
 #include <chrono>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -17,7 +19,12 @@ namespace openfeature::contrib::flagd::test {
 inline constexpr int kFlagdRpcPort = 8013;
 inline constexpr int kFlagdSyncPort = 8015;
 
-absl::StatusOr<std::string> GetRunfilePath(const std::string& relative_path);
+absl::StatusOr<std::string> GetRunfilePath(std::string_view relative_path);
+
+// Resolves a feature file CLI argument: returns `feature_arg` unchanged if it
+// already exists on disk, or resolves it against @flagd_testbed runfiles when a
+// bare filename (e.g. "targeting.feature") or runfiles-relative path is given.
+std::string ResolveFeaturePath(std::string_view feature_arg);
 
 bool WaitForGrpcReady(
     const std::string& target,
@@ -26,15 +33,19 @@ bool WaitForGrpcReady(
 std::string FlagdSyncTarget();
 
 struct FlagdSource {
-  std::string path;
-  std::string selector;
+  // Relative to FlagdProcess's working directory (`work_dir`). For `"file"`
+  // sync providers, flagd ignores `"selector"` in `--sources` and indexes flags
+  // by `source = uri`, so this URI must match the selector strings used by the
+  // Gherkin feature files (e.g. "flags/allFlags.json",
+  // "rawflags/selector-flags.json").
+  std::string uri;
 };
 
 // Manages a background Go flagd server subprocess during test execution.
 class FlagdProcess {
  public:
   FlagdProcess(std::string binary_path, std::vector<FlagdSource> sources,
-               int rpc_port, int sync_port, std::string log_dir);
+               int rpc_port, int sync_port, std::string work_dir);
   ~FlagdProcess();
 
   FlagdProcess(const FlagdProcess&) = delete;
@@ -45,6 +56,9 @@ class FlagdProcess {
   absl::Status Start();
   void Stop();
 
+  // Returns true if the child process is still running (has not exited).
+  bool IsRunning() const;
+
   std::string LogPath() const;
   std::string TailLog(int max_lines = 40) const;
 
@@ -53,7 +67,7 @@ class FlagdProcess {
   std::vector<FlagdSource> sources_;
   int rpc_port_;
   int sync_port_;
-  std::string log_dir_;
+  std::string work_dir_;
   pid_t pid_ = -1;
 };
 
@@ -67,3 +81,5 @@ void TeardownGlobalFlagd();
 std::string GlobalFlagdLogTail();
 
 }  // namespace openfeature::contrib::flagd::test
+
+#endif  // PROVIDERS_FLAGD_TESTS_GHERKIN_TEST_ENV_H_

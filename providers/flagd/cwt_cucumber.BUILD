@@ -10,8 +10,7 @@ genrule(
     outs = ["src/version.hpp"],
     cmd = """
         VERSION=$$(grep 'project(cwt-cucumber VERSION' $(location CMakeLists.txt) | sed 's/.*VERSION \\([0-9.]*\\).*/\\1/');
-        MAJOR=$${VERSION%%.*};
-        MINOR=$${VERSION#*.};
+        IFS=. read -r MAJOR MINOR _ <<< "$$VERSION";
         sed -e "s/@PROJECT_VERSION@/$$VERSION/g" \
             -e "s/\\$${PROJECT_VERSION_MAJOR}/$$MAJOR/g" \
             -e "s/\\$${PROJECT_VERSION_MINOR}/$$MINOR/g" \

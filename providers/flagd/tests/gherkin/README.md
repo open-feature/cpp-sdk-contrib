@@ -23,12 +23,12 @@ To run a subset, use the binary directly:
 # Everything tagged @targeting
 bazel run //providers/flagd/tests/gherkin:gherkin_bin -- \
     --tags "@in-process and @targeting" \
-    $PWD/bazel-cpp-sdk-contrib/external/+_repo_rules+flagd_testbed/gherkin/targeting.feature
+    targeting.feature
 
 # A single scenario by name
 bazel run //providers/flagd/tests/gherkin:gherkin_bin -- \
     --name "Returns metadata" \
-    $PWD/bazel-cpp-sdk-contrib/external/+_repo_rules+flagd_testbed/gherkin/metadata.feature
+    metadata.feature
 ```
 
 `--tags` and `--name` can also be supplied as `GHERKIN_TAGS` and

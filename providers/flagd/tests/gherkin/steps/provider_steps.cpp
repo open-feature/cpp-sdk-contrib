@@ -1,4 +1,3 @@
-#include <iostream>
 #include <memory>
 #include <string>
 
@@ -11,15 +10,9 @@
 #include "providers/flagd/tests/gherkin/test_context.h"
 #include "providers/flagd/tests/gherkin/test_env.h"
 
-namespace {
+namespace openfeature::contrib::flagd::test {
 
-using openfeature::contrib::flagd::test::Ctx;
-using openfeature::contrib::flagd::test::FailStep;
-using openfeature::contrib::flagd::test::FlagdSyncTarget;
-using openfeature::contrib::flagd::test::kFlagdSyncPort;
-using openfeature::contrib::flagd::test::WaitForGrpcReady;
-
-void InitializeProvider() {
+void EnsureProviderInitialized() {
   auto& persistent = Ctx().persistent;
   const std::string& selector = Ctx().scenario.selector;
 
@@ -30,10 +23,11 @@ void InitializeProvider() {
     return;
   }
 
-  if (!WaitForGrpcReady(FlagdSyncTarget())) {
+  // Only probe gRPC readiness when the first provider is registered; if a
+  // provider was already registered in this test run, flagd is already ready.
+  if (!persistent.provider_registered && !WaitForGrpcReady(FlagdSyncTarget())) {
     FailStep("flagd sync service is not reachable on " + FlagdSyncTarget() +
-             "\nlast lines of the flagd log:\n" +
-             openfeature::contrib::flagd::test::GlobalFlagdLogTail());
+             "\nlast lines of the flagd log:\n" + GlobalFlagdLogTail());
     return;
   }
 
@@ -55,6 +49,13 @@ void InitializeProvider() {
   persistent.provider_registered = true;
 }
 
+}  // namespace openfeature::contrib::flagd::test
+
+namespace {
+
+using openfeature::contrib::flagd::test::Ctx;
+using openfeature::contrib::flagd::test::EnsureProviderInitialized;
+
 }  // namespace
 
 GIVEN(AnOptionOfTypeWithValue,
@@ -67,10 +68,12 @@ GIVEN(AnOptionOfTypeWithValue,
   }
 }
 
-GIVEN(AStableFlagdProvider, "a stable flagd provider") { InitializeProvider(); }
-
-GIVEN(AMetadataFlagdProvider, "a metadata flagd provider") {
-  InitializeProvider();
+GIVEN(AStableFlagdProvider, "a stable flagd provider") {
+  EnsureProviderInitialized();
 }
 
-GIVEN(AnEvaluator, "an evaluator") { InitializeProvider(); }
+GIVEN(AMetadataFlagdProvider, "a metadata flagd provider") {
+  EnsureProviderInitialized();
+}
+
+GIVEN(AnEvaluator, "an evaluator") { EnsureProviderInitialized(); }

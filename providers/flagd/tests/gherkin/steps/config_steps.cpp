@@ -1,9 +1,12 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "asserts.hpp"  // for cuke::equal
 #include "defines.hpp"  // for GIVEN, WHEN, THEN
@@ -26,18 +29,19 @@ using openfeature::contrib::flagd::test::ParseInt64;
 // `cache`/`maxCacheSize` describe the unimplemented RPC resolver's flag cache.
 // Asserting on them would mean asserting on a value the test itself invented,
 // so they are reported as unimplemented instead.
-bool IsUnmodelledOption(const std::string& option) {
+bool IsUnmodelledOption(std::string_view option) {
   return option == "resolver" || option == "cache" || option == "maxCacheSize";
 }
 
-bool ApplyInt(const std::string& option, const std::string& value, int* out) {
+std::optional<int> ParseOptionInt(std::string_view option,
+                                  std::string_view value) {
   const auto parsed = ParseInt64(value);
   if (!parsed.has_value()) {
-    FailStep("option '" + option + "' is not a valid integer: '" + value + "'");
-    return false;
+    FailStep(absl::StrCat("option '", option, "' is not a valid integer: '",
+                          value, "'"));
+    return std::nullopt;
   }
-  *out = static_cast<int>(*parsed);
-  return true;
+  return static_cast<int>(*parsed);
 }
 
 void ExpectOptionalEquals(const std::optional<std::string>& actual,
@@ -68,15 +72,54 @@ void ExpectIntEquals(int actual, const std::string& expected,
   ExpectEq(static_cast<int64_t>(actual), *parsed, "option '" + option + "'");
 }
 
-std::string StatusCodesToString(const std::vector<grpc::StatusCode>& codes) {
-  std::string out;
-  for (const grpc::StatusCode code : codes) {
-    if (!out.empty()) {
-      out += ", ";
-    }
-    out += std::to_string(static_cast<int>(code));
+std::string_view StatusCodeToString(grpc::StatusCode code) {
+  switch (code) {
+    case grpc::StatusCode::OK:
+      return "OK";
+    case grpc::StatusCode::CANCELLED:
+      return "CANCELLED";
+    case grpc::StatusCode::UNKNOWN:
+      return "UNKNOWN";
+    case grpc::StatusCode::INVALID_ARGUMENT:
+      return "INVALID_ARGUMENT";
+    case grpc::StatusCode::DEADLINE_EXCEEDED:
+      return "DEADLINE_EXCEEDED";
+    case grpc::StatusCode::NOT_FOUND:
+      return "NOT_FOUND";
+    case grpc::StatusCode::ALREADY_EXISTS:
+      return "ALREADY_EXISTS";
+    case grpc::StatusCode::PERMISSION_DENIED:
+      return "PERMISSION_DENIED";
+    case grpc::StatusCode::UNAUTHENTICATED:
+      return "UNAUTHENTICATED";
+    case grpc::StatusCode::RESOURCE_EXHAUSTED:
+      return "RESOURCE_EXHAUSTED";
+    case grpc::StatusCode::FAILED_PRECONDITION:
+      return "FAILED_PRECONDITION";
+    case grpc::StatusCode::ABORTED:
+      return "ABORTED";
+    case grpc::StatusCode::OUT_OF_RANGE:
+      return "OUT_OF_RANGE";
+    case grpc::StatusCode::UNIMPLEMENTED:
+      return "UNIMPLEMENTED";
+    case grpc::StatusCode::INTERNAL:
+      return "INTERNAL";
+    case grpc::StatusCode::UNAVAILABLE:
+      return "UNAVAILABLE";
+    case grpc::StatusCode::DATA_LOSS:
+      return "DATA_LOSS";
+    default:
+      return "UNKNOWN_STATUS_CODE";
   }
-  return out;
+}
+
+std::string StatusCodesToString(const std::vector<grpc::StatusCode>& codes) {
+  std::vector<std::string_view> names;
+  names.reserve(codes.size());
+  for (const grpc::StatusCode code : codes) {
+    names.push_back(StatusCodeToString(code));
+  }
+  return absl::StrJoin(names, ", ");
 }
 
 void CheckFatalStatusCodes(const ::flagd::FlagdProviderConfig& config,
@@ -89,18 +132,21 @@ void CheckFatalStatusCodes(const ::flagd::FlagdProviderConfig& config,
     return;
   }
 
+  std::vector<std::string_view> expected_codes;
+  for (std::string_view token :
+       absl::StrSplit(expected, ',', absl::SkipWhitespace())) {
+    const std::string_view trimmed = absl::StripAsciiWhitespace(token);
+    if (!trimmed.empty()) {
+      expected_codes.push_back(trimmed);
+    }
+  }
+
   // The testbed uses placeholder names ("A, B"). FlagdProviderConfig parses
-  // the list into grpc::StatusCode and drops what it cannot recognise, so a
-  // placeholder can never round-trip.
-  const std::vector<std::string> expected_codes =
-      absl::StrSplit(expected, ',', absl::SkipWhitespace());
-  cuke::equal(
-      static_cast<int64_t>(actual.size()),
-      static_cast<int64_t>(expected_codes.size()),
-      absl::StrCat("fatalStatusCodes '", expected, "' produced ", actual.size(),
-                   " parsed code(s); FlagdProviderConfig silently "
-                   "discards tokens it cannot map to a "
-                   "grpc::StatusCode"));
+  // the list into grpc::StatusCode and drops what it cannot recognise, so
+  // comparing the canonical status code names verifies both count and identity.
+  ExpectEq(StatusCodesToString(actual), absl::StrJoin(expected_codes, ", "),
+           "option 'fatalStatusCodes' (FlagdProviderConfig discards tokens "
+           "that are not valid gRPC status codes)");
 }
 
 void CheckOptionValue(const std::string& option, const std::string& expected) {
@@ -174,63 +220,51 @@ WHEN(AConfigWasInitialized, "a config was initialized") {
   // The constructor reads every FLAGD_* environment variable itself, so
   // env-driven scenarios are covered just by constructing it here.
   ::flagd::FlagdProviderConfig config;
-  bool ok = true;
 
   for (const auto& [option, value] : Ctx().scenario.pending_options) {
     if (IsUnmodelledOption(option)) {
       continue;
     }
-    int int_value = 0;
     if (option == "host") {
       config.SetHost(value);
     } else if (option == "port") {
-      if (ApplyInt(option, value, &int_value))
-        config.SetPort(int_value);
-      else
-        ok = false;
+      if (const auto v = ParseOptionInt(option, value)) {
+        config.SetPort(*v);
+      }
     } else if (option == "tls") {
-      const auto parsed = ParseBool(value);
-      if (parsed.has_value()) {
+      if (const auto parsed = ParseBool(value)) {
         config.SetTls(*parsed);
       } else {
         FailStep("option 'tls' is not a boolean: '" + value + "'");
-        ok = false;
       }
     } else if (option == "deadlineMs") {
-      if (ApplyInt(option, value, &int_value))
-        config.SetDeadlineMs(int_value);
-      else
-        ok = false;
+      if (const auto v = ParseOptionInt(option, value)) {
+        config.SetDeadlineMs(*v);
+      }
     } else if (option == "streamDeadlineMs") {
-      if (ApplyInt(option, value, &int_value))
-        config.SetStreamDeadlineMs(int_value);
-      else
-        ok = false;
+      if (const auto v = ParseOptionInt(option, value)) {
+        config.SetStreamDeadlineMs(*v);
+      }
     } else if (option == "retryBackoffMs") {
-      if (ApplyInt(option, value, &int_value))
-        config.SetRetryBackoffMs(int_value);
-      else
-        ok = false;
+      if (const auto v = ParseOptionInt(option, value)) {
+        config.SetRetryBackoffMs(*v);
+      }
     } else if (option == "retryBackoffMaxMs") {
-      if (ApplyInt(option, value, &int_value))
-        config.SetRetryBackoffMaxMs(int_value);
-      else
-        ok = false;
+      if (const auto v = ParseOptionInt(option, value)) {
+        config.SetRetryBackoffMaxMs(*v);
+      }
     } else if (option == "retryGracePeriod") {
-      if (ApplyInt(option, value, &int_value))
-        config.SetRetryGracePeriod(int_value);
-      else
-        ok = false;
+      if (const auto v = ParseOptionInt(option, value)) {
+        config.SetRetryGracePeriod(*v);
+      }
     } else if (option == "keepAliveTime") {
-      if (ApplyInt(option, value, &int_value))
-        config.SetKeepAliveTimeMs(int_value);
-      else
-        ok = false;
+      if (const auto v = ParseOptionInt(option, value)) {
+        config.SetKeepAliveTimeMs(*v);
+      }
     } else if (option == "offlinePollIntervalMs") {
-      if (ApplyInt(option, value, &int_value))
-        config.SetOfflinePollIntervalMs(int_value);
-      else
-        ok = false;
+      if (const auto v = ParseOptionInt(option, value)) {
+        config.SetOfflinePollIntervalMs(*v);
+      }
     } else if (option == "targetUri") {
       config.SetTargetUri(value);
     } else if (option == "certPath") {
@@ -247,14 +281,10 @@ WHEN(AConfigWasInitialized, "a config was initialized") {
       config.SetFatalStatusCodes(value);
     } else {
       FailStep("unknown config option '" + option + "'");
-      ok = false;
     }
   }
 
   Ctx().scenario.config = config;
-  // FlagdProviderConfig has no validation entry point, so the only errors the
-  // test can observe are the ones it produced applying the options above.
-  Ctx().scenario.config_error = !ok;
 }
 
 THEN(TheOptionOfTypeShouldHaveValue,

@@ -6,6 +6,8 @@
 #include <string>
 #include <utility>
 
+#include "openfeature/openfeature_api.h"
+
 namespace openfeature::contrib::flagd::test {
 
 ScopedEnv::~ScopedEnv() { RestoreAll(); }
@@ -48,7 +50,14 @@ void ResetScenarioState() {
   Ctx().scenario.last_eval = EvaluationResult();
   Ctx().scenario.pending_options.clear();
   Ctx().scenario.config.reset();
-  Ctx().scenario.config_error = false;
+}
+
+void ShutdownPersistentProvider() {
+  if (Ctx().persistent.provider_registered ||
+      Ctx().persistent.provider != nullptr) {
+    ::openfeature::OpenFeatureAPI::GetInstance().Shutdown();
+    Ctx().persistent = PersistentState();
+  }
 }
 
 }  // namespace openfeature::contrib::flagd::test

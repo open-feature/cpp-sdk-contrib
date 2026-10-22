@@ -18,6 +18,7 @@ namespace {
 
 using openfeature::contrib::flagd::test::AsExactInt64;
 using openfeature::contrib::flagd::test::Ctx;
+using openfeature::contrib::flagd::test::EnsureProviderInitialized;
 using openfeature::contrib::flagd::test::ErrorCodeToString;
 using openfeature::contrib::flagd::test::ExpectEq;
 using openfeature::contrib::flagd::test::FailStep;
@@ -234,6 +235,11 @@ WHEN(TheFlagWasEvaluatedWithDetails, "the flag was evaluated with details") {
     FailStep("no flag was declared before evaluation");
     return;
   }
+
+  // Ensure the provider matches `Ctx().scenario.selector` even if an option
+  // step (`Given an option "selector"...`) ran after `Given a stable flagd
+  // provider`.
+  EnsureProviderInitialized();
 
   const ::openfeature::EvaluationContext ctx = BuildEvaluationContext();
   auto client = ::openfeature::OpenFeatureAPI::GetInstance().GetClient();

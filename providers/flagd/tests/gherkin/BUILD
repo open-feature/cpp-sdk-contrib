@@ -121,6 +121,7 @@ cc_test(
     target_compatible_with = GHERKIN_PLATFORM,
     deps = [
         ":gherkin_steps",
+        ":test_env",
         "@cwt_cucumber//:cwt-cucumber",
     ],
 )
@@ -143,6 +144,7 @@ cc_binary(
     target_compatible_with = GHERKIN_PLATFORM,
     deps = [
         ":gherkin_steps",
+        ":test_env",
         "@cwt_cucumber//:cwt-cucumber",
     ],
 )

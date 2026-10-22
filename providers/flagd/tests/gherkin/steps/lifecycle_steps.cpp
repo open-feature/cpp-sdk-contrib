@@ -10,6 +10,7 @@ namespace {
 
 using openfeature::contrib::flagd::test::ResetScenarioState;
 using openfeature::contrib::flagd::test::SetupGlobalFlagd;
+using openfeature::contrib::flagd::test::ShutdownPersistentProvider;
 using openfeature::contrib::flagd::test::TeardownGlobalFlagd;
 
 }  // namespace
@@ -26,6 +27,9 @@ BEFORE_ALL(StartFlagd) {
   }
 }
 
-AFTER_ALL(StopFlagd) { TeardownGlobalFlagd(); }
+AFTER_ALL(StopFlagd) {
+  ShutdownPersistentProvider();
+  TeardownGlobalFlagd();
+}
 
 BEFORE(ResetScenario) { ResetScenarioState(); }

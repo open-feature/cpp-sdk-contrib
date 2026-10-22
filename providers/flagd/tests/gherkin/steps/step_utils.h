@@ -1,4 +1,5 @@
-#pragma once
+#ifndef PROVIDERS_FLAGD_TESTS_GHERKIN_STEPS_STEP_UTILS_H_
+#define PROVIDERS_FLAGD_TESTS_GHERKIN_STEPS_STEP_UTILS_H_
 
 #include <cstdint>
 #include <format>
@@ -27,9 +28,9 @@ enum class FlagType { kBoolean, kString, kInteger, kFloat, kObject };
 
 // Terminal `else` of every dispatch chain: a step that recognises none of its
 // inputs must fail rather than silently run zero assertions.
-void FailStep(const std::string& reason);
+void FailStep(std::string_view reason);
 
-void FailStepNotImplemented(const std::string& what);
+void FailStepNotImplemented(std::string_view what);
 
 // cuke::equal only formats "Value X is not equal to Y" when no custom message
 // is supplied, so a bare description would throw away the values needed to
@@ -44,18 +45,21 @@ void ExpectEq(const T& actual, const U& expected, std::string_view context) {
 std::string ReasonToString(openfeature::Reason reason);
 std::string ErrorCodeToString(openfeature::ErrorCode error_code);
 std::string FlagTypeToString(FlagType type);
-std::optional<FlagType> ParseFlagType(const std::string& name);
 
 void RecordEvaluationDetails(
     const openfeature::GeneralFlagEvaluationDetails& details);
 
+// Ensures a FlagdProvider matching the current `Ctx().scenario.selector` is
+// registered with OpenFeatureAPI.
+void EnsureProviderInitialized();
+
 openfeature::Value JsonToValue(const nlohmann::json& json_val);
 nlohmann::json ValueToJson(const openfeature::Value& val);
 
-std::optional<int64_t> ParseInt64(const std::string& str);
-std::optional<double> ParseDouble(const std::string& str);
+std::optional<int64_t> ParseInt64(std::string_view str);
+std::optional<double> ParseDouble(std::string_view str);
 
-std::optional<bool> ParseBool(const std::string& str);
+std::optional<bool> ParseBool(std::string_view str);
 
 // Guards the static_cast<int64_t>, which is undefined behaviour unless `value`
 // is finite, integral and in range.
@@ -66,3 +70,5 @@ std::optional<int64_t> AsExactInt64(double value);
 bool NearlyEqual(double lhs, double rhs);
 
 }  // namespace openfeature::contrib::flagd::test
+
+#endif  // PROVIDERS_FLAGD_TESTS_GHERKIN_STEPS_STEP_UTILS_H_
