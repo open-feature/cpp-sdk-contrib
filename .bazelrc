@@ -2,3 +2,14 @@
 # error: relocation refers to local symbol "...", which is defined in a discarded section
 build --copt=-fno-asynchronous-unwind-tables
 build --linkopt=-Wl,--gc-sections
+
+
+# BoringSSL (pulled in by gRPC) fails with -Werror on glibc >= 2.42 because
+# C23 memchr() preserves const-ness. Don't treat that warning as an error.
+build --per_file_copt=external/boringssl.*@-Wno-error=discarded-qualifiers
+build --host_per_file_copt=external/boringssl.*@-Wno-error=discarded-qualifiers
+
+# Abseil's raw_hash_set.h includes <bmi2intrin.h> directly when __BMI2__ is
+# defined, which GCC rejects. Some CI runners' GCC enables BMI2 by default.
+build --copt=-mno-bmi2
+build --host_copt=-mno-bmi2
