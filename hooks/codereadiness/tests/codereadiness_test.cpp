@@ -39,10 +39,10 @@ using ::testing::Return;
 using ::testing::StrictMock;
 using ::testing::ThrowsMessage;
 
-constexpr char kFlagKey[] = "my-flag";
-constexpr char kDefaultKey[] = "minCodeVersion";
-constexpr char kMetadataClient[] = "client";
-constexpr char kMetadataProvider[] = "provider";
+constexpr std::string_view kFlagKey = "my-flag";
+constexpr std::string_view kDefaultKey = "minCodeVersion";
+constexpr std::string_view kMetadataClient = "client";
+constexpr std::string_view kMetadataProvider = "provider";
 
 // A gMock implementation of VersionComparator, used to verify how the hook
 // interacts with a custom comparator.
@@ -54,24 +54,26 @@ class MockVersionComparator : public VersionComparator {
               (std::string_view required_version), (const, override));
 };
 
-openfeature::BoolHookContext MakeHookContext(std::string flag_key = kFlagKey) {
+openfeature::BoolHookContext MakeHookContext(
+    std::string flag_key = std::string(kFlagKey)) {
   return openfeature::BoolHookContext(
       std::move(flag_key), openfeature::FlagValueType::kBoolean,
       /*default_value=*/false,
       openfeature::EvaluationContext::Builder().build(),
-      openfeature::Metadata{kMetadataClient},
-      openfeature::Metadata{kMetadataProvider},
+      openfeature::Metadata{std::string(kMetadataClient)},
+      openfeature::Metadata{std::string(kMetadataProvider)},
       std::make_shared<openfeature::HookData>());
 }
 
-openfeature::BoolFlagEvaluationDetails MakeDetails(FlagMetadata metadata) {
-  return openfeature::BoolFlagEvaluationDetails(
-      kFlagKey, /*value=*/true, openfeature::Reason::kTargetingMatch,
-      /*variant=*/"on", metadata);
+openfeature::BoolFlagEvaluationDetails MakeDetails(
+    const FlagMetadata& metadata) {
+  return {std::string(kFlagKey), /*value=*/true,
+          openfeature::Reason::kTargetingMatch,
+          /*variant=*/"on", metadata};
 }
 
-FlagMetadata MetadataWithMinVersion(std::string min_version,
-                                    std::string key = kDefaultKey) {
+FlagMetadata MetadataWithMinVersion(
+    std::string min_version, std::string key = std::string(kDefaultKey)) {
   FlagMetadata metadata;
   metadata.data[std::move(key)] = std::move(min_version);
   return metadata;
@@ -92,8 +94,8 @@ CodeReadinessHookOptions StrictOptions() {
 }
 
 // Runs the hook's After stage with `metadata` for flag `kFlagKey`.
-void RunAfter(CodeReadinessHook& hook, FlagMetadata metadata) {
-  hook.After(MakeHookContext(), MakeDetails(std::move(metadata)),
+void RunAfter(CodeReadinessHook& hook, const FlagMetadata& metadata) {
+  hook.After(MakeHookContext(), MakeDetails(metadata),
              openfeature::HookHints{});
 }
 
@@ -241,9 +243,10 @@ TEST_P(CodeReadinessHookVersionCheckTest, IgnoresUnrelatedMetadata) {
   ASSERT_THAT(hook, NotNull());
   FlagMetadata metadata = MetadataWithMinVersion("1.0.0");
   metadata.data["owner"] = std::string("team-a");
-  metadata.data["priority"] = int64_t{5};
+  constexpr int64_t kPriority = 5;
+  metadata.data["priority"] = kPriority;
 
-  EXPECT_NO_THROW(RunAfter(*hook, std::move(metadata)));
+  EXPECT_NO_THROW(RunAfter(*hook, metadata));
 }
 
 INSTANTIATE_TEST_SUITE_P(StrictAndLenient, CodeReadinessHookVersionCheckTest,
@@ -261,30 +264,33 @@ struct InvalidDataCase {
 };
 
 std::vector<InvalidDataCase> InvalidDataCases() {
+  constexpr int64_t kIntegerMinVersion = 527319013;
+  constexpr double kDoubleMinVersion = 1.5;
+
   FlagMetadata bool_value;
-  bool_value.data[kDefaultKey] = true;
+  bool_value.data[std::string(kDefaultKey)] = true;
   FlagMetadata int_value;
-  int_value.data[kDefaultKey] = int64_t{527319013};
+  int_value.data[std::string(kDefaultKey)] = kIntegerMinVersion;
   FlagMetadata double_value;
-  double_value.data[kDefaultKey] = 1.5;
+  double_value.data[std::string(kDefaultKey)] = kDoubleMinVersion;
   FlagMetadata other_key;
   other_key.data["otherKey"] = std::string("1.0.0");
 
   return {
       {"EmptyMetadata", "1.2.3", FlagMetadata{},
-       "Flag metadata is empty for flag \"my-flag\""},
+       R"(Flag metadata is empty for flag "my-flag")"},
       {"MissingKey", "1.2.3", other_key,
-       "key \"minCodeVersion\" missing in flag's \"my-flag\" metadata"},
+       R"(key "minCodeVersion" missing in flag's "my-flag" metadata)"},
       {"BoolValue", "1.2.3", bool_value,
-       "metadata \"minCodeVersion\" is not a string for flag \"my-flag\""},
+       R"(metadata "minCodeVersion" is not a string for flag "my-flag")"},
       {"IntegerValue", "1.2.3", int_value,
-       "metadata \"minCodeVersion\" is not a string for flag \"my-flag\""},
+       R"(metadata "minCodeVersion" is not a string for flag "my-flag")"},
       {"DoubleValue", "1.2.3", double_value,
-       "metadata \"minCodeVersion\" is not a string for flag \"my-flag\""},
+       R"(metadata "minCodeVersion" is not a string for flag "my-flag")"},
       {"EmptyValue", "1.2.3", MetadataWithMinVersion(""),
-       "metadata \"minCodeVersion\" value is empty for flag \"my-flag\""},
+       R"(metadata "minCodeVersion" value is empty for flag "my-flag")"},
       {"InvalidRequiredVersion", "1.2.3", MetadataWithMinVersion("1.x"),
-       "invalid version values current: \"1.2.3\" - minimum: \"1.x\""},
+       R"(invalid version values current: "1.2.3" - minimum: "1.x")"},
       {"InvalidCurrentVersion", "not-a-version",
        MetadataWithMinVersion("1.0.0"), "invalid current semver"},
   };
@@ -354,7 +360,10 @@ TEST(CodeReadinessHookMetadataKeyTest, IgnoresDefaultKeyWhenCustomKeyIsSet) {
 
   // "minCodeVersion" would fail the check, but the hook must not read it.
   EXPECT_THAT(
-      [&] { RunAfter(*hook, MetadataWithMinVersion("2.0.0", kDefaultKey)); },
+      [&] {
+        RunAfter(*hook,
+                 MetadataWithMinVersion("2.0.0", std::string(kDefaultKey)));
+      },
       ThrowsMessage<std::runtime_error>(
           HasSubstr("key \"requiredAppVersion\" missing")));
 }

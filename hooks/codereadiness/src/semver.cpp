@@ -24,14 +24,14 @@ bool HasLeadingZero(std::string_view str) {
 
 // Returns true if the string is non-empty and consists only of ASCII digits.
 bool IsNumeric(std::string_view str) {
-  return !str.empty() && std::all_of(str.begin(), str.end(), [](char c) {
-    return absl::ascii_isdigit(static_cast<unsigned char>(c));
+  return !str.empty() && std::all_of(str.begin(), str.end(), [](char chr) {
+    return absl::ascii_isdigit(static_cast<unsigned char>(chr));
   });
 }
 
 // SemVer identifier characters are [0-9A-Za-z-] (ASCII only).
-bool IsIdentifierChar(char c) {
-  return absl::ascii_isalnum(static_cast<unsigned char>(c)) || c == '-';
+bool IsIdentifierChar(char chr) {
+  return absl::ascii_isalnum(static_cast<unsigned char>(chr)) || chr == '-';
 }
 
 // Parses number according to SemVer 2.0.0 specification.
@@ -88,8 +88,9 @@ absl::StatusOr<SemVer> SemVer::Parse(std::string_view text) {
     has_build = true;
     std::string_view build = text.substr(plus + 1);
     text = text.substr(0, plus);
-    if (absl::Status s = ValidateIdentifiers(build, "build", false); !s.ok()) {
-      return s;
+    if (absl::Status status = ValidateIdentifiers(build, "build", false);
+        !status.ok()) {
+      return status;
     }
   }
 
@@ -137,10 +138,10 @@ absl::StatusOr<SemVer> SemVer::Parse(std::string_view text) {
   // 4. Parse pre-release identifiers.
   std::vector<std::string> pre_release;
   if (has_pre_release) {
-    if (absl::Status s =
+    if (absl::Status status =
             ValidateIdentifiers(pre_release_text, "pre-release", true);
-        !s.ok()) {
-      return s;
+        !status.ok()) {
+      return status;
     }
     for (std::string_view ident : absl::StrSplit(pre_release_text, '.')) {
       pre_release.emplace_back(ident);

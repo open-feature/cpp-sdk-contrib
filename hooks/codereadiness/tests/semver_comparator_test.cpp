@@ -208,13 +208,13 @@ TEST(SemVerComparatorInterfaceTest, CompareIsSafeToCallConcurrently) {
   std::vector<std::thread> threads;
   std::vector<int> failures(kNumThreads, 0);
   threads.reserve(kNumThreads);
-  for (int t = 0; t < kNumThreads; ++t) {
-    threads.emplace_back([&const_comparator, &failures, t] {
+  for (int thread_idx = 0; thread_idx < kNumThreads; ++thread_idx) {
+    threads.emplace_back([&const_comparator, &failures, thread_idx] {
       for (int i = 0; i < kIterations; ++i) {
         absl::StatusOr<bool> lower = const_comparator.Compare("1.4.0");
         absl::StatusOr<bool> higher = const_comparator.Compare("1.6.0");
         if (!lower.ok() || !*lower || !higher.ok() || *higher) {
-          ++failures[t];
+          ++failures[thread_idx];
         }
       }
     });
@@ -223,8 +223,8 @@ TEST(SemVerComparatorInterfaceTest, CompareIsSafeToCallConcurrently) {
     thread.join();
   }
 
-  for (int t = 0; t < kNumThreads; ++t) {
-    EXPECT_EQ(failures[t], 0) << "thread " << t;
+  for (int thread_idx = 0; thread_idx < kNumThreads; ++thread_idx) {
+    EXPECT_EQ(failures[thread_idx], 0) << "thread " << thread_idx;
   }
 }
 
