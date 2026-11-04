@@ -31,23 +31,23 @@ namespace {
 
 openfeature::Value JsonToValue(const nlohmann::json& json_val) {
   if (json_val.is_boolean()) {
-    return {json_val.get<bool>()};
+    return openfeature::Value(json_val.get<bool>());
   }
   if (json_val.is_number_integer()) {
-    return {json_val.get<int64_t>()};
+    return openfeature::Value(json_val.get<int64_t>());
   }
   if (json_val.is_number_float()) {
-    return {json_val.get<double>()};
+    return openfeature::Value(json_val.get<double>());
   }
   if (json_val.is_string()) {
-    return {json_val.get<std::string>()};
+    return openfeature::Value(json_val.get<std::string>());
   }
   if (json_val.is_object()) {
     std::map<std::string, openfeature::Value> map;
     for (const auto& [key, value] : json_val.items()) {
       map.emplace(key, JsonToValue(value));
     }
-    return {map};
+    return openfeature::Value(map);
   }
   if (json_val.is_array()) {
     std::vector<openfeature::Value> vec;
@@ -55,7 +55,7 @@ openfeature::Value JsonToValue(const nlohmann::json& json_val) {
     for (const auto& item : json_val) {
       vec.push_back(JsonToValue(item));
     }
-    return {vec};
+    return openfeature::Value(vec);
   }
   LOG(ERROR) << "Failed to map JSON value to openfeature::Value: "
              << json_val.dump();
