@@ -62,7 +62,7 @@ TEST(ProviderTest, ReturnsNotReadyBeforeInit) {
   FlagdProvider provider(mock_sync, std::move(mock_evaluator));
 
   auto result = provider.GetBooleanEvaluation(
-      "some-flag", false, openfeature::EvaluationContext::Builder().build());
+      "some-flag", false, openfeature::EvaluationContext::Builder().Build());
 
   ASSERT_TRUE(result.ok());
   EXPECT_EQ((*result)->GetErrorCode(),
@@ -85,10 +85,10 @@ TEST(ProviderTest, ReturnsReadyAfterInit) {
       });
 
   FlagdProvider provider(mock_sync, std::move(mock_evaluator));
-  (void)provider.Init(openfeature::EvaluationContext::Builder().build());
+  (void)provider.Init(openfeature::EvaluationContext::Builder().Build());
 
   auto result = provider.GetBooleanEvaluation(
-      "some-flag", false, openfeature::EvaluationContext::Builder().build());
+      "some-flag", false, openfeature::EvaluationContext::Builder().Build());
 
   ASSERT_TRUE(result.ok());
   EXPECT_EQ((*result)->GetValue(), true);
@@ -115,11 +115,11 @@ TEST(ProviderTest, DelegationWorks) {
       });
 
   FlagdProvider provider(mock_sync, std::move(mock_evaluator));
-  (void)provider.Init(openfeature::EvaluationContext::Builder().build());
+  (void)provider.Init(openfeature::EvaluationContext::Builder().Build());
 
   auto result = provider.GetBooleanEvaluation(
       expected_flag, expected_default,
-      openfeature::EvaluationContext::Builder().build());
+      openfeature::EvaluationContext::Builder().Build());
 
   ASSERT_TRUE(result.ok());
   EXPECT_EQ((*result)->GetValue(), expected_default);
@@ -134,11 +134,11 @@ TEST(ProviderTest, ShutdownMakesProviderNotReady) {
   EXPECT_CALL(*mock_sync, Shutdown).WillOnce(testing::Return(absl::OkStatus()));
 
   FlagdProvider provider(mock_sync, std::move(mock_evaluator));
-  (void)provider.Init(openfeature::EvaluationContext::Builder().build());
+  (void)provider.Init(openfeature::EvaluationContext::Builder().Build());
   (void)provider.Shutdown();
 
   auto result = provider.GetBooleanEvaluation(
-      "some-flag", false, openfeature::EvaluationContext::Builder().build());
+      "some-flag", false, openfeature::EvaluationContext::Builder().Build());
 
   ASSERT_TRUE(result.ok());
   EXPECT_EQ((*result)->GetErrorCode(),

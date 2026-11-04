@@ -68,7 +68,7 @@ TEST_F(FlagSyncTest, HelperMethodsUpdateAndRetrieveFlags) {
 
 TEST_F(FlagSyncTest, InitAndShutdownReturnOk) {
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
   EXPECT_CALL(sync_, Init(testing::_))
       .WillOnce(testing::Return(absl::OkStatus()));
   EXPECT_CALL(sync_, Shutdown()).WillOnce(testing::Return(absl::OkStatus()));
@@ -149,7 +149,7 @@ TEST(GrpcSyncTest, InitTwiceDoesNotCrash) {
   flagd::FlagdProviderConfig config;
   flagd::GrpcSync sync(config);
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
 
   // First call might fail because no server is running, but it shouldn't crash
   auto status1 = sync.Init(ctx);

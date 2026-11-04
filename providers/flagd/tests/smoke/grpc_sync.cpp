@@ -9,7 +9,7 @@ int main() {
   flagd::GrpcSync test = flagd::GrpcSync(flagd::FlagdProviderConfig());
 
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
 
   test.Init(ctx).IgnoreError();
 
