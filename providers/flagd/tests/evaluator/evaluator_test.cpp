@@ -49,7 +49,7 @@ TEST_F(EvaluatorTest, ResolveBooleanSuccess) {
   EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
   std::unique_ptr<openfeature::BoolResolutionDetails> result =
       evaluator_->ResolveBoolean("my-bool-flag", false, ctx);
 
@@ -66,7 +66,7 @@ TEST_F(EvaluatorTest, ResolveBooleanFlagNotFound) {
   EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
   std::unique_ptr<openfeature::BoolResolutionDetails> result =
       evaluator_->ResolveBoolean("missing-flag", true, ctx);
 
@@ -92,7 +92,7 @@ TEST_F(EvaluatorTest, ResolveBooleanTypeMismatch) {
   EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
   std::unique_ptr<openfeature::BoolResolutionDetails> result =
       evaluator_->ResolveBoolean("my-string-flag", false, ctx);
 
@@ -126,7 +126,7 @@ TEST_F(EvaluatorTest, ResolveBooleanMetadata) {
   EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
   std::unique_ptr<openfeature::BoolResolutionDetails> result =
       evaluator_->ResolveBoolean("my-flag", false, ctx);
 
@@ -157,7 +157,7 @@ TEST_F(EvaluatorTest, ResolveBooleanVariantNotFound) {
   EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
   std::unique_ptr<openfeature::BoolResolutionDetails> result =
       evaluator_->ResolveBoolean("my-broken-flag", false, ctx);
 
@@ -186,7 +186,7 @@ TEST_F(EvaluatorTest, ResolveStringSuccess) {
   EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
   std::unique_ptr<openfeature::StringResolutionDetails> result =
       evaluator_->ResolveString("my-string-flag", "default", ctx);
 
@@ -212,7 +212,7 @@ TEST_F(EvaluatorTest, ResolveIntegerSuccess) {
   EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
   std::unique_ptr<openfeature::IntResolutionDetails> result =
       evaluator_->ResolveInteger("my-int-flag", 0, ctx);
 
@@ -238,7 +238,7 @@ TEST_F(EvaluatorTest, ResolveDoubleSuccess) {
   EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
   std::unique_ptr<openfeature::DoubleResolutionDetails> result =
       evaluator_->ResolveDouble("my-double-flag", 0.0, ctx);
 
@@ -269,7 +269,7 @@ TEST_F(EvaluatorTest, ResolveObjectSuccess) {
   EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
   std::unique_ptr<openfeature::ObjectResolutionDetails> result =
       evaluator_->ResolveObject("my-object-flag", openfeature::Value(), ctx);
 
@@ -305,7 +305,7 @@ TEST_F(EvaluatorTest, ResolveStringTypeMismatch) {
   EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
   std::unique_ptr<openfeature::StringResolutionDetails> result =
       evaluator_->ResolveString("my-int-flag", "default", ctx);
 
@@ -330,7 +330,7 @@ TEST_F(EvaluatorTest, ResolveIntegerTypeMismatch) {
   EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
   std::unique_ptr<openfeature::IntResolutionDetails> result =
       evaluator_->ResolveInteger("my-string-flag", 0, ctx);
 
@@ -355,7 +355,7 @@ TEST_F(EvaluatorTest, ResolveDoubleTypeMismatch) {
   EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
   std::unique_ptr<openfeature::DoubleResolutionDetails> result =
       evaluator_->ResolveDouble("my-string-flag", 0.0, ctx);
 
@@ -374,7 +374,7 @@ TEST_P(EvaluatorDefaultVariantTest, ResolveBooleanReturnsDefault) {
   EXPECT_TRUE(sync_->TriggerUpdate(flags_json).ok());
 
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
   std::unique_ptr<openfeature::BoolResolutionDetails> result =
       evaluator_->ResolveBoolean("my-bool-flag", false, ctx);
 
@@ -424,7 +424,7 @@ TEST_F(EvaluatorTest, ResolveBooleanDisabled) {
   EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
   std::unique_ptr<openfeature::BoolResolutionDetails> result =
       evaluator_->ResolveBoolean("disabled-flag", false, ctx);
 
@@ -459,7 +459,7 @@ TEST_F(EvaluatorTest, ResolveStringTargetingSuccess) {
   openfeature::EvaluationContext ctx_blue =
       openfeature::EvaluationContext::Builder()
           .WithAttribute("color", "blue")
-          .build();
+          .Build();
   std::unique_ptr<openfeature::StringResolutionDetails> result_blue =
       evaluator_->ResolveString("targeting-flag", "default", ctx_blue);
   EXPECT_EQ(result_blue->GetValue(), "blue-value");
@@ -470,7 +470,7 @@ TEST_F(EvaluatorTest, ResolveStringTargetingSuccess) {
   openfeature::EvaluationContext ctx_green =
       openfeature::EvaluationContext::Builder()
           .WithAttribute("color", "green")
-          .build();
+          .Build();
   std::unique_ptr<openfeature::StringResolutionDetails> result_green =
       evaluator_->ResolveString("targeting-flag", "default", ctx_green);
   EXPECT_EQ(result_green->GetValue(), "red-value");
@@ -509,7 +509,7 @@ TEST_F(EvaluatorTest, ResolveIntegerComplexTargeting) {
   openfeature::EvaluationContext ctx = openfeature::EvaluationContext::Builder()
                                            .WithAttribute("env", "prod")
                                            .WithAttribute("version", 2)
-                                           .build();
+                                           .Build();
   std::unique_ptr<openfeature::IntResolutionDetails> result =
       evaluator_->ResolveInteger("complex-flag", 0, ctx);
   EXPECT_EQ(result->GetValue(), 100);
@@ -541,7 +541,7 @@ TEST_F(EvaluatorTest, ResolveObjectNestedStructure) {
   EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
   std::unique_ptr<openfeature::ObjectResolutionDetails> result =
       evaluator_->ResolveObject("nested-flag", openfeature::Value(), ctx);
 
@@ -590,7 +590,7 @@ TEST_F(EvaluatorTest, ResolveBooleanFlagdSpecialVars) {
   EXPECT_TRUE(sync_->TriggerUpdate(flags).ok());
 
   openfeature::EvaluationContext ctx =
-      openfeature::EvaluationContext::Builder().build();
+      openfeature::EvaluationContext::Builder().Build();
   std::unique_ptr<openfeature::BoolResolutionDetails> result =
       evaluator_->ResolveBoolean("special-var-flag", false, ctx);
   EXPECT_TRUE(result->GetValue());
@@ -616,7 +616,7 @@ TEST_F(EvaluatorTest, ResolveBooleanTypeMismatchInTargeting) {
 
   openfeature::EvaluationContext ctx = openfeature::EvaluationContext::Builder()
                                            .WithAttribute("color", "blue")
-                                           .build();
+                                           .Build();
   std::unique_ptr<openfeature::BoolResolutionDetails> result =
       evaluator_->ResolveBoolean("bad-targeting-flag", false, ctx);
 
