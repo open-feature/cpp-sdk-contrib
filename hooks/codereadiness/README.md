@@ -50,8 +50,8 @@ openfeature::OpenFeatureAPI::GetInstance().AddHook(*hook);
 
 * `current_version` is empty,
 * the metadata key option is empty,
-* strict validation is enabled and the comparator fails to initialize with
-  `current_version` (e.g. it's not a valid semver).
+* the comparator fails to initialize with `current_version` (e.g. it's not a
+  valid semver). This applies regardless of `strict_validation`.
 
 ## How It Works
 
@@ -105,7 +105,7 @@ The table below summarizes the behavior in both modes:
 
 | Situation                                              | `strict_validation = false`    | `strict_validation = true` |
 | ------------------------------------------------------ | ------------------------------ | -------------------------- |
-| `current_version` is invalid (at `Create`)             | Hook created, checks skipped   | `Create` returns an error  |
+| `current_version` is invalid (at `Create`)             | `Create` returns an error      | `Create` returns an error  |
 | Flag metadata is empty                                 | Skip                           | Evaluation fails           |
 | Metadata key is missing                                | Skip                           | Evaluation fails           |
 | Metadata value is not a **string** or is **empty**             | Skip                           | Evaluation fails           |
@@ -138,22 +138,20 @@ If the application uses a different versioning scheme (such as date-based versio
 // Compares plain build numbers, e.g. "1042" >= "1000".
 class BuildNumberComparator final : public codereadiness::VersionComparator {
  public:
-  // Called once by `Create` with the application's current version.
+  // Called once by `Create` with the application's current version. A non-OK
+  // status makes `Create` fail.
   absl::Status Initialize(std::string_view current_version) override {
     if (!absl::SimpleAtoi(current_version, &current_)) {
       return absl::InvalidArgumentError("invalid build number");
     }
-    initialized_ = true;
     return absl::OkStatus();
   }
 
-  // Returns true if the current version >= required_version. Called
-  // concurrently from different flag evaluations, so it must be thread-safe.
+  // Returns true if the current version >= required_version. Only called
+  // after a successful `Initialize`. Called concurrently from different flag
+  // evaluations, so it must be thread-safe.
   absl::StatusOr<bool> Compare(
       std::string_view required_version) const override {
-    if (!initialized_) {
-      return absl::FailedPreconditionError("invalid current build number");
-    }
     uint64_t required = 0;
     if (!absl::SimpleAtoi(required_version, &required)) {
       return absl::InvalidArgumentError("invalid required build number");
@@ -163,7 +161,6 @@ class BuildNumberComparator final : public codereadiness::VersionComparator {
 
  private:
   uint64_t current_ = 0;
-  bool initialized_ = false;
 };
 
 codereadiness::CodeReadinessHookOptions options;
@@ -175,4 +172,4 @@ absl::StatusOr<std::shared_ptr<codereadiness::CodeReadinessHook>> hook =
 
 ### Logging
 
-The hook logs skipped validations and an invalid current version using Abseil verbose logging at level 1 (`VLOG(1)`). To see these messages, enable verbose logging, for example with `--v=1` or `--vmodule=codereadiness=1`.
+The hook logs skipped validations using Abseil verbose logging at level 1 (`VLOG(1)`). To see these messages, enable verbose logging, for example with `--v=1` or `--vmodule=codereadiness=1`.

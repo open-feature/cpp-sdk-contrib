@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "absl/status/statusor.h"
 #include "codereadiness/version_comparator.h"
@@ -31,7 +32,8 @@ struct CodeReadinessHookOptions {
 class CodeReadinessHook final : public openfeature::GeneralHook {
  public:
   // Returns `kInvalidArgument` if `current_version` or the metadata key is
-  // empty, or (in strict mode) if the comparator rejects `current_version`.
+  // empty. Returns the comparator's error (regardless of `strict_validation`)
+  // if it fails to initialize with `current_version`.
   static absl::StatusOr<std::shared_ptr<CodeReadinessHook>> Create(
       std::string current_version, CodeReadinessHookOptions options = {});
 
@@ -45,7 +47,10 @@ class CodeReadinessHook final : public openfeature::GeneralHook {
                     std::unique_ptr<VersionComparator> comparator,
                     bool strict_validation, std::string metadata_min_ver_key);
 
-  void FailOrSkip(const std::string& message) const;
+  static std::string FormatError(std::string_view flag_key,
+                                 std::string_view detail);
+
+  void FailOrSkip(std::string_view flag_key, std::string_view detail) const;
 
   const std::string current_version_;
   const std::unique_ptr<const VersionComparator> comparator_;

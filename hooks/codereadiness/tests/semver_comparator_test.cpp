@@ -61,32 +61,6 @@ TEST(SemVerComparatorInitializeTest, ErrorIncludesUnderlyingParseError) {
                              HasSubstr("MUST NOT contain leading zeros"))));
 }
 
-TEST(SemVerComparatorCompareTest, FailsWhenNotInitialized) {
-  SemVerComparator comparator;
-
-  EXPECT_THAT(comparator.Compare("1.0.0"),
-              StatusIs(absl::StatusCode::kFailedPrecondition,
-                       HasSubstr("invalid current semver")));
-}
-
-TEST(SemVerComparatorCompareTest, FailsWhenInitializeFailed) {
-  SemVerComparator comparator;
-  ASSERT_THAT(comparator.Initialize("bad"), Not(IsOk()));
-
-  EXPECT_THAT(comparator.Compare("1.0.0"),
-              StatusIs(absl::StatusCode::kFailedPrecondition,
-                       HasSubstr("invalid current semver: \"bad\"")));
-}
-
-TEST(SemVerComparatorCompareTest, InvalidCurrentTakesPrecedenceOverRequired) {
-  SemVerComparator comparator;
-  ASSERT_THAT(comparator.Initialize("bad"), Not(IsOk()));
-
-  // Even with an invalid required version, the current version error wins.
-  EXPECT_THAT(comparator.Compare("also-bad"),
-              StatusIs(absl::StatusCode::kFailedPrecondition));
-}
-
 TEST(SemVerComparatorCompareTest, FailsWhenRequiredVersionIsInvalid) {
   SemVerComparator comparator;
   ASSERT_THAT(comparator.Initialize("1.2.3"), IsOk());
@@ -169,15 +143,6 @@ TEST(SemVerComparatorReinitializeTest, ValidVersionReplacesPreviousVersion) {
   ASSERT_THAT(comparator.Initialize("2.0.0"), IsOk());
 
   EXPECT_THAT(comparator.Compare("1.5.0"), IsOkAndHolds(true));
-}
-
-TEST(SemVerComparatorReinitializeTest, InvalidVersionClearsPreviousVersion) {
-  SemVerComparator comparator;
-  ASSERT_THAT(comparator.Initialize("1.0.0"), IsOk());
-  ASSERT_THAT(comparator.Initialize("bad"), Not(IsOk()));
-
-  EXPECT_THAT(comparator.Compare("1.0.0"),
-              StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 
 TEST(SemVerComparatorReinitializeTest, ValidVersionRecoversFromFailure) {

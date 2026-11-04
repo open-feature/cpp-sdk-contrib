@@ -12,12 +12,12 @@
 namespace codereadiness {
 
 // Represents a Semantic Version (SemVer 2.0.0) for comparison.
-// Parsing follows golang.org/x/mod/semver: optional leading 'v'/'V', MAJOR and
+// Parsing follows golang.org/x/mod/semver: optional leading 'v', MAJOR and
 // MAJOR.MINOR shorthands (without pre-release/build), strict identifiers.
 class SemVer {
  public:
   // Parses `text` as a SemVer 2.0.0 version. Accepts an optional leading
-  // 'v'/'V' and the MAJOR / MAJOR.MINOR shorthands (missing parts default to
+  // 'v' and the MAJOR / MAJOR.MINOR shorthands (missing parts default to
   // 0; shorthands cannot have pre-release or build metadata). Build metadata is
   // validated but discarded. Returns `kInvalidArgument` on malformed input.
   static absl::StatusOr<SemVer> Parse(std::string_view text);

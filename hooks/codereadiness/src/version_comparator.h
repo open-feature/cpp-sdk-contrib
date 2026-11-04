@@ -18,11 +18,13 @@ class VersionComparator {
   virtual ~VersionComparator() = default;
 
   // Called once when the hook is created, with the binary's current version.
+  // A non-OK status makes hook creation fail.
   virtual absl::Status Initialize(std::string_view current_version) = 0;
 
   // Returns true if current version >= required_version, or an error if
-  // either version can't be parsed. Must be thread-safe since it's called
-  // concurrently from different flag evaluations.
+  // `required_version` can't be parsed. Only called after a successful
+  // `Initialize`. Must be thread-safe since it's called concurrently from
+  // different flag evaluations.
   virtual absl::StatusOr<bool> Compare(
       std::string_view required_version) const = 0;
 };

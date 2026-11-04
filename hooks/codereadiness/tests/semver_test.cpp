@@ -71,12 +71,10 @@ TEST(SemVerParseTest, StripsLowercaseVPrefix) {
   EXPECT_EQ(version.GetPatch(), 3);
 }
 
-TEST(SemVerParseTest, StripsUppercaseVPrefix) {
-  SemVer version = ParseOrDie("V1.2.3");
-
-  EXPECT_EQ(version.GetMajor(), 1);
-  EXPECT_EQ(version.GetMinor(), 2);
-  EXPECT_EQ(version.GetPatch(), 3);
+TEST(SemVerParseTest, FailsToStripUppercaseVPrefix) {
+  EXPECT_THAT(SemVer::Parse("V1.2.3"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invalid SemVer Major digits: \"V1\"")));
 }
 
 TEST(SemVerParseTest, MajorOnlyShorthandDefaultsMinorAndPatchToZero) {

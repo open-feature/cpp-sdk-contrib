@@ -78,7 +78,7 @@ absl::Status ValidateIdentifiers(std::string_view identifiers,
 }  // namespace
 
 absl::StatusOr<SemVer> SemVer::Parse(std::string_view text) {
-  if (!text.empty() && (text[0] == 'v' || text[0] == 'V')) {
+  if (!text.empty() && (text[0] == 'v')) {
     text.remove_prefix(1);
   }
 

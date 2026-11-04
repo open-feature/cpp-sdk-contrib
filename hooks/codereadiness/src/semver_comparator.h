@@ -1,8 +1,6 @@
 #ifndef CPP_SDK_CONTRIB_HOOKS_CODEREADINESS_SEMVER_COMPARATOR_H_
 #define CPP_SDK_CONTRIB_HOOKS_CODEREADINESS_SEMVER_COMPARATOR_H_
 
-#include <optional>
-#include <string>
 #include <string_view>
 
 #include "absl/status/status.h"
@@ -23,8 +21,7 @@ class SemVerComparator final : public VersionComparator {
       std::string_view required_version) const override;
 
  private:
-  std::string current_version_;
-  std::optional<SemVer> parsed_current_;
+  SemVer parsed_current_;
 };
 
 }  // namespace codereadiness

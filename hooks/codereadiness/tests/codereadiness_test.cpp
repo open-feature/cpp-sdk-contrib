@@ -36,6 +36,8 @@ using ::testing::AllOf;
 using ::testing::HasSubstr;
 using ::testing::NotNull;
 using ::testing::Return;
+using ::testing::StartsWith;
+using ::testing::StrEq;
 using ::testing::StrictMock;
 using ::testing::ThrowsMessage;
 
@@ -128,8 +130,12 @@ TEST(CodeReadinessHookCreateTest, FailsWithEmptyMetadataKey) {
                        HasSubstr("min_version_metadata_key cannot be empty")));
 }
 
-TEST(CodeReadinessHookCreateTest, InvalidCurrentVersionSucceedsInLenientMode) {
-  EXPECT_THAT(CodeReadinessHook::Create("not-a-version"), IsOk());
+TEST(CodeReadinessHookCreateTest, InvalidCurrentVersionFailsInLenientMode) {
+  EXPECT_THAT(
+      CodeReadinessHook::Create("not-a-version"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstr("comparator initialization failed"),
+                     HasSubstr("invalid current semver: \"not-a-version\""))));
 }
 
 TEST(CodeReadinessHookCreateTest, InvalidCurrentVersionFailsInStrictMode) {
@@ -172,7 +178,8 @@ TEST(CodeReadinessHookCreateTest, CustomComparatorInitFailureInLenientMode) {
   options.comparator = std::move(comparator);
 
   EXPECT_THAT(CodeReadinessHook::Create("build-42", std::move(options)),
-              IsOk());
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("custom failure")));
 }
 
 // Runs every version-check test in both modes, because the
@@ -214,10 +221,10 @@ TEST_P(CodeReadinessHookVersionCheckTest, ThrowsWhenCurrentIsLower) {
   ASSERT_THAT(hook, NotNull());
 
   EXPECT_THAT([&] { RunAfter(*hook, MetadataWithMinVersion("1.3.0")); },
-              ThrowsMessage<std::runtime_error>(AllOf(
-                  HasSubstr("current version: \"1.2.3\""),
-                  HasSubstr("required minimum version: \"1.3.0\""),
-                  HasSubstr("flag \"my-flag\""), HasSubstr("check failed"))));
+              ThrowsMessage<std::runtime_error>(
+                  StrEq("codereadiness: flag \"my-flag\": current version "
+                        "\"1.2.3\" is lower than required minimum version "
+                        "\"1.3.0\"")));
 }
 
 TEST_P(CodeReadinessHookVersionCheckTest, ThrowsWhenCurrentIsPreRelease) {
@@ -278,21 +285,19 @@ std::vector<InvalidDataCase> InvalidDataCases() {
 
   return {
       {"EmptyMetadata", "1.2.3", FlagMetadata{},
-       R"(Flag metadata is empty for flag "my-flag")"},
+       R"(codereadiness: flag "my-flag": flag metadata is empty)"},
       {"MissingKey", "1.2.3", other_key,
-       R"(key "minCodeVersion" missing in flag's "my-flag" metadata)"},
+       R"(codereadiness: flag "my-flag": metadata key "minCodeVersion" is missing)"},
       {"BoolValue", "1.2.3", bool_value,
-       R"(metadata "minCodeVersion" is not a string for flag "my-flag")"},
+       R"(codereadiness: flag "my-flag": metadata key "minCodeVersion" is not a string)"},
       {"IntegerValue", "1.2.3", int_value,
-       R"(metadata "minCodeVersion" is not a string for flag "my-flag")"},
+       R"(codereadiness: flag "my-flag": metadata key "minCodeVersion" is not a string)"},
       {"DoubleValue", "1.2.3", double_value,
-       R"(metadata "minCodeVersion" is not a string for flag "my-flag")"},
+       R"(codereadiness: flag "my-flag": metadata key "minCodeVersion" is not a string)"},
       {"EmptyValue", "1.2.3", MetadataWithMinVersion(""),
-       R"(metadata "minCodeVersion" value is empty for flag "my-flag")"},
+       R"(codereadiness: flag "my-flag": metadata key "minCodeVersion" value is empty)"},
       {"InvalidRequiredVersion", "1.2.3", MetadataWithMinVersion("1.x"),
-       R"(invalid version values current: "1.2.3" - minimum: "1.x")"},
-      {"InvalidCurrentVersion", "not-a-version",
-       MetadataWithMinVersion("1.0.0"), "invalid current semver"},
+       R"(codereadiness: flag "my-flag": invalid version values current: "1.2.3" - minimum: "1.x")"},
   };
 }
 
@@ -322,10 +327,6 @@ class CodeReadinessHookStrictTest
 
 TEST_P(CodeReadinessHookStrictTest, ThrowsWithDescriptiveMessage) {
   const InvalidDataCase& test_case = GetParam();
-  if (test_case.test_name == "InvalidCurrentVersion") {
-    GTEST_SKIP() << "Create fails for an invalid current version in strict "
-                    "mode; covered by CodeReadinessHookCreateTest.";
-  }
   std::shared_ptr<CodeReadinessHook> hook =
       CreateHookOrDie(test_case.current_version, StrictOptions());
   ASSERT_THAT(hook, NotNull());
@@ -365,7 +366,7 @@ TEST(CodeReadinessHookMetadataKeyTest, IgnoresDefaultKeyWhenCustomKeyIsSet) {
                  MetadataWithMinVersion("2.0.0", std::string(kDefaultKey)));
       },
       ThrowsMessage<std::runtime_error>(
-          HasSubstr("key \"requiredAppVersion\" missing")));
+          HasSubstr("metadata key \"requiredAppVersion\" is missing")));
 }
 
 class CodeReadinessHookCustomComparatorTest : public ::testing::Test {
@@ -401,8 +402,9 @@ TEST_F(CodeReadinessHookCustomComparatorTest, ThrowsWhenCompareReturnsFalse) {
 
   EXPECT_THAT([&] { RunAfter(*hook, MetadataWithMinVersion("build-50")); },
               ThrowsMessage<std::runtime_error>(
-                  AllOf(HasSubstr("current version: \"build-42\""),
-                        HasSubstr("required minimum version: \"build-50\""))));
+                  StrEq("codereadiness: flag \"my-flag\": current version "
+                        "\"build-42\" is lower than required minimum version "
+                        "\"build-50\"")));
 }
 
 TEST_F(CodeReadinessHookCustomComparatorTest, SkipsOnCompareErrorWhenLenient) {
@@ -421,7 +423,9 @@ TEST_F(CodeReadinessHookCustomComparatorTest, ThrowsOnCompareErrorWhenStrict) {
       .WillOnce(Return(absl::InvalidArgumentError("bad build")));
 
   EXPECT_THAT([&] { RunAfter(*hook, MetadataWithMinVersion("build-x")); },
-              ThrowsMessage<std::runtime_error>(HasSubstr("bad build")));
+              ThrowsMessage<std::runtime_error>(
+                  AllOf(StartsWith("codereadiness: flag \"my-flag\": "),
+                        HasSubstr("bad build"))));
 }
 
 TEST_F(CodeReadinessHookCustomComparatorTest,
@@ -454,9 +458,9 @@ TEST(CodeReadinessHookIntegrationTest, WorksForNonBooleanFlags) {
       "string-flag", "value", openfeature::Reason::kStatic, "v1",
       MetadataWithMinVersion("2.0.0"));
 
-  EXPECT_THAT(
-      [&] { hook->After(ctx, details, openfeature::HookHints{}); },
-      ThrowsMessage<std::runtime_error>(HasSubstr("flag \"string-flag\"")));
+  EXPECT_THAT([&] { hook->After(ctx, details, openfeature::HookHints{}); },
+              ThrowsMessage<std::runtime_error>(
+                  StartsWith("codereadiness: flag \"string-flag\": ")));
 }
 
 TEST(CodeReadinessHookIntegrationTest, CanBeReusedAcrossEvaluations) {
