@@ -61,7 +61,7 @@ openfeature::BoolHookContext MakeHookContext(
   return openfeature::BoolHookContext(
       std::move(flag_key), openfeature::FlagValueType::kBoolean,
       /*default_value=*/false,
-      openfeature::EvaluationContext::Builder().build(),
+      openfeature::EvaluationContext::Builder().Build(),
       openfeature::Metadata{std::string(kMetadataClient)},
       openfeature::Metadata{std::string(kMetadataProvider)},
       std::make_shared<openfeature::HookData>());
@@ -451,7 +451,7 @@ TEST(CodeReadinessHookIntegrationTest, WorksForNonBooleanFlags) {
   ASSERT_THAT(hook, NotNull());
   openfeature::StringHookContext ctx(
       "string-flag", openfeature::FlagValueType::kString, "default",
-      openfeature::EvaluationContext::Builder().build(),
+      openfeature::EvaluationContext::Builder().Build(),
       openfeature::Metadata{"client"}, openfeature::Metadata{"provider"},
       std::make_shared<openfeature::HookData>());
   openfeature::StringFlagEvaluationDetails details(
