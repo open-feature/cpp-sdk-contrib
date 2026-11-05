@@ -1,16 +1,16 @@
 module(name = "cpp_sdk_contrib")
 
-bazel_dep(name = "rules_cc", version = "0.2.22")
-bazel_dep(name = "rules_python", version = "2.3.2")
+bazel_dep(name = "rules_cc", version = "0.2.25")
+bazel_dep(name = "rules_python", version = "2.3.3")
 bazel_dep(name = "rules_proto", version = "7.1.0")
 bazel_dep(name = "googletest", version = "1.18.0.bcr.1")
-bazel_dep(name = "abseil-cpp", version = "20250814.2")
+bazel_dep(name = "abseil-cpp", version = "20260817.0")
 bazel_dep(name = "platforms", version = "0.0.10")
 bazel_dep(name = "openfeature_cpp_sdk")
 git_override(
     module_name = "openfeature_cpp_sdk",
     remote = "https://github.com/open-feature/cpp-sdk.git",
-    tag = "v0.1.4",
+    tag = "v0.1.5",
 )
 
 # Hedron's Compile Commands Extractor for Bazel
@@ -38,10 +38,17 @@ git_repository(
 )
 
 git_repository(
+    name = "qcbor",
+    build_file = "//providers/flagd:qcbor.BUILD",
+    remote = "https://github.com/laurencelundblade/QCBOR.git",
+    tag = "v1.6.1",
+)
+
+git_repository(
     name = "nlohmann_json_schema_validator",
     build_file = "//providers/flagd:json_schema_validator.BUILD",
     remote = "https://github.com/pboettch/json-schema-validator.git",
-    tag = "2.4.0",
+    tag = "2.4.1",
 )
 
 git_repository(

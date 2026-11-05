@@ -169,7 +169,7 @@ TEST_F(FlagdOpenFeatureTest, EvaluationContextTargeting) {
   // With context color=blue, should return "blue"
   openfeature::EvaluationContext ctx = openfeature::EvaluationContext::Builder()
                                            .WithAttribute("color", "blue")
-                                           .build();
+                                           .Build();
   EXPECT_EQ(client_->GetStringValue("targeting-flag", "default", ctx),
             "blue-value");
 
@@ -177,7 +177,7 @@ TEST_F(FlagdOpenFeatureTest, EvaluationContextTargeting) {
   openfeature::EvaluationContext ctx2 =
       openfeature::EvaluationContext::Builder()
           .WithAttribute("color", "green")
-          .build();
+          .Build();
   EXPECT_EQ(client_->GetStringValue("targeting-flag", "default", ctx2),
             "red-value");
 }

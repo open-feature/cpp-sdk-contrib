@@ -31,23 +31,23 @@ namespace {
 
 openfeature::Value JsonToValue(const nlohmann::json& json_val) {
   if (json_val.is_boolean()) {
-    return {json_val.get<bool>()};
+    return openfeature::Value(json_val.get<bool>());
   }
   if (json_val.is_number_integer()) {
-    return {json_val.get<int64_t>()};
+    return openfeature::Value(json_val.get<int64_t>());
   }
   if (json_val.is_number_float()) {
-    return {json_val.get<double>()};
+    return openfeature::Value(json_val.get<double>());
   }
   if (json_val.is_string()) {
-    return {json_val.get<std::string>()};
+    return openfeature::Value(json_val.get<std::string>());
   }
   if (json_val.is_object()) {
     std::map<std::string, openfeature::Value> map;
     for (const auto& [key, value] : json_val.items()) {
       map.emplace(key, JsonToValue(value));
     }
-    return {map};
+    return openfeature::Value(map);
   }
   if (json_val.is_array()) {
     std::vector<openfeature::Value> vec;
@@ -55,11 +55,49 @@ openfeature::Value JsonToValue(const nlohmann::json& json_val) {
     for (const auto& item : json_val) {
       vec.push_back(JsonToValue(item));
     }
-    return {vec};
+    return openfeature::Value(vec);
   }
   LOG(ERROR) << "Failed to map JSON value to openfeature::Value: "
              << json_val.dump();
   return {};
+}
+
+nlohmann::json ValueToJson(const openfeature::Value& value) {
+  if (value.IsBool()) {
+    return value.AsBool().value();
+  }
+  if (value.IsString()) {
+    return value.AsString().value();
+  }
+  if (value.IsNumber()) {
+    std::optional<int64_t> val_i = value.AsInt();
+    std::optional<double> val_d = value.AsDouble();
+    if (val_i && val_d && static_cast<double>(*val_i) == *val_d) {
+      return *val_i;
+    }
+    return val_d.value_or(0.0);
+  }
+  if (value.IsStructure()) {
+    nlohmann::json obj = nlohmann::json::object();
+    const auto* structure = value.AsStructure();
+    if (structure != nullptr) {
+      for (const auto& [key, val] : *structure) {
+        obj[key] = ValueToJson(val);
+      }
+    }
+    return obj;
+  }
+  if (value.IsList()) {
+    nlohmann::json arr = nlohmann::json::array();
+    const auto* list = value.AsList();
+    if (list != nullptr) {
+      for (const auto& val : *list) {
+        arr.push_back(ValueToJson(val));
+      }
+    }
+    return arr;
+  }
+  return nullptr;
 }
 
 std::optional<openfeature::FlagMetadataValue> JsonToMetadataValue(
@@ -113,6 +151,10 @@ nlohmann::json ContextToJson(const openfeature::EvaluationContext& ctx) {
       json[key] = *dbl_val;
     } else if (const auto* bool_val = std::any_cast<bool>(&value)) {
       json[key] = *bool_val;
+    } else if (const auto* of_val = std::any_cast<openfeature::Value>(&value)) {
+      json[key] = ValueToJson(*of_val);
+    } else if (const auto* json_val = std::any_cast<nlohmann::json>(&value)) {
+      json[key] = *json_val;
     } else {
       LOG(WARNING) << "Unsupported attribute type for key: " << key;
     }
