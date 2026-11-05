@@ -2,5 +2,51 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "github>open-feature/community-tooling"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track tag-pinned git_override blocks in MODULE.bazel",
+      "managerFilePatterns": [
+        "/(^|/|\\.)MODULE\\.bazel$/"
+      ],
+      "matchStrings": [
+        "git_override\\((?:\\s+|#[^\\n]*\\n)*module_name\\s*=\\s*\"(?<depName>[^\"]+)\",\\s*(?:#[^\\n]*\\n\\s*)*remote\\s*=\\s*\"https://github\\.com/(?<packageName>[^\"/]+/[^\"/]+?)(?:\\.git)?\",\\s*(?:#[^\\n]*\\n\\s*)*tag\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "github-tags"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Bazel Central Registry metadata exposes no release timestamps",
+      "matchDatasources": [
+        "bazel"
+      ],
+      "minimumReleaseAge": null
+    },
+    {
+      "description": "Allow YYYYMMDD CalVer jumps across years for abseil-cpp and open PRs automatically",
+      "matchDatasources": [
+        "bazel"
+      ],
+      "matchPackageNames": [
+        "abseil-cpp"
+      ],
+      "maxMajorIncrement": 100000,
+      "dependencyDashboardApproval": false
+    },
+    {
+      "description": "Unblock commit digest updates for flagd_schemas, which expose no release timestamps",
+      "matchManagers": [
+        "bazel-module"
+      ],
+      "matchDepNames": [
+        "flagd_schemas"
+      ],
+      "matchUpdateTypes": [
+        "digest"
+      ],
+      "minimumReleaseAge": null
+    }
   ]
 }
