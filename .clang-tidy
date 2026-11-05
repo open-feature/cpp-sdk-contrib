@@ -10,7 +10,7 @@ Checks: "
   -modernize-use-nodiscard,
   "
 
-HeaderFilterRegex: ".*/flagd/.*"
+HeaderFilterRegex: ".*/flagd|hooks/.*"
 ExcludeHeaderFilterRegex: ".*\\.pb\\.h|.*\\.grpc\\.pb\\.h"
 
 # Treat all warnings as errors (optional, good for strict CI/CD)

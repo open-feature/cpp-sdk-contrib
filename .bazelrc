@@ -2,3 +2,4 @@
 # error: relocation refers to local symbol "...", which is defined in a discarded section
 build --copt=-fno-asynchronous-unwind-tables
 build --linkopt=-Wl,--gc-sections
+
