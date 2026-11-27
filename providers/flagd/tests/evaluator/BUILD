@@ -32,3 +32,15 @@ cc_test(
         "@nlohmann_json//:json",
     ],
 )
+
+cc_test(
+    name = "resolve_test",
+    srcs = ["resolve_test.cpp"],
+    deps = [
+        "//providers/flagd/src/evaluator",
+        "//providers/flagd/src/evaluator:flagd_ops",
+        "//providers/flagd/src/sync",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
