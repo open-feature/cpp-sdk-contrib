@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <limits>
 #include <nlohmann/json_fwd.hpp>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -443,7 +444,16 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
       weight = std::max(weight_json.get<int32_t>(), 0);
     }
 
-    distributions.push_back({item.value()[0], weight});
+    // a bucket variant is a primitive or a resolve result; anything else makes
+    // fractional return null
+    const nlohmann::json& bucket_variant = item.value()[0];
+    if (!bucket_variant.is_null() && !bucket_variant.is_string() &&
+        !bucket_variant.is_boolean() && !bucket_variant.is_number() &&
+        !IsResolveResult(bucket_variant)) {
+      return nlohmann::json();
+    }
+
+    distributions.push_back({bucket_variant, weight});
     sum_of_weights += weight;
   }
 
@@ -503,6 +513,96 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
   }
 
   return absl::InternalError("Fractional bucketing failed to find a variant");
+}
+
+namespace {
+
+// metadata keys owned by flag set metadata
+constexpr std::string_view kReservedMetadataKeys[] = {"flagSetId", "version"};
+
+bool IsReservedMetadataKey(const std::string& key) {
+  return std::find(std::begin(kReservedMetadataKeys),
+                   std::end(kReservedMetadataKeys),
+                   key) != std::end(kReservedMetadataKeys);
+}
+
+// coerces a variant like a plain targeting result
+std::optional<nlohmann::json> ResolveVariant(const nlohmann::json& value) {
+  if (value.is_null() || value.is_string()) return value;
+  if (value.is_boolean()) return value.get<bool>() ? "true" : "false";
+  if (value.is_number() && std::isfinite(value.get<double>())) {
+    return value.dump();
+  }
+  return std::nullopt;
+}
+
+std::optional<nlohmann::json> ResolveMetadata(const nlohmann::json& pairs) {
+  nlohmann::json metadata = nlohmann::json::object();
+  if (pairs.is_null()) return metadata;
+  if (!pairs.is_array()) return std::nullopt;
+  for (const nlohmann::json& pair : pairs) {
+    if (!pair.is_array() || pair.size() != 2 || !pair[0].is_string()) {
+      return std::nullopt;
+    }
+    const nlohmann::json& value = pair[1];
+    // NaN and Infinity can't be encoded as JSON
+    bool valid = value.is_string() || value.is_boolean() ||
+                 (value.is_number() && std::isfinite(value.get<double>()));
+    if (!valid) return std::nullopt;
+    const std::string key = pair[0].get<std::string>();
+    if (!IsReservedMetadataKey(key)) metadata[key] = value;
+  }
+  return metadata;
+}
+
+}  // namespace
+
+absl::StatusOr<nlohmann::json> Resolve(const json_logic::JsonLogic& eval,
+                                       const nlohmann::json& values,
+                                       const nlohmann::json& data) {
+  if (!values.is_array() || values.empty() || values.size() > 3) {
+    return nlohmann::json();
+  }
+  absl::StatusOr<nlohmann::json> args = eval.Apply(values, data);
+  if (!args.ok()) return args.status();
+
+  // malformed arguments return null, like the other custom operations
+  std::optional<nlohmann::json> variant = ResolveVariant((*args)[0]);
+  if (!variant) return nlohmann::json();
+
+  nlohmann::json reason = args->size() > 1 ? (*args)[1] : nlohmann::json();
+  if (!reason.is_null() && !reason.is_string()) return nlohmann::json();
+
+  std::optional<nlohmann::json> metadata =
+      ResolveMetadata(args->size() > 2 ? (*args)[2] : nlohmann::json());
+  if (!metadata) return nlohmann::json();
+
+  nlohmann::json result = {
+      {"variant", *variant}, {"reason", reason}, {"metadata", *metadata}};
+  return nlohmann::json::binary(nlohmann::json::to_cbor(result),
+                                kResolveSubtype);
+}
+
+bool IsResolveResult(const nlohmann::json& value) {
+  return value.is_binary() && value.get_binary().has_subtype() &&
+         value.get_binary().subtype() == kResolveSubtype;
+}
+
+std::optional<ResolveResult> DecodeResolveResult(const nlohmann::json& value) {
+  if (!IsResolveResult(value)) return std::nullopt;
+  nlohmann::json decoded =
+      nlohmann::json::from_cbor(value.get_binary(), true, false);
+  if (decoded.is_discarded() || !decoded.is_object()) return std::nullopt;
+
+  ResolveResult result;
+  if (decoded["variant"].is_string()) {
+    result.variant = decoded["variant"].get<std::string>();
+  }
+  if (decoded["reason"].is_string()) {
+    result.reason = decoded["reason"].get<std::string>();
+  }
+  if (decoded["metadata"].is_object()) result.metadata = decoded["metadata"];
+  return result;
 }
 
 }  // namespace flagd

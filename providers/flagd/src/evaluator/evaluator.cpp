@@ -131,6 +131,44 @@ void EnrichMetadata(openfeature::FlagMetadata& metadata,
   }
 }
 
+// binary values only come from the resolve operator; removing them from
+// context data keeps a context value from being taken for a resolve result
+nlohmann::json WithoutBinary(const nlohmann::json& json) {
+  if (json.is_binary()) {
+    LOG(WARNING) << "Dropping binary value from evaluation context";
+    return nullptr;
+  }
+  if (json.is_object()) {
+    nlohmann::json obj = nlohmann::json::object();
+    for (const auto& [key, value] : json.items()) {
+      obj[key] = WithoutBinary(value);
+    }
+    return obj;
+  }
+  if (json.is_array()) {
+    nlohmann::json arr = nlohmann::json::array();
+    for (const auto& item : json) {
+      arr.push_back(WithoutBinary(item));
+    }
+    return arr;
+  }
+  return json;
+}
+
+// openfeature::Reason is a closed enum, so only standard reasons can be
+// reported; others keep the reason the evaluation would otherwise report
+std::optional<openfeature::Reason> ReasonFromString(std::string_view reason) {
+  for (openfeature::Reason candidate :
+       {openfeature::Reason::kStatic, openfeature::Reason::kDefault,
+        openfeature::Reason::kTargetingMatch, openfeature::Reason::kSplit,
+        openfeature::Reason::kCached, openfeature::Reason::kDisabled,
+        openfeature::Reason::kUnknown, openfeature::Reason::kStale,
+        openfeature::Reason::kError}) {
+    if (openfeature::ToString(candidate) == reason) return candidate;
+  }
+  return std::nullopt;
+}
+
 nlohmann::json ContextToJson(const openfeature::EvaluationContext& ctx) {
   nlohmann::json json = nlohmann::json::object();
   std::optional<std::string_view> targeting_key = ctx.GetTargetingKey();
@@ -154,7 +192,7 @@ nlohmann::json ContextToJson(const openfeature::EvaluationContext& ctx) {
     } else if (const auto* of_val = std::any_cast<openfeature::Value>(&value)) {
       json[key] = ValueToJson(*of_val);
     } else if (const auto* json_val = std::any_cast<nlohmann::json>(&value)) {
-      json[key] = *json_val;
+      json[key] = WithoutBinary(*json_val);
     } else {
       LOG(WARNING) << "Unsupported attribute type for key: " << key;
     }
@@ -170,6 +208,7 @@ JsonLogicEvaluator::JsonLogicEvaluator(std::shared_ptr<FlagSync> sync)
   json_logic_.RegisterOperation("ends_with", EndsWith);
   json_logic_.RegisterOperation("sem_ver", SemVer);
   json_logic_.RegisterOperation("fractional", Fractional);
+  json_logic_.RegisterOperation("resolve", Resolve);
 }
 
 template <typename T>
@@ -214,8 +253,11 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
   }
 
   std::optional<std::string> variant;
+  bool has_targeting = false;
+  std::optional<ResolveResult> resolved;
 
   if (flag_config.contains("targeting") && !flag_config["targeting"].empty()) {
+    has_targeting = true;
     nlohmann::json data = ContextToJson(ctx);
     // flagd also injects some special variables
     data["$flagd"] = {
@@ -230,7 +272,12 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
     absl::StatusOr<nlohmann::json> result =
         json_logic_.Apply(flag_config["targeting"], data);
     if (result.ok()) {
-      if (result.value().is_string()) {
+      resolved = DecodeResolveResult(result.value());
+      if (resolved.has_value()) {
+        // a null variant falls back exactly like a plain null result
+        variant = resolved->variant;
+        EnrichMetadata(flag_metadata, resolved->metadata);
+      } else if (result.value().is_string()) {
         variant = result.value().get<std::string>();
       } else if (result.value().is_boolean()) {
         variant = result.value().get<bool>() ? "true" : "false";
@@ -256,14 +303,34 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
     variant_name = std::move(*variant);
     reason = openfeature::Reason::kTargetingMatch;
   } else {
-    if (flag_config.value("defaultVariant", nlohmann::json()).is_null()) {
-      return std::make_unique<openfeature::ResolutionDetails<T>>(
-          std::move(default_value), openfeature::Reason::kDefault, "",
-          flag_metadata, std::nullopt, std::nullopt);
+    // targeting that returned null reports DEFAULT; no targeting is STATIC
+    reason = has_targeting ? openfeature::Reason::kDefault
+                           : openfeature::Reason::kStatic;
+    if (!flag_config.value("defaultVariant", nlohmann::json()).is_null()) {
+      variant_name = flag_config["defaultVariant"];
     }
+  }
 
-    variant_name = flag_config["defaultVariant"];
-    reason = openfeature::Reason::kStatic;
+  // a resolve reason replaces the reason the plain result would report
+  if (resolved.has_value() && resolved->reason.has_value()) {
+    std::optional<openfeature::Reason> rule_reason =
+        ReasonFromString(*resolved->reason);
+    if (rule_reason.has_value()) {
+      reason = *rule_reason;
+    } else {
+      LOG(INFO) << "Reason '" << *resolved->reason << "' for flag '" << flag_key
+                << "' isn't a standard reason; reporting "
+                << openfeature::ToString(reason);
+    }
+  }
+
+  // no variant means no value; reasons only affect telemetry and side effects
+  if (variant_name.empty()) {
+    return std::make_unique<openfeature::ResolutionDetails<T>>(
+        std::move(default_value),
+        reason == openfeature::Reason::kStatic ? openfeature::Reason::kDefault
+                                               : reason,
+        "", flag_metadata, std::nullopt, std::nullopt);
   }
 
   const nlohmann::json& variants = flag_config["variants"];
