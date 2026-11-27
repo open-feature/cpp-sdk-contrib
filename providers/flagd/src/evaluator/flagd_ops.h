@@ -1,6 +1,7 @@
 #ifndef PROVIDERS_FLAGD_SRC_EVALUATOR_FLAGD_OPS_H_
 #define PROVIDERS_FLAGD_SRC_EVALUATOR_FLAGD_OPS_H_
 
+#include <cstdint>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
@@ -26,9 +27,7 @@ absl::StatusOr<nlohmann::json> Resolve(const json_logic::JsonLogic& eval,
                                        const nlohmann::json& values,
                                        const nlohmann::json& data);
 
-// The resolve operator returns its result as a binary JSON value with this
-// subtype. Binary values can't be decoded from flag configs (JSON text), and
-// are removed from evaluation context data, so only the operator creates them.
+// binary subtype of a resolve result; only the resolve operator creates one
 inline constexpr std::uint8_t kResolveSubtype = 0x52;
 
 struct ResolveResult {

@@ -4,6 +4,7 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <string>
+#include <tuple>
 #include <variant>
 
 #include "flagd/evaluator/evaluator.h"
@@ -26,8 +27,7 @@ class TestableSync : public flagd::FlagSync {
   }
 };
 
-// a flag with variants on/off and, unless default_variant is empty, a
-// defaultVariant
+// variants on/off, with a defaultVariant unless default_variant is empty
 nlohmann::json Flags(const nlohmann::json& targeting,
                      const std::string& default_variant = "off") {
   nlohmann::json flag = {
@@ -206,6 +206,40 @@ TEST_F(ResolveTest, NonFiniteMetadataFallsBackToDefaultVariant) {
   EXPECT_EQ(result->GetReason(), openfeature::Reason::kDefault);
 }
 
+// malformed computed arguments return null, so the default variant is used
+class ResolveMalformedTest
+    : public ResolveTest,
+      public ::testing::WithParamInterface<
+          std::tuple<const char*, const char*, const char*>> {};
+
+TEST_P(ResolveMalformedTest, FallsBackToDefaultVariant) {
+  auto [variant, reason, metadata] = GetParam();
+  auto ctx = openfeature::EvaluationContext::Builder()
+                 .WithAttribute("v", nlohmann::json::parse(variant))
+                 .WithAttribute("r", nlohmann::json::parse(reason))
+                 .WithAttribute("m", nlohmann::json::parse(metadata))
+                 .Build();
+  auto result = Evaluate(
+      Flags(R"({"resolve": [{"var": "v"}, {"var": "r"}, {"var": "m"}]})"_json),
+      ctx);
+  EXPECT_EQ(result->GetValue(), "off-value");
+  EXPECT_EQ(result->GetVariant(), "off");
+  EXPECT_EQ(result->GetReason(), openfeature::Reason::kDefault);
+  EXPECT_FALSE(result->GetErrorCode().has_value());
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Args, ResolveMalformedTest,
+    ::testing::Values(
+        std::make_tuple(R"({"a": 1})", "null", "null"),  // object variant
+        std::make_tuple("[1]", "null", "null"),          // array variant
+        std::make_tuple(R"("on")", "1", "null"),         // non-string reason
+        std::make_tuple(R"("on")", "null", R"("details")"),      // not pairs
+        std::make_tuple(R"("on")", "null", R"([["details"]])"),  // short pair
+        std::make_tuple(R"("on")", "null", R"([[1, "x"]])"),  // non-string key
+        std::make_tuple(R"("on")", "null",
+                        R"([["details", {"a": 1}]])")));  // object value
+
 // a null variant falls back exactly like a plain null, with the rule's reason
 
 TEST_F(ResolveTest, PlainNullReportsDefault) {
@@ -243,6 +277,8 @@ TEST_F(ResolveTest, NullVariantWithoutDefaultVariantAndCustomReason) {
       Evaluate(Flags(R"({"resolve": [null, "OFF_BY_POLICY"]})"_json, ""));
   EXPECT_EQ(result->GetValue(), "code-default");
   EXPECT_EQ(result->GetVariant(), "");
+  // custom reasons need open-feature/cpp-sdk#161
+  EXPECT_EQ(result->GetReason(), openfeature::Reason::kDefault);
   EXPECT_FALSE(result->GetErrorCode().has_value());
 }
 
@@ -266,7 +302,7 @@ TEST_F(ResolveTest, DisabledWithOverrides) {
   EXPECT_FALSE(bob->GetErrorCode().has_value());
 }
 
-// a reason never changes the outcome
+// a reason does not change the outcome
 TEST_F(ResolveTest, SelectedVariantWithDisabledReason) {
   auto result = Evaluate(Flags(R"({"resolve": ["on", "DISABLED"]})"_json));
   EXPECT_EQ(result->GetValue(), "on-value");
@@ -302,8 +338,8 @@ TEST_F(ResolveTest, ContextCannotInvokeResolve) {
           .Build();
   auto result =
       Evaluate(Flags(R"({"if": [true, {"var": "pick"}, "on"]})"_json), ctx);
-  EXPECT_NE(result->GetVariant(), "on");
-  EXPECT_NE(result->GetReason(), openfeature::Reason::kDisabled);
+  EXPECT_EQ(result->GetVariant(), "off");
+  EXPECT_EQ(result->GetReason(), openfeature::Reason::kDefault);
 }
 
 TEST_F(ResolveTest, ContextCannotForgeResolveResult) {
@@ -321,8 +357,8 @@ TEST_F(ResolveTest, ContextCannotForgeResolveResult) {
                  .Build();
   auto result =
       Evaluate(Flags(R"({"if": [true, {"var": "pick"}, "on"]})"_json), ctx);
-  EXPECT_NE(result->GetVariant(), "on");
-  EXPECT_NE(result->GetReason(), openfeature::Reason::kDisabled);
+  EXPECT_EQ(result->GetVariant(), "off");
+  EXPECT_EQ(result->GetReason(), openfeature::Reason::kDefault);
 }
 
 }  // namespace

@@ -131,13 +131,9 @@ void EnrichMetadata(openfeature::FlagMetadata& metadata,
   }
 }
 
-// binary values only come from the resolve operator; removing them from
-// context data keeps a context value from being taken for a resolve result
+// binary is reserved for resolve results, so context can't forge one
 nlohmann::json WithoutBinary(const nlohmann::json& json) {
-  if (json.is_binary()) {
-    LOG(WARNING) << "Dropping binary value from evaluation context";
-    return nullptr;
-  }
+  if (json.is_binary()) return nullptr;
   if (json.is_object()) {
     nlohmann::json obj = nlohmann::json::object();
     for (const auto& [key, value] : json.items()) {
@@ -155,8 +151,7 @@ nlohmann::json WithoutBinary(const nlohmann::json& json) {
   return json;
 }
 
-// openfeature::Reason is a closed enum, so only standard reasons can be
-// reported; others keep the reason the evaluation would otherwise report
+// Reason is a closed enum, so non-standard reasons keep the default reason
 std::optional<openfeature::Reason> ReasonFromString(std::string_view reason) {
   for (openfeature::Reason candidate :
        {openfeature::Reason::kStatic, openfeature::Reason::kDefault,
@@ -315,13 +310,7 @@ JsonLogicEvaluator::ResolveAny(std::string_view flag_key, T default_value,
   if (resolved.has_value() && resolved->reason.has_value()) {
     std::optional<openfeature::Reason> rule_reason =
         ReasonFromString(*resolved->reason);
-    if (rule_reason.has_value()) {
-      reason = *rule_reason;
-    } else {
-      LOG(INFO) << "Reason '" << *resolved->reason << "' for flag '" << flag_key
-                << "' isn't a standard reason; reporting "
-                << openfeature::ToString(reason);
-    }
+    if (rule_reason.has_value()) reason = *rule_reason;
   }
 
   // no variant means no value; reasons only affect telemetry and side effects

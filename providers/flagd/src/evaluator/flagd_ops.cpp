@@ -444,8 +444,7 @@ absl::StatusOr<nlohmann::json> Fractional(const json_logic::JsonLogic& eval,
       weight = std::max(weight_json.get<int32_t>(), 0);
     }
 
-    // a bucket variant is a primitive or a resolve result; anything else makes
-    // fractional return null
+    // only primitive or resolve bucket variants; anything else returns null
     const nlohmann::json& bucket_variant = item.value()[0];
     if (!bucket_variant.is_null() && !bucket_variant.is_string() &&
         !bucket_variant.is_boolean() && !bucket_variant.is_number() &&
@@ -526,7 +525,7 @@ bool IsReservedMetadataKey(const std::string& key) {
                    key) != std::end(kReservedMetadataKeys);
 }
 
-// coerces a variant like a plain targeting result
+// coerces a variant to a variant name; number variants are undefined
 std::optional<nlohmann::json> ResolveVariant(const nlohmann::json& value) {
   if (value.is_null() || value.is_string()) return value;
   if (value.is_boolean()) return value.get<bool>() ? "true" : "false";
@@ -595,13 +594,12 @@ std::optional<ResolveResult> DecodeResolveResult(const nlohmann::json& value) {
   if (decoded.is_discarded() || !decoded.is_object()) return std::nullopt;
 
   ResolveResult result;
-  if (decoded["variant"].is_string()) {
-    result.variant = decoded["variant"].get<std::string>();
-  }
-  if (decoded["reason"].is_string()) {
-    result.reason = decoded["reason"].get<std::string>();
-  }
-  if (decoded["metadata"].is_object()) result.metadata = decoded["metadata"];
+  const nlohmann::json& variant = decoded.value("variant", nlohmann::json());
+  if (variant.is_string()) result.variant = variant.get<std::string>();
+  const nlohmann::json& reason = decoded.value("reason", nlohmann::json());
+  if (reason.is_string()) result.reason = reason.get<std::string>();
+  nlohmann::json metadata = decoded.value("metadata", nlohmann::json());
+  if (metadata.is_object()) result.metadata = std::move(metadata);
   return result;
 }
 
